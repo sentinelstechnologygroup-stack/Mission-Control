@@ -1,0 +1,12 @@
+{
+  "policy_name": "sandbox-isolation",
+  "version": 1,
+  "rules": [
+    "one sandbox per job",
+    "shared ledger is canonical for cross-department handoffs",
+    "no hidden shared state between sandboxes",
+    "department work stays in department sub-sandboxes",
+    "lifecycle transitions must be recorded"
+  ],
+  "default_lifecycle": ["INTAKE", "SCOPED", "IN_PROGRESS", "EXEC_QA", "DEPT_QA", "NETTIE_QA", "COMPLETE"]
+}

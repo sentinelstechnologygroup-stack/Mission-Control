@@ -1,0 +1,69 @@
+{
+  "version": "2026-04-23-email-governance-directive",
+  "primaryRecipients": [
+    "SentinelsTechnologyGroup@gmail.com",
+    "Patrick@SentinelsDesignLab.com"
+  ],
+  "authorizedSenders": {
+    "Nettie": {
+      "domain": "executive oversight, rollups, cross-department summaries, escalations",
+      "role": "executive"
+    },
+    "Dana": {
+      "domain": "finance, investment, market intelligence, financial operations, financial reports",
+      "role": "department-head"
+    },
+    "Van": {
+      "domain": "development/program execution, project delivery, engineering status",
+      "role": "department-head"
+    },
+    "Perry": {
+      "domain": "build execution, site/app build progress, deployment status, revision cycle progress",
+      "role": "department-head"
+    },
+    "Funboy": {
+      "domain": "creative/media/reporting tasks assigned by Mission Control governance",
+      "role": "department-head"
+    }
+  },
+  "requiredContentFields": [
+    "sender",
+    "report_type",
+    "system_or_project",
+    "current_status",
+    "key_findings",
+    "blockers_or_risks",
+    "next_action",
+    "evidence_summary",
+    "run_id",
+    "attachments"
+  ],
+  "subjectRule": {
+    "format": "[Sender] Report Type — Project/System — Status or Hook",
+    "regex": "^\\[[^\\]]+\\]\\s+[^—]+\\s+—\\s+[^—]+\\s+—\\s+.+$"
+  },
+  "autoSendAllowed": [
+    "routine-status-update",
+    "weekly-operating-update",
+    "project-progress-report",
+    "blocker-alert",
+    "phase-completion-report",
+    "executive-summary",
+    "financial-investment-report",
+    "internal-validation-audit-report",
+    "failure-exception-report"
+  ],
+  "holdForApproval": [
+    "external-client-facing",
+    "broad-distribution-executive-statement",
+    "sensitive-legal-compliance-incident",
+    "public-launch-communication"
+  ],
+  "nettieDigest": {
+    "queuePath": "runtime/email-governance/nettie/executive_digest_queue.jsonl",
+    "alertsPath": "runtime/email-governance/nettie/alerts.jsonl",
+    "dailyRollupWhenActive": true,
+    "weeklyRollupMinimum": true,
+    "operatorFirst": true
+  }
+}

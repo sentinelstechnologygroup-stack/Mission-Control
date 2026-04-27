@@ -1,0 +1,22 @@
+{
+  "policy_name": "global-api-rate-control",
+  "version": 1,
+  "priority_levels": {
+    "P0": { "max_concurrency": 1, "queue": "fast-lane" },
+    "P1": { "max_concurrency": 2, "queue": "standard" },
+    "P2": { "max_concurrency": 2, "queue": "standard" },
+    "P3": { "max_concurrency": 1, "queue": "deferred" }
+  },
+  "retry": {
+    "max_attempts": 4,
+    "backoff": "exponential",
+    "jitter": true,
+    "cooldown_seconds": 30
+  },
+  "fallback_order": ["primary", "secondary", "deferred"],
+  "telemetry": ["request_id", "sandbox_id", "job_id", "provider", "priority", "wait_ms", "attempts", "status", "fallback_used"],
+  "sandbox_budgets": {
+    "default_daily_requests": 200,
+    "default_burst": 20
+  }
+}
