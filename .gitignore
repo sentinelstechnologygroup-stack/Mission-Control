@@ -21,6 +21,19 @@ dist-ssr
 /runtime/mission-control-state.json
 /runtime/mission-control-server.log
 
+# Local agent / Python caches
+.hermes/
+.venv/
+.venv-docx/
+*/__pycache__/
+*.pyc
+
+# Scratch / sandbox content
+archive/
+sandboxes/
+reports/v22-failover-check/
+reports/v22-failover-check-2/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
