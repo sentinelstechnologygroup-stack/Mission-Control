@@ -168,7 +168,7 @@ export default function System() {
                 <span className="flex items-center gap-1.5">
                   <span className={`w-1.5 h-1.5 rounded-full ${automationsLoading ? "bg-amber-500" : automationsError ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
                   <span className="text-[9px] text-white/20 font-mono">
-                    {automationsLoading ? "Loading" : automationsError ? "Static fallback" : "Live"}
+                    {automationsLoading ? "Loading" : automationsError ? "Data offline" : "Live"}
                   </span>
                 </span>
               </div>
@@ -228,7 +228,7 @@ export default function System() {
                 <span className="flex items-center gap-1.5">
                   <span className={`w-1.5 h-1.5 rounded-full ${logsLoading ? "bg-amber-500" : logsError ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
                   <span className="text-[9px] text-white/25 font-mono">
-                    {logsLoading ? "Loading" : logsError ? "Static fallback" : "Live"}
+                    {logsLoading ? "Loading" : logsError ? "Data offline" : "Live"}
                   </span>
                 </span>
               </div>

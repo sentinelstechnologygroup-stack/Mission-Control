@@ -258,7 +258,7 @@ export default function Operations() {
           <span className="flex items-center gap-1.5">
             <span className={`w-1.5 h-1.5 rounded-full ${jobsLoading ? "bg-amber-500" : jobsError ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
             <span className="text-[9px] text-white/20 font-mono">
-              {jobsLoading ? "Loading" : jobsError ? "Static fallback" : "Live"}
+              {jobsLoading ? "Loading" : jobsError ? "Data offline" : "Live"}
             </span>
           </span>
         </div>
