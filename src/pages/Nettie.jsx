@@ -349,6 +349,15 @@ function hasResolvedReply(message) {
   return message.kind !== "pending" || message.text !== GENERIC_PROCESSING_FALLBACK;
 }
 
+function getDeliveryFailureText(error) {
+  const message = String(error?.message || "").toLowerCase();
+  if (message.includes("auth")) return "Not delivered - Codex auth error";
+  if (message.includes("codex")) return "Not delivered - Codex executor unavailable";
+  if (message.includes("hermes")) return "Not delivered - legacy Hermes unavailable";
+  if (message.includes("executor")) return "Not delivered - no executor available";
+  return "Not delivered - send failed";
+}
+
 // ===========================================================
 // COMPONENTS
 // ===========================================================
@@ -579,10 +588,10 @@ export default function Nettie() {
 
       refetchHistory();
     },
-    onError: () => {
+    onError: (error) => {
       setPendingReplyId(null);
       setLocalMessages(prev =>
-        prev.map(m => m._optimistic ? { ...m, failed: true } : m)
+        prev.map(m => m._optimistic ? { ...m, failed: true, failureText: getDeliveryFailureText(error) } : m)
       );
     },
   });
@@ -789,7 +798,7 @@ export default function Nettie() {
                   <ThreadMessage msg={msg} />
                   {msg.failed && (
                     <p className="text-[9px] text-red-400/50 font-mono ml-10 -mt-2 mb-2">
-                      ⚠ Not delivered — Hermes bridge unavailable
+                      {msg.failureText || "Not delivered - no executor available"}
                     </p>
                   )}
                   {msg._optimistic && !msg.failed && (
@@ -839,10 +848,10 @@ export default function Nettie() {
                 <span className="flex items-center gap-1 ml-auto shrink-0">
                   <span className={`w-1 h-1 rounded-full ${chatLoading ? "bg-amber-500" : chatError ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
                   <span className="text-[7px] text-white/15 font-mono">
-                    {chatLoading ? "Loading" : chatError ? "Static fallback" : "Live"}
+                    {chatLoading ? "Loading" : chatError ? "History offline" : "Live"}
                   </span>
                   {sendChatMutation.isPending && <span className="text-[7px] text-blue-400/50 font-mono ml-1">· Sending…</span>}
-                  {sendChatMutation.isError && <span className="text-[7px] text-red-400/50 font-mono ml-1">· Send failed</span>}
+                  {sendChatMutation.isError && <span className="text-[7px] text-red-400/50 font-mono ml-1">· {getDeliveryFailureText(sendChatMutation.error).replace(/^Not delivered - /, "")}</span>}
                 </span>
               </div>
             </div>

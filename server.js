@@ -5,6 +5,7 @@ import os from 'os'
 import crypto from 'crypto'
 import { spawn, spawnSync } from 'child_process'
 import { fileURLToPath } from 'url'
+import * as jobStore from './lib/jobStore.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -29,6 +30,20 @@ fs.mkdirSync(sharedLedgerDir, { recursive: true })
 
 const hermesCheck = spawnSync('hermes', ['--version'], { encoding: 'utf8' })
 const hermesAvailable = hermesCheck.status === 0
+const codexCheck = spawnSync('which', ['codex'], { encoding: 'utf8' })
+const codexVersionCheck = codexCheck.status === 0
+  ? spawnSync('codex', ['--version'], { encoding: 'utf8' })
+  : null
+const codexAvailable = codexCheck.status === 0 && codexVersionCheck?.status === 0
+const codexVersion = codexAvailable ? String(codexVersionCheck.stdout || codexVersionCheck.stderr || '').trim() : null
+const AI_EXECUTION_PROVIDER = String(process.env.AI_EXECUTION_PROVIDER || 'codex').toLowerCase()
+const AI_EXECUTION_FALLBACK = String(process.env.AI_EXECUTION_FALLBACK || 'none').toLowerCase()
+const LOCAL_EXECUTION_FALLBACK = String(process.env.LOCAL_EXECUTION_FALLBACK || 'ollama/manual').toLowerCase()
+const CODEX_EXEC_TIMEOUT_MS = Number(process.env.CODEX_EXEC_TIMEOUT_MS || 120000)
+const EXECUTOR_HEALTH_CACHE_MS = Number(process.env.EXECUTOR_HEALTH_CACHE_MS || 120000)
+const CODEX_CONNECTED_TEXT = 'CODEX_EXECUTOR_CONNECTED'
+let lastExecutorError = null
+let executorHealthCache = null
 
 const nowIso = () => new Date().toISOString()
 
@@ -67,8 +82,8 @@ const HERMES_JOB_TYPES = new Set(['image', 'document', 'text', 'execution'])
 const HERMES_TERMINAL_STATUSES = new Set(['complete', 'failed'])
 const HERMES_ROUTING_RULE = {
   domain: 'routing',
-  rule: 'execution-type commands route to Hermes',
-  intent: 'hermes execution routing',
+  rule: 'execution-type commands route to selected executor',
+  intent: 'executor execution routing',
   behaviorKey: 'chat execution routing',
   action: 'require',
   source: 'system',
@@ -77,6 +92,9 @@ const OPEN_STATUSES = new Set(['queued', 'running', 'in_progress', 'paused', 'bl
 const CLOSED_STATUSES = new Set(['completed', 'complete', 'failed', 'cancelled'])
 const TOKEN_OUTAGE_RE = /token\s*outage|rate\s*limit|429|insufficient[_\s-]?quota|quota exceeded|token error/i
 const RUNBOOK_VIOLATION_REASON = 'RUNBOOK VIOLATION — REQUIRED ARTIFACTS MISSING'
+const GENERIC_SCRIPT_EXECUTION_RUNBOOK = 'GENERIC_SCRIPT_EXECUTION_RUNBOOK.md'
+const GENERIC_SCRIPT_REQUIRED_ARTIFACTS = ['INITIAL_SCOPE.md', 'BUILD_PLAN.md', 'ARCHITECTURE_SPEC.md', 'IMPLEMENTATION_SCOPE.json']
+const FIREBASE_INFRA_TASK_RE = /\b(firebase|firestore|storage|hosting|functions?|infrastructure)\b|\bauth model\b|\bfirestore schema\b|\benvironment matrix\b|\benv(?:ironment)? setup\b|\bpersistence layer\b/
 const EXECUTION_PACKET_REQUIREMENTS = [
   ['filesCreated', ['filesCreated', 'files_created', 'createdFiles', 'files']],
   ['filesModified', ['filesModified', 'files_modified', 'modifiedFiles']],
@@ -107,7 +125,7 @@ const SAFE_LOCAL_TRANSFORMATION_POLICY = {
 }
 const DEPARTMENT_HEAD_RUNBOOKS = {
   Nettie: ['ROUTING_AND_READINESS_VALIDATION_RUNBOOK.md'],
-  Van: ['APP_WEBSITE_DELIVERY_RUNBOOK.md', 'FIREBASE_FIRESTORE_SETUP_RUNBOOK.md'],
+  Van: [GENERIC_SCRIPT_EXECUTION_RUNBOOK, 'APP_WEBSITE_DELIVERY_RUNBOOK.md', 'FIREBASE_FIRESTORE_SETUP_RUNBOOK.md'],
   Perry: ['SECURITY_QA_GATE_RUNBOOK.md'],
   Torina: ['MEDIA_PACKAGING_AND_MESSAGING_REVIEW_RUNBOOK.md'],
   Scribe: ['ARTICLE_WORKFLOW.md', 'SOURCE_POLICY.md'],
@@ -126,6 +144,11 @@ const defaultState = {
     pid: process.pid,
     launchedAt: nowIso(),
     hermesAvailable,
+    codexAvailable,
+    codexVersion,
+    selectedExecutor: AI_EXECUTION_PROVIDER,
+    fallbackExecutor: AI_EXECUTION_FALLBACK,
+    hermesMode: 'legacy/manual-only',
     version: 'Local command center bridge',
     updatedAt: nowIso(),
   },
@@ -182,13 +205,14 @@ const defaultState = {
       from: 'Nettie',
       role: 'Orchestrator',
       kind: 'briefing',
-      text: 'Mission Control is online. I can route work, launch Hermes workers, and surface company status. Ask me for a briefing or issue an executive command.',
+      text: 'Mission Control is online. I can route work, launch Codex workers, fall back to Hermes, and surface company status. Ask me for a briefing or issue an executive command.',
       ts: nowIso(),
     },
   ],
   logs: [
     { id: crypto.randomUUID(), ts: nowIso(), level: 'info', message: 'Mission Control initialized from local bridge.' },
     { id: crypto.randomUUID(), ts: nowIso(), level: 'info', message: 'Hermes availability check completed.' },
+    { id: crypto.randomUUID(), ts: nowIso(), level: 'info', message: 'Codex availability check completed.' },
   ],
 }
 
@@ -276,6 +300,23 @@ function getDepartmentHeadRunbooks(name = '') {
   return DEPARTMENT_HEAD_RUNBOOKS[canonical] || []
 }
 
+function isGenericScriptTask(name = '', task = '', inputPayload = null) {
+  const canonical = canonicalDepartmentHeadName(name)
+  if (canonical !== 'Van') return false
+
+  const payload = inputPayload && typeof inputPayload === 'object' ? inputPayload : {}
+  const explicitType = normalizeTaskKey(payload.type || payload.taskType || payload.classification?.type || '')
+  const explicitDomain = normalizeTaskKey(payload.domain || payload.executionDomain || payload.classification?.domain || '')
+  if (explicitType === 'system' && explicitDomain === 'local-execution') return true
+
+  const taskText = String(task || payload.task || payload.text || '').toLowerCase()
+  const hasScriptSignals = /\b(sys-\d+|validator|validation|script|cli|fixture|json|deterministic|queue-runner|python3|bash)\b/.test(taskText)
+  const hasInfraSignals = FIREBASE_INFRA_TASK_RE.test(taskText)
+  const hasWebsiteSignals = /\b(app|website|web\s*app|rebuild|export|hardening|scrub|migration|technical salvage|frontend|backend|api|deploy)\b/.test(taskText)
+
+  return hasScriptSignals && !hasInfraSignals && !hasWebsiteSignals
+}
+
 function inferGoverningRunbook(name = '', task = '', inputPayload = null) {
   const canonical = canonicalDepartmentHeadName(name)
   const explicit = inputPayload?.governingRunbook || inputPayload?.runbook || inputPayload?.runbookFile || ''
@@ -284,7 +325,10 @@ function inferGoverningRunbook(name = '', task = '', inputPayload = null) {
   const taskText = String(task || inputPayload?.task || inputPayload?.text || '').toLowerCase()
 
   if (canonical === 'Van') {
-    if (/\b(firebase|firestore|auth|storage|hosting|functions?|rules?|schemas?|environment|env|persistence)\b/.test(taskText)) {
+    if (isGenericScriptTask(canonical, task, inputPayload)) {
+      return GENERIC_SCRIPT_EXECUTION_RUNBOOK
+    }
+    if (FIREBASE_INFRA_TASK_RE.test(taskText)) {
       return 'FIREBASE_FIRESTORE_SETUP_RUNBOOK.md'
     }
     if (/\b(app|website|web\s*app|rebuild|export|hardening|scrub|migration|technical salvage|frontend|backend|api|deploy)\b/.test(taskText)) {
@@ -504,6 +548,57 @@ function ensureAutoWebsiteArtifacts(payload = null, task = '', runbook = '') {
   return payload
 }
 
+function inferGenericScriptProjectPath(payload = null, task = '') {
+  const existing = payload?.projectPath || payload?.artifactRoot || payload?.workspacePath || payload?.basePath || ''
+  if (existing) return String(existing)
+
+  const taskText = String(task || payload?.task || payload?.text || '')
+  const sysMatch = taskText.match(/\b(SYS-\d+)\b/i)
+  if (sysMatch) return path.join(root, 'artifacts', sysMatch[1].toUpperCase())
+
+  return ''
+}
+
+function applyGenericScriptExecutionProfile(payload = null, task = '', runbook = '') {
+  if (!payload || typeof payload !== 'object') return payload
+  if (path.basename(String(runbook || '')) !== GENERIC_SCRIPT_EXECUTION_RUNBOOK) return payload
+
+  const projectPath = inferGenericScriptProjectPath(payload, task)
+  if (projectPath) payload.projectPath = projectPath
+
+  payload.type = 'system'
+  payload.domain = 'local_execution'
+  payload.classification = {
+    ...(payload.classification || {}),
+    type: 'system',
+    domain: 'local_execution',
+    runbook: GENERIC_SCRIPT_EXECUTION_RUNBOOK,
+  }
+  payload.requiredArtifacts = Array.isArray(payload.requiredArtifacts) && payload.requiredArtifacts.length
+    ? payload.requiredArtifacts
+    : [...GENERIC_SCRIPT_REQUIRED_ARTIFACTS]
+
+  const implementationScopePath = projectPath ? path.join(projectPath, 'IMPLEMENTATION_SCOPE.json') : ''
+  if (implementationScopePath && fs.existsSync(implementationScopePath)) {
+    try {
+      const implementationScope = JSON.parse(fs.readFileSync(implementationScopePath, 'utf8'))
+      payload.executionPacket = {
+        filesCreated: implementationScope.filesCreated || payload.executionPacket?.filesCreated || [],
+        filesModified: implementationScope.filesModified || payload.executionPacket?.filesModified || [],
+        filesDeleted: implementationScope.filesDeleted || payload.executionPacket?.filesDeleted || [],
+        behaviorChanged: implementationScope.behaviorChanged || payload.executionPacket?.behaviorChanged || [],
+        behaviorUnchanged: implementationScope.behaviorUnchanged || payload.executionPacket?.behaviorUnchanged || [],
+        commandsExecuted: implementationScope.commandsExecuted || payload.executionPacket?.commandsExecuted || [],
+        exitCodes: implementationScope.exitCodes || payload.executionPacket?.exitCodes || {},
+        risks: implementationScope.risks || payload.executionPacket?.risks || [],
+        nextPhase: implementationScope.nextPhase || payload.executionPacket?.nextPhase || '',
+      }
+    } catch {}
+  }
+
+  return payload
+}
+
 function inferRequiredArtifacts(agentName = '', runbook = '', task = '', inputPayload = null) {
   const payload = inputPayload && typeof inputPayload === 'object' ? inputPayload : {}
   if (Array.isArray(payload.requiredArtifacts) && payload.requiredArtifacts.length) {
@@ -514,7 +609,11 @@ function inferRequiredArtifacts(agentName = '', runbook = '', task = '', inputPa
   const runbookName = path.basename(String(runbook || ''))
   const taskText = String(task || payload.task || payload.text || '').toLowerCase()
 
-  if (canonical === 'Van' && (runbookName === 'FIREBASE_FIRESTORE_SETUP_RUNBOOK.md' || /\b(firebase|firestore|auth|storage|hosting|functions?|rules?|schemas?|environment|env|persistence)\b/.test(taskText))) {
+  if (canonical === 'Van' && runbookName === GENERIC_SCRIPT_EXECUTION_RUNBOOK) {
+    return [...GENERIC_SCRIPT_REQUIRED_ARTIFACTS]
+  }
+
+  if (canonical === 'Van' && (runbookName === 'FIREBASE_FIRESTORE_SETUP_RUNBOOK.md' || FIREBASE_INFRA_TASK_RE.test(taskText))) {
     return ['FIREBASE_PROJECT_MAP.md', 'AUTH_MODEL.md', 'FIRESTORE_SCHEMA.md', 'ENVIRONMENT_MATRIX.md']
   }
 
@@ -573,9 +672,11 @@ function validateHermesExecutionRequest(inputPayload = null, fallbackAgent = '')
     payload.assignedDepartmentHead || payload.assignedAgent || payload.owner || fallbackAgent || extractAgent(task)
   )
   const governingRunbook = inferGoverningRunbook(assignedDepartmentHead, task, payload)
+  applyGenericScriptExecutionProfile(payload, task, governingRunbook)
   applySafeLocalTransformationPolicy(payload, task, governingRunbook)
-  ensureAutoWebsiteArtifacts(payload, task, governingRunbook)
-  const packetValidation = validateExecutionPacket(payload)
+  const packetValidation = path.basename(String(governingRunbook || '')) === GENERIC_SCRIPT_EXECUTION_RUNBOOK
+    ? { ok: true, missing: [] }
+    : validateExecutionPacket(payload)
   const artifactValidation = validateRequiredArtifacts(assignedDepartmentHead, governingRunbook, task, payload)
   const missingArtifacts = []
 
@@ -655,6 +756,13 @@ let jobsLedger = loadJobsLedger()
 if (!Array.isArray(jobsLedger)) jobsLedger = []
 jobsLedger = jobsLedger.map((job) => normalizeLedgerJob(job))
 saveJobsLedger()
+
+function syncCanonicalJobCaches() {
+  jobsLedger = jobStore.deriveLedgerView()
+  state.jobs = jobStore.deriveMissionStateJobs()
+  state.system.updatedAt = nowIso()
+  persistState()
+}
 
 const intentAuditLog = []
 
@@ -896,66 +1004,28 @@ function saveJobsLedger() {
 }
 
 function saveJob(job) {
-  const existing = jobsLedger.find(j => j.id === (job.id || job.jobId)) || {}
-  const normalized = normalizeLedgerJob({ ...existing, ...job })
-  const idx = jobsLedger.findIndex(j => j.id === normalized.id)
-  if (idx >= 0) jobsLedger[idx] = normalized
-  else jobsLedger.unshift(normalized)
-  saveJobsLedger()
-  return normalized
+  const existing = jobStore.getJobById(job.id || job.jobId)
+  const payload = { ...job }
+  if (existing) {
+    const updated = jobStore.updateJob(existing.id, payload)
+    syncCanonicalJobCaches()
+    return updated
+  }
+  const created = jobStore.createJob(payload)
+  syncCanonicalJobCaches()
+  return created.job || created
 }
 
 function getJobs(filterFn = null) {
-  return filterFn ? jobsLedger.filter(filterFn) : [...jobsLedger]
+  const ledger = jobStore.deriveLedgerView()
+  return filterFn ? ledger.filter(filterFn) : ledger
 }
 
 function updateJobStatus(jobId, status, patch = {}) {
-  const job = jobsLedger.find(j => j.id === jobId || j.jobId === jobId)
-  if (!job) return null
-
-  const updatedAt = patch.updatedAt || nowIso()
-  const normalizedStatus = normalizeHermesStatus(status)
-  const nextTrace = toExecutionTrace(
-    patch.executionTrace,
-    patch.traceMessage || `status -> ${normalizedStatus}`,
-    normalizedStatus === 'failed' ? 'error' : 'info',
-    updatedAt,
-  )
-
-  job.status = normalizedStatus
-  if (normalizedStatus === 'running' || normalizedStatus === 'complete' || normalizedStatus === 'failed') {
-    job.routeStatus = patch.routeStatus || normalizedStatus
-  }
-  job.outputPayload = patch.outputPayload !== undefined ? patch.outputPayload : job.outputPayload
-  job.inputPayload = patch.inputPayload !== undefined ? patch.inputPayload : job.inputPayload
-  job.context = patch.context !== undefined ? patch.context : job.context
-  job.executionPlan = patch.executionPlan !== undefined ? patch.executionPlan : job.executionPlan
-  job.executionAssignments = patch.executionAssignments !== undefined ? patch.executionAssignments : job.executionAssignments
-  job.type = patch.type ? normalizeHermesJobType(patch.type, job.inputPayload) : job.type
-  job.source = patch.source ? normalizeHermesSource(patch.source) : job.source
-  job.executionTrace = [...(Array.isArray(job.executionTrace) ? job.executionTrace : []), ...nextTrace]
-  job.updatedAt = updatedAt
-  job.timestamps = {
-    created: job.timestamps?.created || job.createdAt || updatedAt,
-    updated: updatedAt,
-    completed: HERMES_TERMINAL_STATUSES.has(normalizedStatus)
-      ? (patch.completedAt || updatedAt)
-      : (job.timestamps?.completed || null),
-  }
-  job.createdAt = job.timestamps.created
-  job.completedAt = job.timestamps.completed
-  saveJobsLedger()
-
-  const stateJob = state.jobs.find((entry) => entry.id === jobId)
-  if (stateJob) {
-    stateJob.status = normalizedStatus === 'complete' ? 'completed' : normalizedStatus
-    if (job.routeStatus) stateJob.routeStatus = job.routeStatus
-    stateJob.updatedAt = job.updatedAt
-    if (normalizedStatus === 'complete') stateJob.stage = 'EXEC_QA'
-    if (normalizedStatus === 'running') stateJob.stage = 'IN_PROGRESS'
-  }
-  refreshDerivedState()
-  return job
+  const updated = jobStore.transitionJob(jobId, status, patch)
+  if (!updated) return null
+  syncCanonicalJobCaches()
+  return updated
 }
 
 function normalizeTaskKey(value = '') {
@@ -1062,6 +1132,21 @@ function collectProjectLedgerEntries() {
   }
   return { files, entries }
 }
+
+function hydrateCanonicalJobStore() {
+  const projectLedger = collectProjectLedgerEntries()
+  const recoveryLedger = loadRecoveryLedger?.() || null
+  jobStore.loadJobs({
+    legacyJobs: jobsLedger,
+    legacyStateJobs: state.jobs,
+    legacyRecoveryEntries: recoveryLedger?.entries || [],
+    projectLedgerEntries: projectLedger.entries,
+  })
+  syncCanonicalJobCaches()
+  saveJobsLedger()
+}
+
+hydrateCanonicalJobStore()
 
 // ===========================================================
 // RECOVERY LEDGER — outage-safe persistent work state
@@ -1214,17 +1299,24 @@ function updateRecoveryEntry(jobId, patch = {}) {
 
 // Mark a job as provider-outage-blocked and write resume info
 function markJobOutage(jobId, { reason = 'Provider outage', lastKnownGoodStep = null, resumeCommand = null, artifactPath = null } = {}) {
-  const job = jobsLedger.find(j => j.id === jobId)
-  if (job) {
-    job.status = 'blocked'
-    job.providerOutage = true
-    job.outageReason = reason
-    job.lastKnownGoodStep = lastKnownGoodStep || job.lastKnownGoodStep
-    job.resumeCommand = resumeCommand || deriveResumeCommand(job)
-    job.recoveryNote = `Blocked by: ${reason}. Resume when provider restores.`
-    job.updatedAt = nowIso()
-    saveJobsLedger()
-  }
+  const updated = jobStore.updateJob(jobId, {
+    status: 'blocked',
+    providerOutage: true,
+    outageReason: reason,
+    lastKnownGoodStep,
+    resumeCommand,
+    recoveryNote: `Blocked by: ${reason}. Resume when provider restores.`,
+    artifactPath,
+    updatedAt: nowIso(),
+    history: [{
+      at: nowIso(),
+      type: 'outage',
+      status: 'blocked',
+      message: reason,
+      data: { lastKnownGoodStep, resumeCommand, artifactPath },
+    }],
+  })
+  if (updated) syncCanonicalJobCaches()
   log('warn', `[OUTAGE] Job ${jobId} marked blocked: ${reason}`)
   return syncRecoveryLedger()
 }
@@ -1291,7 +1383,7 @@ function ingestIntoCIRegister() {
   const ledger = loadRecoveryLedger()
   const entries = ledger?.entries || []
 
-  // Ingest: provider outage jobs
+  // Ingest: executor outage jobs
   for (const e of entries.filter(e => e.providerOutage)) {
     upsertCIEntry(register, {
       fingerprint: `outage|${e.owner}`,
@@ -1344,7 +1436,7 @@ function ingestIntoCIRegister() {
     upsertCIEntry(register, {
       fingerprint: 'token_outage|chat',
       type: 'outage',
-      title: 'Token/provider outage detected in chat history',
+      title: 'Token/executor outage detected in chat history',
       description: 'Chat history contains token outage or rate limit signals',
       source: 'chat',
       urgency: 4, impact: 5,
@@ -1396,90 +1488,14 @@ function writeCIRegisterMd(register) {
 ingestIntoCIRegister()
 
 function buildMasterWorkRegistry() {
-  const registry = {
-    active: [],
-    queued: [],
-    running: [],
-    paused: [],
-    blocked: [],
-    completedRecent: [],
-    sources: [],
-  }
-
-  const pushToBucket = (jobLike) => {
-    const bucket = inferBucket(jobLike.status, jobLike.routeStatus)
-    if (registry[bucket]) registry[bucket].push(jobLike)
-  }
-
-  const ledgerJobs = getJobs()
-  registry.sources.push({ name: 'mc.jobs.ledger', count: ledgerJobs.length, path: jobsLedgerPath })
-  for (const job of ledgerJobs) pushToBucket({ ...normalizeLedgerJob(job), sourceType: 'mc.jobs.ledger' })
-
-  const stateJobs = Array.isArray(state.jobs) ? state.jobs : []
-  registry.sources.push({ name: 'mc.state.jobs', count: stateJobs.length, path: statePath })
-  for (const job of stateJobs) {
-    const normalized = normalizeLedgerJob({
-      id: job.id,
-      task: job.title,
-      agent: job.owner,
-      status: job.status,
-      routeStatus: job.routeStatus || (job.stage === 'IN_PROGRESS' ? 'running' : 'queued'),
-      source: 'mc.state.jobs',
-      updatedAt: job.updatedAt,
-      createdAt: job.createdAt || job.updatedAt,
-    })
-    pushToBucket({ ...normalized, sourceType: 'mc.state.jobs' })
-  }
-
   const workers = Array.isArray(state.workers) ? state.workers : []
-  registry.sources.push({ name: 'mc.workers', count: workers.length, path: `${runtimeDir}/workers` })
-  for (const worker of workers) {
-    const status = worker.status === 'completed' ? 'completed' : worker.status === 'failed' ? 'blocked' : worker.status
-    const workerEntry = normalizeLedgerJob({
-      id: worker.jobId || worker.id,
-      task: worker.jobTitle || `Worker ${worker.id}`,
-      agent: 'Van',
-      status,
-      routeStatus: worker.status,
-      source: 'mc.workers',
-      updatedAt: worker.endedAt || worker.startedAt || nowIso(),
-      createdAt: worker.startedAt || nowIso(),
-    })
-    pushToBucket({ ...workerEntry, sourceType: 'mc.workers' })
-  }
-
-  const projectLedger = collectProjectLedgerEntries()
-  registry.sources.push({
-    name: 'project-ledgers',
-    count: projectLedger.entries.length,
-    files: projectLedger.files,
-  })
-  for (const entry of projectLedger.entries) pushToBucket({ ...entry, sourceType: 'project-ledger' })
-
+  const registry = jobStore.deriveRegistryView({ workerEntries: workers })
+  registry.sources.push({ name: 'mc.state.jobs', count: state.jobs.length, path: statePath })
+  registry.sources.push({ name: 'legacy.jobsLedger.cache', count: jobsLedger.length, path: jobsLedgerPath })
   const stateText = JSON.stringify(state.chat || []).slice(0, 200000)
   if (TOKEN_OUTAGE_RE.test(stateText)) {
     registry.sources.push({ name: 'chat-token-outage-signals', count: 1, path: statePath })
   }
-
-  const dedupe = (items) => {
-    const kept = []
-    const seen = new Set()
-    for (const item of items.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))) {
-      const key = `${item.agent}|${normalizeTaskKey(item.task)}|${item.status}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      kept.push(item)
-    }
-    return kept
-  }
-
-  registry.active = dedupe(registry.active)
-  registry.queued = dedupe(registry.queued)
-  registry.running = dedupe(registry.running)
-  registry.paused = dedupe(registry.paused)
-  registry.blocked = dedupe(registry.blocked)
-  registry.completedRecent = dedupe(registry.completedRecent).slice(0, 25)
-
   return registry
 }
 
@@ -1511,14 +1527,10 @@ function queryWorkStatus(projectQuery = '') {
 }
 
 function findOpenDuplicateJob(agent, task) {
-  const key = normalizeTaskKey(task)
-  if (!key) return null
-  return jobsLedger.find((job) => {
-    const status = String(job.status || '').toLowerCase()
-    return OPEN_STATUSES.has(status)
-      && String(job.agent || '').toLowerCase() === String(agent || '').toLowerCase()
-      && normalizeTaskKey(job.task || job.title) === key
-  }) || null
+  return jobStore.findDuplicateJob({
+    department: agent,
+    task,
+  })
 }
 
 function persistState() {
@@ -1545,6 +1557,155 @@ function writeWorkerFiles(worker, workerDir) {
   fs.writeFileSync(path.join(workerDir, 'stdout.log'), worker.stdout || '')
   fs.writeFileSync(path.join(workerDir, 'stderr.log'), worker.stderr || '')
   fs.writeFileSync(path.join(workerDir, 'result.txt'), worker.result || '')
+}
+
+function sanitizeExecutorText(text = '') {
+  return String(text || '')
+    .replace(/sk-[A-Za-z0-9_-]+/g, '[redacted]')
+    .replace(/sess-[A-Za-z0-9_-]+/g, '[redacted]')
+    .trim()
+}
+
+function cleanCodexOutput(text = '') {
+  const sanitized = sanitizeExecutorText(text)
+  const lines = sanitized.split(/\r?\n/)
+  const filtered = lines.filter((line) => {
+    const value = line.trim()
+    if (!value) return false
+    if (value === 'codex') return false
+    if (value === 'tokens used') return false
+    if (/^[\d,]+$/.test(value)) return false
+    if (/^OpenAI Codex v/i.test(value)) return false
+    if (/^-{3,}$/.test(value)) return false
+    return true
+  })
+  if (filtered.includes(CODEX_CONNECTED_TEXT)) return CODEX_CONNECTED_TEXT
+  return filtered.join('\n').trim()
+}
+
+function classifyExecutorError({ error = null, stderr = '', stdout = '', code = 0, timedOut = false, executor = 'executor' } = {}) {
+  const text = `${error?.message || ''}\n${stderr || ''}\n${stdout || ''}`.toLowerCase()
+  if (timedOut || /timed?\s*out|timeout/.test(text)) return { type: 'timeout', message: `${executor} timeout` }
+  if (error?.code === 'ENOENT' || /command not found|not found/.test(text)) return { type: 'not_installed', message: `${executor} not installed` }
+  if (/\b401\b|unauthorized|not authenticated|authentication|auth|credentials?|login required|sign in/.test(text)) return { type: 'auth', message: `${executor} authentication failure` }
+  if (/\b429\b|rate limit|rate-limited|cooldown|quota/.test(text)) return { type: 'rate_limited', message: `${executor} rate limited or in cooldown` }
+  if (code !== 0) return { type: 'nonzero_exit', message: `${executor} failed` }
+  if (!sanitizeExecutorText(stdout).trim()) return { type: 'empty_output', message: `${executor} returned no usable response` }
+  return { type: 'ok', message: `${executor} ok` }
+}
+
+function runCommandCapture(command, args, { cwd = root, timeoutMs = CODEX_EXEC_TIMEOUT_MS } = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, { cwd, env: process.env, shell: false, stdio: ['ignore', 'pipe', 'pipe'] })
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    let timedOut = false
+    const timeout = setTimeout(() => {
+      timedOut = true
+      child.kill('SIGTERM')
+    }, timeoutMs)
+
+    child.stdout.on('data', d => { stdout += d.toString() })
+    child.stderr.on('data', d => { stderr += d.toString() })
+    child.on('error', (error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      resolve({ code: null, signal: null, stdout, stderr, error, timedOut })
+    })
+    child.on('close', (code, signal) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      resolve({ code, signal, stdout, stderr, error: null, timedOut })
+    })
+  })
+}
+
+function getCodexAvailability() {
+  const whichCheck = spawnSync('which', ['codex'], { encoding: 'utf8' })
+  if (whichCheck.status !== 0) {
+    return { codexAvailable: false, codexVersion: null, codexPath: null }
+  }
+  const versionCheck = spawnSync('codex', ['--version'], { encoding: 'utf8' })
+  return {
+    codexAvailable: versionCheck.status === 0,
+    codexVersion: versionCheck.status === 0 ? String(versionCheck.stdout || versionCheck.stderr || '').trim() : null,
+    codexPath: String(whichCheck.stdout || '').trim() || null,
+  }
+}
+
+async function runCodexSmokeTest(prompt = 'Reply with exactly: CODEX_EXECUTOR_CONNECTED', projectPath = root) {
+  const availability = getCodexAvailability()
+  if (!availability.codexAvailable) {
+    return {
+      ...availability,
+      codexAuthStatus: 'not_installed',
+      ok: false,
+      output: '',
+      error: 'Codex executor not installed',
+    }
+  }
+  const result = await runCommandCapture('codex', ['exec', '--cd', projectPath, prompt], {
+    cwd: projectPath,
+    timeoutMs: CODEX_EXEC_TIMEOUT_MS,
+  })
+  const output = cleanCodexOutput(result.stdout)
+  const classification = classifyExecutorError({
+    ...result,
+    stdout: output,
+    executor: 'Codex executor',
+  })
+  const connected = output.includes(CODEX_CONNECTED_TEXT)
+  const ok = classification.type === 'ok' && connected
+  return {
+    ...availability,
+    codexAuthStatus: ok ? 'authenticated' : classification.type,
+    ok,
+    output,
+    error: ok ? null : classification.message,
+    stderrPreview: sanitizeExecutorText(result.stderr).slice(0, 500),
+  }
+}
+
+async function getExecutorsHealth({ force = false } = {}) {
+  if (!force && executorHealthCache && Date.now() - executorHealthCache.checkedAtMs < EXECUTOR_HEALTH_CACHE_MS) {
+    return executorHealthCache.payload
+  }
+  const codex = await runCodexSmokeTest()
+  const selectedExecutor = selectExecutor(codex)
+  let recommendation = 'No executor available'
+  if (codex.ok) recommendation = 'Codex executor available'
+  else if (codex.codexAuthStatus === 'auth') recommendation = 'Codex auth error'
+  else if (codex.codexAuthStatus === 'rate_limited') recommendation = 'Codex rate limited'
+  else if (codex.codexAvailable) recommendation = 'Codex unavailable'
+  else recommendation = 'No executor available'
+  const payload = {
+    codexAvailable: codex.codexAvailable,
+    codexVersion: codex.codexVersion,
+    codexAuthStatus: codex.codexAuthStatus,
+    hermesAvailable,
+    hermesMode: 'legacy/manual-only',
+    selectedExecutor,
+    fallbackExecutor: AI_EXECUTION_FALLBACK,
+    localFallback: LOCAL_EXECUTION_FALLBACK,
+    lastExecutorError,
+    recommendation,
+    checkedAt: nowIso(),
+  }
+  executorHealthCache = { checkedAtMs: Date.now(), payload }
+  return payload
+}
+
+function selectExecutor(codexHealth = null, requested = '') {
+  const requestedExecutor = String(requested || '').toLowerCase()
+  if (requestedExecutor === 'hermes') return hermesAvailable ? 'hermes' : 'none'
+  const codexUsable = codexHealth ? codexHealth.ok : codexAvailable
+  if (requestedExecutor === 'codex') return codexUsable ? 'codex' : 'none'
+  if (AI_EXECUTION_PROVIDER === 'hermes') return 'none'
+  if (codexUsable) return 'codex'
+  return 'none'
 }
 
 function attachWorker(job) {
@@ -1632,7 +1793,7 @@ function buildOfficeBriefing(agent) {
 
 function makeJobPrompt(job, bodyPrompt = '') {
   return [
-    'You are a Mission Control Hermes worker.',
+    'You are a Mission Control execution worker.',
     `Job id: ${job.id}`,
     `Job title: ${job.title}`,
     `Job owner: ${job.owner}`,
@@ -1642,6 +1803,165 @@ function makeJobPrompt(job, bodyPrompt = '') {
     bodyPrompt ? `Operator prompt: ${bodyPrompt}` : '',
     'Return a concise operational summary, next actions, and blockers.',
   ].filter(Boolean).join('\n')
+}
+
+function getJobProjectPath(job = {}) {
+  const candidate = job.projectPath || job.inputPayload?.projectPath || job.inputPayload?.project_path || job.inputPayload?.cwd
+  if (!candidate) return root
+  const resolved = path.resolve(String(candidate))
+  if (!fs.existsSync(resolved)) return root
+  return resolved
+}
+
+function updateWorkerJobOnFinish(worker, job, workerId) {
+  const idx = state.jobs.findIndex((entry) => entry.id === job.id)
+  if (idx >= 0) {
+    state.jobs[idx] = { ...state.jobs[idx], status: worker.status, workerId, updatedAt: worker.endedAt }
+    if (worker.status === 'completed') state.jobs[idx].stage = 'EXEC_QA'
+  }
+  const ledgerStatus = worker.status === 'completed' ? 'complete' : 'failed'
+  updateJobStatus(job.id, ledgerStatus, {
+    updatedAt: worker.endedAt,
+    completedAt: worker.endedAt,
+    outputPayload: {
+      executor: worker.executor,
+      exitCode: worker.exitCode,
+      signal: worker.signal,
+      result: worker.result,
+      stdoutPath: path.join(worker.workerDir, 'stdout.log'),
+      stderrPath: path.join(worker.workerDir, 'stderr.log'),
+    },
+    executionTrace: [{
+      step: 'executor_finished',
+      at: worker.endedAt,
+      level: worker.status === 'completed' ? 'info' : 'error',
+      message: worker.status,
+      data: {
+        executor: worker.executor,
+        workerId,
+        exitCode: worker.exitCode,
+        classification: worker.errorClassification || null,
+      },
+    }],
+  })
+}
+
+function launchCodexWorker(job, bodyPrompt = '') {
+  if (!codexAvailable) {
+    const error = new Error('Codex executor is not installed or codex --version failed.')
+    lastExecutorError = { executor: 'codex', type: 'not_installed', message: error.message, at: nowIso() }
+    throw error
+  }
+
+  const workerId = `wrk_${crypto.randomUUID().slice(0, 8)}`
+  const workerDir = ensureWorkerDir(workerId)
+  const projectPath = getJobProjectPath(job)
+  const worker = {
+    id: workerId,
+    jobId: job.id,
+    jobTitle: job.title,
+    executor: 'codex',
+    status: 'running',
+    startedAt: nowIso(),
+    endedAt: null,
+    pid: null,
+    exitCode: null,
+    signal: null,
+    stdout: '',
+    stderr: '',
+    result: '',
+    prompt: makeJobPrompt(job, bodyPrompt),
+    projectPath,
+    workerDir,
+  }
+
+  const child = spawn('codex', ['exec', '--cd', projectPath, worker.prompt], {
+    cwd: projectPath,
+    env: process.env,
+    shell: false,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  worker.pid = child.pid
+  runningWorkers.set(workerId, child)
+
+  child.stdout.on('data', (chunk) => {
+    worker.stdout += chunk.toString()
+    fs.appendFileSync(path.join(workerDir, 'stdout.log'), chunk)
+  })
+
+  child.stderr.on('data', (chunk) => {
+    worker.stderr += chunk.toString()
+    fs.appendFileSync(path.join(workerDir, 'stderr.log'), chunk)
+  })
+
+  child.on('error', (error) => {
+    worker.status = 'failed'
+    worker.endedAt = nowIso()
+    worker.stderr += `\n${error.message}`
+    worker.errorClassification = classifyExecutorError({ error, stderr: worker.stderr, executor: 'Codex executor' })
+    worker.result = worker.errorClassification.message
+    lastExecutorError = { executor: 'codex', ...worker.errorClassification, at: worker.endedAt }
+    writeWorkerFiles(worker, workerDir)
+    state.workers = [worker, ...state.workers.filter((entry) => entry.id !== workerId)]
+    updateWorkerJobOnFinish(worker, job, workerId)
+    log('error', `Codex worker ${workerId} failed to launch: ${error.message}`)
+    refreshDerivedState()
+  })
+
+  child.on('close', (code, signal) => {
+    runningWorkers.delete(workerId)
+    worker.exitCode = code
+    worker.signal = signal
+    worker.endedAt = nowIso()
+    worker.errorClassification = classifyExecutorError({
+      stdout: worker.stdout,
+      stderr: worker.stderr,
+      code,
+      executor: 'Codex executor',
+    })
+    worker.status = worker.errorClassification.type === 'ok' ? 'completed' : signal ? 'stopped' : 'failed'
+    worker.result = cleanCodexOutput(worker.stdout).slice(-8000) || sanitizeExecutorText(worker.stderr).slice(-4000)
+    if (worker.status !== 'completed') {
+      lastExecutorError = { executor: 'codex', ...worker.errorClassification, at: worker.endedAt }
+    }
+    writeWorkerFiles(worker, workerDir)
+    state.workers = [worker, ...state.workers.filter((entry) => entry.id !== workerId)]
+    updateWorkerJobOnFinish(worker, job, workerId)
+    log(worker.status === 'completed' ? 'info' : 'warn', `Codex worker ${workerId} finished with ${worker.status}`)
+    refreshDerivedState()
+  })
+
+  state.workers = [worker, ...state.workers]
+  job.workerId = workerId
+  job.status = 'running'
+  job.updatedAt = worker.startedAt
+  updateJobStatus(job.id, 'running', {
+    updatedAt: worker.startedAt,
+    executionTrace: [{
+      step: 'executor_started',
+      at: worker.startedAt,
+      level: 'info',
+      message: 'running',
+      data: { executor: 'codex', workerId, projectPath },
+    }],
+  })
+  log('info', `Launched Codex worker ${workerId} for job ${job.id}`)
+  refreshDerivedState()
+  return worker
+}
+
+function launchSelectedWorker(job, bodyPrompt = '', requestedExecutor = '') {
+  const selected = selectExecutor(null, requestedExecutor)
+  if (selected === 'codex') {
+    try {
+      return launchCodexWorker(job, bodyPrompt)
+    } catch (error) {
+      throw error
+    }
+  }
+  if (selected === 'hermes') return launchHermesWorker(job, bodyPrompt)
+  throw new Error('No executor available — Codex unavailable.')
 }
 
 function launchHermesWorker(job, bodyPrompt = '') {
@@ -1655,6 +1975,7 @@ function launchHermesWorker(job, bodyPrompt = '') {
     id: workerId,
     jobId: job.id,
     jobTitle: job.title,
+    executor: 'hermes',
     status: 'running',
     startedAt: nowIso(),
     endedAt: null,
@@ -1725,7 +2046,7 @@ function launchHermesWorker(job, bodyPrompt = '') {
   job.status = 'running'
   job.updatedAt = worker.startedAt
   updateJobStatus(job.id, 'running')
-  log('info', `Launched Hermes worker ${workerId} for job ${job.id}`)
+    log('info', `Launched fallback worker via Hermes ${workerId} for job ${job.id}`)
   refreshDerivedState()
   return worker
 }
@@ -1763,7 +2084,7 @@ function summarizeState() {
 function statusBriefing() {
   const { counts } = summarizeState()
   const primaryJob = [...state.jobs].sort((a, b) => (a.priority > b.priority ? 1 : -1))[0]
-  const line1 = `I see ${counts.jobs} live jobs, ${counts.activeWorkers} active Hermes workers, and ${counts.agents} executive staff online.`
+  const line1 = `I see ${counts.jobs} live jobs, ${counts.activeWorkers} active executor workers, and ${counts.agents} executive staff online.`
   const line2 = `There are ${counts.urgentJobs} urgent jobs, ${counts.approvals} awaiting approval, and ${counts.qa} in QA.`
   const line3 = primaryJob ? `Highest priority item: ${primaryJob.title} (owner: ${primaryJob.owner}, stage: ${primaryJob.stage}).` : 'There are no queued missions at the moment.'
   return `${line1}\n${line2}\n${line3}`
@@ -1776,19 +2097,22 @@ function shouldAutoLaunch(prompt) {
 
 function createJobFromChat(prompt) {
   const title = titleFromPrompt(prompt)
-  const job = {
+  const result = saveJob({
     id: `job_${crypto.randomUUID().slice(0, 8)}`,
+    task: title,
     title,
     owner: guessOwner(prompt),
+    department: guessOwner(prompt),
     priority: guessPriority(prompt),
     stage: 'SCOPED',
     status: 'queued',
     description: prompt,
+    sourceType: 'mission-control',
+    source: 'mission-control',
     workerId: null,
     updatedAt: nowIso(),
-  }
-  state.jobs.unshift(job)
-  return job
+  })
+  return jobStore.toMissionStateJob(result)
 }
 
 function makeHermesLogs(job, messages = []) {
@@ -2026,7 +2350,7 @@ function makeReplyForPrompt(prompt, createdJob) {
     const launch = shouldAutoLaunch(prompt)
     return {
       text: launch
-        ? `I turned that into ${createdJob.id} and launched Hermes on it. I will surface progress as the worker updates.`
+        ? `I turned that into ${createdJob.id} and launched the selected executor. I will surface progress as the worker updates.`
         : `I created ${createdJob.id} for ${createdJob.title}. It is queued with ${createdJob.owner} at ${createdJob.priority}.`,
       kind: 'job',
       launch,
@@ -2043,7 +2367,40 @@ const app = express()
 app.use(express.json({ limit: '1mb' }))
 
 app.get('/api/health', (_, res) => {
-  res.json({ ok: true, hermesAvailable, launchedAt: state.system.launchedAt })
+  res.json({
+    ok: true,
+    codexAvailable,
+    codexVersion,
+    hermesAvailable,
+    hermesMode: 'legacy/manual-only',
+    selectedExecutor: AI_EXECUTION_PROVIDER,
+    fallbackExecutor: AI_EXECUTION_FALLBACK,
+    launchedAt: state.system.launchedAt,
+  })
+})
+
+app.get('/api/executors/health', async (_, res) => {
+  const health = await getExecutorsHealth()
+  res.json(health)
+})
+
+app.post('/api/executors/test', async (_, res) => {
+  const result = await runCodexSmokeTest(
+    'Reply with exactly: CODEX_EXECUTOR_CONNECTED',
+    '/home/patrick/mission-control',
+  )
+  if (!result.ok) {
+    lastExecutorError = { executor: 'codex', type: result.codexAuthStatus, message: result.error, at: nowIso() }
+  }
+  res.status(result.ok ? 200 : 502).json({
+    ok: result.ok,
+    expected: CODEX_CONNECTED_TEXT,
+    output: result.output,
+    codexAvailable: result.codexAvailable,
+    codexVersion: result.codexVersion,
+    codexAuthStatus: result.codexAuthStatus,
+    error: result.error,
+  })
 })
 
 app.get('/api/system', (_, res) => {
@@ -2063,10 +2420,10 @@ app.get('/api/dashboard', (_, res) => {
 
 app.get('/api/jobs', (_, res) => res.json(state.jobs.map(attachWorker)))
 app.get('/api/jobs/:id', (req, res) => {
-  if (req.params.id === 'ledger') return res.json(jobsLedger)
-  const job = state.jobs.find((entry) => entry.id === req.params.id)
+  if (req.params.id === 'ledger') return res.json(jobStore.deriveLedgerView())
+  const job = jobStore.getJobById(req.params.id)
   if (!job) return res.status(404).json({ error: 'Job not found' })
-  res.json(attachWorker(job))
+  res.json(job)
 })
 
 app.post('/api/jobs', (req, res) => {
@@ -2094,46 +2451,45 @@ app.post('/api/jobs', (req, res) => {
     workerId: null,
     updatedAt: nowIso(),
   }
-  state.jobs.unshift(job)
-  saveJob({
+  const created = saveJob({
     id: job.id,
     task: job.title,
+    title: job.title,
     agent: job.owner,
+    owner: job.owner,
+    department: job.owner,
     status: job.status,
     routeStatus: 'queued',
     source: 'api.jobs.create',
+    sourceType: 'mission-control',
     createdAt: job.updatedAt,
     updatedAt: job.updatedAt,
   })
   log('info', `Created job ${job.id}: ${job.title}`)
-  refreshDerivedState()
-  res.status(201).json(attachWorker(job))
+  syncCanonicalJobCaches()
+  res.status(201).json(attachWorker(jobStore.toMissionStateJob(created || created.job || job)))
 })
 
 app.post('/api/jobs/:id/assign', (req, res) => {
-  const job = state.jobs.find((entry) => entry.id === req.params.id)
+  const job = jobStore.getJobById(req.params.id)
   if (!job) return res.status(404).json({ error: 'Job not found' })
-  job.owner = req.body?.owner || job.owner
-  job.updatedAt = nowIso()
-  saveJob({ id: job.id, task: job.title, agent: job.owner, status: job.status, routeStatus: job.routeStatus || 'queued', updatedAt: job.updatedAt })
-  log('info', `Job ${job.id} assigned to ${job.owner}`)
-  refreshDerivedState()
-  res.json(attachWorker(job))
+  const updated = jobStore.updateJob(job.id, { owner: req.body?.owner || job.owner, agent: req.body?.owner || job.agent, department: req.body?.owner || job.department, updatedAt: nowIso() })
+  syncCanonicalJobCaches()
+  log('info', `Job ${job.id} assigned to ${updated?.owner || req.body?.owner || job.owner}`)
+  res.json(updated)
 })
 
 app.post('/api/jobs/:id/transition', (req, res) => {
-  const job = state.jobs.find((entry) => entry.id === req.params.id)
+  const job = jobStore.getJobById(req.params.id)
   if (!job) return res.status(404).json({ error: 'Job not found' })
-  job.stage = req.body?.stage || job.stage
-  job.updatedAt = nowIso()
-  saveJob({ id: job.id, task: job.title, agent: job.owner, status: job.status, routeStatus: job.routeStatus || 'queued', updatedAt: job.updatedAt })
-  log('info', `Job ${job.id} transitioned to ${job.stage}`)
-  refreshDerivedState()
-  res.json(attachWorker(job))
+  const updated = jobStore.updateJob(job.id, { stage: req.body?.stage || job.stage, phase: req.body?.stage || job.phase, updatedAt: nowIso() })
+  syncCanonicalJobCaches()
+  log('info', `Job ${job.id} transitioned to ${updated?.stage || req.body?.stage || job.stage}`)
+  res.json(updated)
 })
 
 app.post('/api/jobs/:id/run', (req, res) => {
-  const job = state.jobs.find((entry) => entry.id === req.params.id)
+  const job = jobStore.getJobById(req.params.id)
   if (!job) return res.status(404).json({ error: 'Job not found' })
 
   const inputPayload = {
@@ -2170,7 +2526,7 @@ app.post('/api/jobs/:id/run', (req, res) => {
 
   try {
     job.inputPayload = inputPayload
-    const worker = launchHermesWorker(job, req.body?.prompt || '')
+    const worker = launchSelectedWorker(job, req.body?.prompt || '', req.body?.executor || req.body?.provider || '')
     res.status(202).json({ worker, job: attachWorker(job) })
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -2298,8 +2654,37 @@ app.post('/api/hermes/execute', (req, res) => {
     return res.status(202).json(makeHermesResponse(job, null, makeHermesLogs(job, job.executionTrace), { reused: false }))
   }
 
-  const response = executeHermesJob(job)
-  return res.status(response.status === 'complete' ? 200 : 500).json({ ...response, reused: false })
+  try {
+    const workerJob = {
+      ...job,
+      title: job.title || job.task || 'Execution job',
+      owner: validation.assignedDepartmentHead || job.owner || job.agent || 'Van',
+      priority: job.priority || 'P1',
+      stage: job.stage || 'SCOPED',
+      description: job.description || inputPayload?.text || inputPayload?.task || '',
+      inputPayload: job.inputPayload || inputPayload,
+      projectPath: inputPayload?.projectPath || inputPayload?.project_path || inputPayload?.cwd || root,
+    }
+    const worker = launchSelectedWorker(workerJob, inputPayload?.text || inputPayload?.task || '', req.body?.executor || req.body?.provider || '')
+    const runningJob = jobStore.getJobById(job.id) || workerJob
+    return res.status(202).json({
+      ...makeHermesResponse(runningJob, null, makeHermesLogs(runningJob, runningJob.executionTrace), { reused: false }),
+      selectedExecutor: worker.executor,
+      worker,
+    })
+  } catch (error) {
+    const failedAt = nowIso()
+    const classification = classifyExecutorError({ error, stderr: error.message, code: 1, executor: 'executor' })
+    lastExecutorError = { executor: 'selected', ...classification, at: failedAt }
+    const failedResult = { error: classification.message, classification }
+    const failedJob = updateJobStatus(job.id, 'failed', {
+      updatedAt: failedAt,
+      completedAt: failedAt,
+      outputPayload: failedResult,
+      executionTrace: [{ step: 'executor_launch_failed', at: failedAt, level: 'error', message: classification.message, data: classification }],
+    })
+    return res.status(503).json(makeHermesResponse(failedJob, failedResult, makeHermesLogs(failedJob, failedJob.executionTrace), { reused: false }))
+  }
 })
 
 app.get('/api/agents', (_, res) => res.json(state.agents))
@@ -2346,7 +2731,11 @@ function classifyExecutionIntent(message = '') {
     m.includes('run') ||
     m.includes('process') ||
     m.includes('analyze') ||
-    m.includes('build')
+    m.includes('build') ||
+    m.includes('test') ||
+    m.includes('verify executor') ||
+    m.includes('check executor health') ||
+    m.includes('launch worker')
   ) {
     return 'execution'
   }
@@ -2363,13 +2752,21 @@ function classifyExecutionIntent(message = '') {
     return 'execution'
   }
 
-  return 'non-execution'
+  return 'non_execution'
+}
+
+function isExplicitHermesRequest(message = '') {
+  return /\b(use|test|run)\s+hermes\b|\bhermes\s+(fallback|legacy|manual)\b/i.test(String(message || ''))
 }
 
 function shouldRouteChatToHermes(message = '') {
   const msg = String(message || '').toLowerCase()
-  const executionIntent = /\b(execute|run|process|analyze|build)\b/.test(msg)
-  return hasActiveIRLRule('routing', 'hermes execution routing') && executionIntent
+  const executionIntent = classifyExecutionIntent(msg) === 'execution'
+  return isExplicitHermesRequest(msg) && executionIntent
+}
+
+function shouldRouteChatToExecutor(message = '') {
+  return classifyExecutionIntent(message) === 'execution'
 }
 
 function shouldCreateJobForIntent(intent) {
@@ -2453,7 +2850,7 @@ function handleJobRefinement(message) {
 
 function handleExecutionPacket(message) {
   return {
-    replyText: 'Nettie: Execution is routed through Hermes.',
+    replyText: 'Nettie: Execution is routed through the selected executor.',
     replyKind: 'system',
     job: null,
   }
@@ -2612,7 +3009,7 @@ function handleControlDirective(message) {
   }
 
   return {
-    replyText: `Nettie: Control directive received — "${message.trim()}". No job created, no execution queued. Standing by for further instruction.`,
+    replyText: `Nettie: Control directive received — "${message.trim()}". No job created, no execution queued. Awaiting the next instruction.`,
     replyKind: 'system',
     job: null,
   }
@@ -2621,7 +3018,7 @@ function handleControlDirective(message) {
 function handleSystemUpdate(message) {
   applyToIRL(message, 'routing')
   return {
-    replyText: "Nettie: System-update request detected. This requires code patch execution through Claude/Hermes until MC self-modification is enabled. No job created.",
+    replyText: "Nettie: System-update request detected. This requires code patch execution through the selected executor until MC self-modification is enabled. No job created.",
     replyKind: "system",
     job: null
   }
@@ -2629,16 +3026,14 @@ function handleSystemUpdate(message) {
 
 function handleExecutionCommand(message) {
   return {
-    replyText: 'Nettie: Execution is routed through Hermes.',
+    replyText: 'Nettie: Execution is routed through the selected executor.',
     replyKind: 'system',
     job: null,
   }
 }
 
 function findJobById(jobId) {
-  return jobsLedger.find(j => j.id === jobId)
-    || state.jobs.find(j => j.id === jobId)
-    || null
+  return jobStore.getJobById(jobId)
 }
 
 function handleJobStatus(message) {
@@ -2665,7 +3060,6 @@ function handleJobExecution(message) {
   const msg = message.toLowerCase()
   const newStatus = /\b(resume|restart|continue)\b/.test(msg) ? 'queued' : 'running'
   updateJobStatus(jobId, newStatus)
-  // Also update state.jobs
   const stateJob = state.jobs.find(j => j.id === jobId)
   if (stateJob) { stateJob.status = newStatus; stateJob.updatedAt = nowIso() }
   setImmediate(() => syncRecoveryLedger())
@@ -2990,20 +3384,29 @@ function isAgentDirectCallable(agentName) {
 }
 
 function createMissionStateJob({ id, task, owner, description, status = 'queued', routeStatus = 'queued', priority = 'P1' }) {
-  const missionJob = {
+  const createdAt = nowIso()
+  const result = saveJob({
     id,
+    task,
     title: task,
     owner,
+    agent: owner,
+    department: owner,
     priority,
     stage: status === 'running' ? 'IN_PROGRESS' : 'SCOPED',
     status,
     routeStatus,
     description,
+    sourceType: 'mission-control',
+    source: 'mission-control',
     workerId: null,
-    updatedAt: nowIso(),
+    createdAt,
+    updatedAt: createdAt,
+  })
+  return {
+    ...jobStore.toMissionStateJob(result),
+    description,
   }
-  state.jobs.unshift(missionJob)
-  return missionJob
 }
 
 function handleAssignment(message, source = 'mission-control') {
@@ -3178,7 +3581,7 @@ function handleRecoveryQuery(message) {
 
   if (/outage/.test(msg)) {
     const outaged = entries.filter(e => e.providerOutage)
-    if (!outaged.length) return { replyText: 'Nettie: No provider outage flags in recovery ledger.', replyKind: 'status' }
+    if (!outaged.length) return { replyText: 'Nettie: No executor outage flags in recovery ledger.', replyKind: 'status' }
     const lines = outaged.map(e => `• ${e.jobId}: ${e.task.slice(0, 50)} — ${e.outageReason || 'outage flagged'}`)
     return { replyText: `Nettie: Provider outage jobs (${outaged.length}):\n${lines.join('\n')}`, replyKind: 'status' }
   }
@@ -3210,7 +3613,7 @@ function handleOperationalBrief() {
   const attention = []
   if (registry.running.length === 0) attention.push('No jobs currently running — execution is stalled')
   if (registry.blocked.length > 0) attention.push(`${registry.blocked.length} blocked job(s) need resolution`)
-  if (outaged.length > 0) attention.push(`${outaged.length} provider outage flag(s) — check resumeCommand in recovery ledger`)
+  if (outaged.length > 0) attention.push(`${outaged.length} executor outage flag(s) — check resumeCommand in recovery ledger`)
   const vanQueued = registry.queued.filter(j => (j.agent || j.owner || '') === 'Van').length
   if (vanQueued > 5) attention.push(`Van holds ${vanQueued} queued jobs — consider redistributing or triggering execution`)
   if (attention.length === 0) attention.push('No critical issues detected')
@@ -3383,7 +3786,31 @@ function sanitizeNettieVoice(text = '') {
     .replace(/\b(?:I am|I'm|As)\s+(?:Hermes|GPT|an AI model|a language model)\b/gi, 'I am Nettie')
     .replace(/\bHermes\b/g, 'Nettie')
     .trim()
-  return stripped ? `Nettie: ${stripped.replace(/^Nettie:\s*/i, '')}` : 'Nettie: Standing by for your next directive.'
+  return stripped ? `Nettie: ${stripped.replace(/^Nettie:\s*/i, '')}` : 'Nettie: Command received. No executor response text was returned.'
+}
+
+function executorFailureReply(classification = {}, executor = 'executor') {
+  const type = classification.type || classification.codexAuthStatus || 'unavailable'
+  if (executor === 'codex' && type === 'auth') return 'Nettie: Codex auth error. Command preserved; no executor response rendered.'
+  if (executor === 'codex') return `Nettie: Codex executor unavailable (${classification.message || type}). Command preserved.`
+  if (executor === 'hermes') return `Nettie: Legacy Hermes unavailable for manual request (${classification.message || type}). Command preserved.`
+  return `Nettie: No executor available (${classification.message || type}). Command preserved.`
+}
+
+function deterministicNettieReply(message = '') {
+  const msg = String(message || '').toLowerCase()
+  if (msg === 'ping') return 'Nettie: pong. Mission Control is online.'
+  if (/\bconfirm\b.*\bcodex\b.*\bexecutor\b.*\bbridge\b.*\blive\b/.test(msg)) {
+    return codexAvailable
+      ? `Nettie: Codex executor bridge is live. Version: ${codexVersion || 'available'}. Fallback executor: none.`
+      : 'Nettie: No executor available — Codex unavailable.'
+  }
+  if (/\bcodex\b.*\b(status|available|health)\b|\bexecutor\b.*\b(status|available|health)\b/.test(msg)) {
+    return codexAvailable
+      ? `Nettie: Codex executor available. Fallback executor: none. Legacy Hermes disabled for automatic fallback.`
+      : 'Nettie: Codex unavailable. No executor available.'
+  }
+  return 'Nettie: Command received. No execution requested. Codex remains the primary executor; fallback executor is none.'
 }
 
 // Async Hermes: returns immediately, posts result to chat when done
@@ -3409,8 +3836,8 @@ function askHermesAsync(prompt, pendingMsgId) {
     const isOutage = TOKEN_OUTAGE_RE.test(combined) || (code !== 0 && TOKEN_OUTAGE_RE.test(stderr))
     const text = isOutage
       ? `Nettie: Provider outage detected. Command recorded and preserved. Resume when provider restores.`
-      : sanitizeNettieVoice(rawText || 'Standing by.')
-    console.log('[HERMES_ASYNC_REPLY]', text.slice(0, 120), isOutage ? '[OUTAGE]' : '')
+      : sanitizeNettieVoice(rawText)
+    console.log('[LEGACY_HERMES_MANUAL_REPLY]', text.slice(0, 120), isOutage ? '[OUTAGE]' : '')
     const msg = state.chat.find(m => m.id === pendingMsgId)
     if (msg) {
       msg.text = text
@@ -3441,6 +3868,46 @@ function askHermesAsync(prompt, pendingMsgId) {
     }
     if (isOutage) syncRecoveryLedger()
   })
+}
+
+async function askSelectedExecutorAsync(prompt, pendingMsgId) {
+  const selectedExecutor = selectExecutor()
+
+  const msg = state.chat.find(m => m.id === pendingMsgId)
+
+  if (selectedExecutor !== 'codex') {
+    if (msg) {
+      msg.text = executorFailureReply({ type: 'unavailable', message: 'No executor available — Codex unavailable.' })
+      msg.kind = 'ack'
+      msg.resolvedAt = nowIso()
+      persistState()
+    }
+    return
+  }
+
+  const result = await runCommandCapture('codex', ['exec', '--cd', root, prompt], {
+    cwd: root,
+    timeoutMs: CODEX_EXEC_TIMEOUT_MS,
+  })
+  const output = cleanCodexOutput(result.stdout)
+  const classification = classifyExecutorError({
+    ...result,
+    stdout: output,
+    executor: 'Codex executor',
+  })
+
+  if (msg) {
+    if (classification.type === 'ok') {
+      msg.text = sanitizeNettieVoice(output)
+      msg.kind = 'nettie_async'
+    } else {
+      lastExecutorError = { executor: 'codex', ...classification, at: nowIso() }
+      msg.text = executorFailureReply(classification, 'codex')
+      msg.kind = 'ack'
+    }
+    msg.resolvedAt = nowIso()
+    persistState()
+  }
 }
 
 function mapTelegramSender(from = {}) {
@@ -3591,10 +4058,8 @@ function handleNettieInbound({ message, sender = 'Patrick', channel = 'mission-c
     replyText = result.replyText
     replyKind = result.replyKind
   } else {
-    pendingId = crypto.randomUUID()
-    replyText = 'Nettie: Command received. Processing now.'
-    replyKind = 'pending'
-    setImmediate(() => askHermesAsync(buildNettiePrompt(cleanMessage), pendingId))
+    replyText = deterministicNettieReply(cleanMessage)
+    replyKind = 'ack'
   }
 
   const outgoing = {
@@ -3631,11 +4096,13 @@ app.post('/api/chat', async (req, res) => {
   const channel = req.body?.channel || 'mission-control-ui'
   const intentType = classifyExecutionIntent(message)
 
-  if (shouldRouteChatToHermes(message)) {
+  if (shouldRouteChatToExecutor(message)) {
+    const requestedExecutor = isExplicitHermesRequest(message) ? 'hermes' : 'codex'
     console.log('[IRL ROUTE]', {
       message,
       intentType,
       routed: true,
+      selectedExecutor: requestedExecutor,
     })
     addChatMessage({
       id: crypto.randomUUID(),
@@ -3657,14 +4124,44 @@ app.post('/api/chat', async (req, res) => {
           task: message,
           text: message,
           issuedAt: new Date().toISOString(),
+          assignedDepartmentHead: 'Dana',
+          executionPacket: {
+            filesCreated: ['none'],
+            filesModified: ['none'],
+            filesDeleted: ['none'],
+            behaviorChanged: 'None; executor route confirmation only.',
+            behaviorUnchanged: 'Mission Control UI and adapter configuration remain unchanged.',
+            commandsExecuted: ['Mission Control chat executor route'],
+            exitCodes: { 'Mission Control chat executor route': 0 },
+            risks: ['none'],
+            nextPhase: 'Report executor route result.',
+          },
         },
+        executor: requestedExecutor,
       }),
     })
 
-    const data = await hermesRes.json()
+    const rawHermesBody = await hermesRes.text()
+    let data = null
+    try {
+      data = rawHermesBody ? JSON.parse(rawHermesBody) : null
+    } catch {
+      data = {
+        error: 'invalid_hermes_response',
+        reason: 'Hermes returned a non-JSON response',
+        rawPreview: rawHermesBody.slice(0, 200),
+      }
+    }
+    const executorName = data.selectedExecutor
+      ? data.selectedExecutor === 'hermes'
+        ? 'Legacy Hermes manual'
+        : `${String(data.selectedExecutor).charAt(0).toUpperCase()}${String(data.selectedExecutor).slice(1)}`
+      : AI_EXECUTION_PROVIDER === 'codex'
+        ? 'Codex'
+        : 'Executor'
     const replyText = hermesRes.ok
-      ? `Hermes execution initiated\nJob ID: ${data.jobId}\nStatus: ${data.status}`
-      : `Hermes execution blocked\nJob ID: ${data.jobId || 'n/a'}\nStatus: ${data.status || 'failed'}\nReason: ${data.result?.reason || data.reason || data.error || 'execution rejected'}`
+      ? `${executorName} execution initiated\nJob ID: ${data.jobId}\nStatus: ${data.status}`
+      : `Execution blocked\nJob ID: ${data.jobId || 'n/a'}\nStatus: ${data.status || 'failed'}\nReason: ${data.result?.reason || data.reason || data.error || 'execution rejected'}`
     const outgoing = {
       id: crypto.randomUUID(),
       from: 'Nettie',
@@ -3689,6 +4186,9 @@ app.post('/api/chat', async (req, res) => {
       },
       job: data,
       createdJob: false,
+      intentType,
+      routed: true,
+      selectedExecutor: data.selectedExecutor || requestedExecutor,
     })
   }
 
@@ -3705,7 +4205,7 @@ app.post('/api/chat', async (req, res) => {
   })
   const durationMs = Date.now() - startedAt
   res.setHeader('X-MissionControl-LatencyMs', String(durationMs))
-  return res.status(result.statusCode).json(result.payload)
+  return res.status(result.statusCode).json({ ...result.payload, intentType, routed: false })
 })
 
 app.post('/api/telegram/inbound', (req, res) => {
@@ -3852,7 +4352,7 @@ app.post('/api/perry/qa-gate', (req, res) => {
   })
 })
 
-app.get('/api/jobs/ledger', (_, res) => res.json(jobsLedger))
+app.get('/api/jobs/ledger', (_, res) => res.json(jobStore.deriveLedgerView()))
 
 app.get('/api/work/registry', (_, res) => {
   const registry = buildMasterWorkRegistry()
@@ -4022,5 +4522,6 @@ app.use((_, res) => {
 const port = Number(process.env.PORT || 4174)
 app.listen(port, () => {
   console.log(`Mission Control listening on http://127.0.0.1:${port}`)
+  console.log(`Codex available: ${codexAvailable ? `yes (${codexVersion})` : 'no'}`)
   console.log(`Hermes available: ${hermesAvailable ? 'yes' : 'no'}`)
 })
