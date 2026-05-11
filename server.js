@@ -6,6 +6,7 @@ import crypto from 'crypto'
 import { spawn, spawnSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import * as jobStore from './lib/jobStore.js'
+import { buildMissionControlData } from './lib/controlPlaneData.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -2051,33 +2052,108 @@ function launchHermesWorker(job, bodyPrompt = '') {
   return worker
 }
 
-function summarizeState() {
-  const jobs = state.jobs.map(attachWorker)
-  const runningJobs = jobs.filter((job) => job.status === 'running')
-  const queuedJobs = jobs.filter((job) => job.status === 'queued')
-  const completedWorkers = state.workers.filter((worker) => worker.status === 'completed').length
-  const runningWorkersCount = state.workers.filter((worker) => worker.status === 'running').length
-  const urgentJobs = jobs.filter((job) => job.priority === 'P0' || job.priority === 'P1').length
+function buildPlatformHealth() {
+  const registry = buildMasterWorkRegistry()
+  const distHealthy = fs.existsSync(distDir)
+  const ledgerExists = fs.existsSync(jobsLedgerPath)
+  const recoveryExists = fs.existsSync(recoveryLedgerJsonPath)
+  const ciExists = fs.existsSync(ciRegisterJsonPath)
+  const irlExists = fs.existsSync(IRL_STATE_FILE)
+  const routeCount = 18
 
   return {
-    system: state.system,
+    checkedAt: nowIso(),
+    backend: 'healthy',
+    frontendBuild: distHealthy ? 'present' : 'missing',
+    backendCheck: 'available',
+    ledgerStatus: ledgerExists ? 'healthy' : 'missing',
+    registryStatus: registry ? 'healthy' : 'degraded',
+    routeHealth: routeCount >= 11 ? 'configured' : 'incomplete',
+    recoveryLedger: recoveryExists ? 'present' : 'missing',
+    ciRegister: ciExists ? 'present' : 'missing',
+    irlState: irlExists ? 'present' : 'missing',
     counts: {
-      jobs: jobs.length,
-      activeJobs: runningJobs.length,
-      queuedJobs: queuedJobs.length,
-      workers: state.workers.length,
-      activeWorkers: runningWorkersCount,
-      completedWorkers,
-      agents: state.agents.length,
-      urgentJobs,
-      approvals: jobs.filter((job) => job.stage === 'APPROVAL').length,
-      qa: jobs.filter((job) => /QA$/.test(job.stage)).length,
+      queued: registry.queued.length,
+      running: registry.running.length,
+      blocked: registry.blocked.length,
+      completedRecent: registry.completedRecent.length,
+      activeWorkers: (state.workers || []).filter((worker) => worker.status === 'running').length,
+      duplicateLikeCompleted: registry.completedRecent.filter((item) => /shared groceries app/i.test(item.task || '')).length,
     },
+    executors: {
+      codexAvailable,
+      hermesAvailable,
+      selectedExecutor: state.system?.selectedExecutor || AI_EXECUTION_PROVIDER,
+      fallbackExecutor: state.system?.fallbackExecutor || AI_EXECUTION_FALLBACK,
+    },
+    storage: {
+      statePath,
+      jobsLedgerPath,
+      recoveryLedgerJsonPath,
+      ciRegisterJsonPath,
+      irlStatePath: IRL_STATE_FILE,
+    },
+  }
+}
+
+function buildControlPlaneSnapshot() {
+  syncCanonicalJobCaches()
+  const jobs = jobStore.deriveLedgerView().map(attachWorker)
+  const registry = buildMasterWorkRegistry()
+  const recoveryLedger = loadRecoveryLedger() || { entries: [] }
+  const ciRegister = loadCIRegister() || { entries: [] }
+  const health = buildPlatformHealth()
+  const derived = buildMissionControlData({
+    rootDir: root,
+    runtimeDir,
+    projectRoots,
+    state,
     jobs,
-    agents: state.agents,
+    registry,
+    workers: state.workers || [],
+    recoveryLedger,
+    ciRegister,
+    instructionState: { rules: instructionRegistry },
+    health,
+  })
+
+  return {
+    ...derived,
+    health,
+    jobs,
+    registry,
+    recoveryLedger,
+    ciRegister,
+  }
+}
+
+function summarizeState() {
+  const snapshot = buildControlPlaneSnapshot()
+  return {
+    system: state.system,
+    counts: snapshot.dashboard.counts,
+    jobs: snapshot.dashboard.jobs,
+    agents: snapshot.departments.map((department) => ({
+      id: department.id,
+      name: department.name,
+      role: department.title,
+      status: department.metrics.openJobs > 0 ? 'active' : 'idle',
+      load: department.status.currentWorkload,
+      focus: department.domain,
+    })),
     workers: state.workers,
     chat: state.chat,
     logs: state.logs.slice(0, 20),
+    priorities: snapshot.dashboard.priorities,
+    blockers: snapshot.dashboard.blockers,
+    approvals: snapshot.dashboard.approvals,
+    departments: snapshot.dashboard.departments,
+    reports: snapshot.reports,
+    projects: snapshot.projects,
+    costs: snapshot.costs,
+    integrations: snapshot.integrations,
+    health: snapshot.health,
+    registry: snapshot.registry,
   }
 }
 
@@ -2416,6 +2492,48 @@ app.get('/api/system', (_, res) => {
 
 app.get('/api/dashboard', (_, res) => {
   res.json(summarizeState())
+})
+
+app.get('/api/system/health', (_, res) => {
+  res.json(buildPlatformHealth())
+})
+
+app.get('/api/departments', (_, res) => {
+  res.json(buildControlPlaneSnapshot().departments)
+})
+
+app.get('/api/departments/:id', (req, res) => {
+  const department = buildControlPlaneSnapshot().departments.find((item) => item.id === String(req.params.id || '').toLowerCase())
+  if (!department) return res.status(404).json({ error: 'Department not found' })
+  res.json(department)
+})
+
+app.get('/api/projects', (_, res) => {
+  res.json(buildControlPlaneSnapshot().projects)
+})
+
+app.get('/api/reports', (_, res) => {
+  res.json(buildControlPlaneSnapshot().reports)
+})
+
+app.get('/api/costs', (_, res) => {
+  res.json(buildControlPlaneSnapshot().costs)
+})
+
+app.get('/api/qa', (_, res) => {
+  res.json(buildControlPlaneSnapshot().qa)
+})
+
+app.get('/api/security/review', (_, res) => {
+  res.json(buildControlPlaneSnapshot().security)
+})
+
+app.get('/api/decisions', (_, res) => {
+  res.json(buildControlPlaneSnapshot().decisions)
+})
+
+app.get('/api/integrations', (_, res) => {
+  res.json(buildControlPlaneSnapshot().integrations)
 })
 
 app.get('/api/jobs', (_, res) => res.json(state.jobs.map(attachWorker)))

@@ -9,6 +9,7 @@ import {
   ChevronDown, ChevronRight, Crown, DollarSign, Microscope, ClipboardList,
   Lightbulb, Radio, Target, Zap, Lock, User, BarChart2
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const tabs = [
   { id: "orgchart", label: "Chain of Command" },
@@ -302,6 +303,15 @@ function ExecDrawer({ exec, details, onClose }) {
               ))}
             </div>
           )}
+
+          <div className="flex items-center gap-2 pt-2">
+            <Link to={`/departments/${exec.name.toLowerCase()}`} className="px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[10px] font-semibold hover:bg-blue-500/20 transition-colors">
+              Open office
+            </Link>
+            <Link to="/reports" className="px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-white/40 text-[10px] font-medium hover:bg-white/[0.07] transition-colors">
+              Reports
+            </Link>
+          </div>
         </div>
       </div>
     </motion.div>

@@ -10,7 +10,6 @@ required_artifacts:
 time_constraint:
 success_criteria:
 status:
-flags_raised:
 
 completion_report:
   what_they_did:

@@ -16,6 +16,13 @@ import Security from "./pages/Security";
 import System from "./pages/System";
 import Nettie from "./pages/Nettie";
 import CalendarPage from "./pages/CalendarPage";
+import DepartmentPage from "./pages/DepartmentPage";
+import CostsPage from "./pages/CostsPage";
+import ReportsPage from "./pages/ReportsPage";
+import QaPage from "./pages/QaPage";
+import DecisionsPage from "./pages/DecisionsPage";
+import IntegrationsPage from "./pages/IntegrationsPage";
+import ProjectsPage from "./pages/ProjectsPage";
 
 function App() {
   return (
@@ -34,6 +41,13 @@ function App() {
             <Route path="/knowledge" element={<Knowledge />} />
             <Route path="/security" element={<Security />} />
             <Route path="/system" element={<System />} />
+            <Route path="/departments/:departmentId" element={<DepartmentPage />} />
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/costs" element={<CostsPage />} />
+            <Route path="/qa" element={<QaPage />} />
+            <Route path="/decisions" element={<DecisionsPage />} />
+            <Route path="/integrations" element={<IntegrationsPage />} />
           </Route>
 
           <Route path="*" element={<PageNotFound />} />

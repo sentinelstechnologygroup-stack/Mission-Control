@@ -4,6 +4,7 @@ Status
 - Standing Mission Control doctrine
 - Applies to project reporting, CI reporting, pressure-test reporting, resource requests, and executive handoffs
 - Extended by /home/patrick/mission-control/governance/executive-ci-enforcement-framework.md
+- Extended by /home/patrick/mission-control/governance/agents-ci-mandate.md
 
 ## Daily executive status minimum
 Every executive daily status report should include:
@@ -40,6 +41,9 @@ Every executive daily CI report must include:
 - next CI step
 - resource requests
 - escalations needed
+- CI RECORD(s) created
+- CI LEARNING RECORD(s) created
+- daily independent-learning completion status: completed / missed
 
 ## Weekly executive CI report minimum
 Planning weeks run Sunday through Saturday.

@@ -5,6 +5,7 @@ Status
 - Layers on top of the Executive Role Clarity Audit dated 2026-04-23
 - Applies to Nettie, Van, Perry, Torina, Dana, Icky, Funboy, Rab, Bea while active, and any other active executive or department head in Mission Control
 - Reinforced by /home/patrick/mission-control/governance/executive-ci-enforcement-framework.md
+- Extended by /home/patrick/mission-control/governance/agents-ci-mandate.md
 
 Purpose
 Mission Control executives are not passive operators waiting for permission to improve. Each executive has standing autonomy to wake up and run continuous-improvement, learning, research, process-improvement, department-improvement, and role-development work inside approved department scope.
@@ -67,9 +68,34 @@ Every executive must:
 - state whether the day's work was internal improvement, external learning, or both
 - convert external learning into action when appropriate
 - report needed resources when missing tools or access materially limit improvement
+- complete at least one independent-learning action per day using approved trusted sources inside assigned domain scope
+- create a CI RECORD whenever a CI-triggering failure occurs
+- create a CI LEARNING RECORD for the daily independent-learning action
 
 Weekly CI + learning duties
 Planning weeks run Sunday through Saturday.
+
+Mandatory CI triggers
+CI must run when any of the following occur:
+- QA failure
+- build failure
+- deployment failure
+- security finding
+- user correction
+- repeated mistake
+- data mapping error
+- silent error
+- missing validation
+- manual intervention where automation should exist
+- incomplete or fake feature
+- broken workflow
+- unclear ownership
+- unstable output
+
+Failure rule
+- If an executive makes the same mistake twice, that executive has failed CI.
+- If Patrick must repeat the same correction twice, the department head has failed CI.
+- If the same issue appears across domains, Nettie must escalate it into system-level CI.
 
 Every executive must summarize:
 - internal CI completed
@@ -126,9 +152,15 @@ Every executive daily CI report must include:
 - executive
 - department
 - date
+- assigned primary CI project
 - internal CI completed
 - external learning completed
 - trigger issue or opportunity
+- observed issue
+- implemented fix
+- validation result
+- doctrine candidate status: locked / pending validation / not promoted
+- unresolved blocker, if any
 - key lesson learned
 - what changed in thinking or approach
 - what was applied
@@ -139,6 +171,8 @@ Every executive daily CI report must include:
 - next CI step
 - resource requests
 - escalations needed
+- CI RECORD(s) created
+- CI LEARNING RECORD(s) created
 
 Every executive weekly CI report must include:
 - executive

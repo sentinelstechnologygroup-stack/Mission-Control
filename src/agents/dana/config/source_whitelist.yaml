@@ -1,0 +1,17 @@
+{
+  "allowedHosts": [
+    "query1.finance.yahoo.com",
+    "query2.finance.yahoo.com",
+    "www.sec.gov",
+    "data.sec.gov"
+  ],
+  "sources": {
+    "yahooScreener": { "enabled": true, "host": "query1.finance.yahoo.com", "kind": "market_discovery" },
+    "yahooQuote": { "enabled": true, "host": "query1.finance.yahoo.com", "kind": "market_quote" },
+    "yahooNews": { "enabled": true, "host": "query1.finance.yahoo.com", "kind": "news" },
+    "yahooQuoteSummary": { "enabled": true, "host": "query2.finance.yahoo.com", "kind": "company_profile" },
+    "secCompanyTickers": { "enabled": true, "host": "www.sec.gov", "kind": "universe" },
+    "secCompanyFacts": { "enabled": true, "host": "data.sec.gov", "kind": "financials" },
+    "secSubmissions": { "enabled": true, "host": "data.sec.gov", "kind": "filings" }
+  }
+}

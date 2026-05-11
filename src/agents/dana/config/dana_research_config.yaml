@@ -1,0 +1,45 @@
+{
+  "job": {
+    "owner": "Dana",
+    "analyst": "Dana / Dana's Team",
+    "emailTo": ["SentinelsTechnologyGroup@gmail.com", "Patrick@SentinelsDesignLab.com"],
+    "emailSubjectPrefix": "[Dana]"
+  },
+  "scan": {
+    "priceMin": 1,
+    "priceMax": 10,
+    "minAverageVolume": 250000,
+    "minRelativeVolume": 1.5,
+    "minDailyMovePct": 4,
+    "maxScreenerResultsPerSource": 100,
+    "maxCandidates": 12,
+    "newsWindowDays": 7,
+    "offline": false,
+    "universeLimit": 250
+  },
+  "validation": {
+    "minDataConfidence": 0.7,
+    "minSignalScore": 5,
+    "minSupportSignals": 2,
+    "maxFinalCandidates": 5,
+    "requireVolumeMomentumAlignment": true,
+    "historyLimit": 20,
+    "snapshotLimit": 8,
+    "allowedExchanges": ["NYSE", "NASDAQ", "AMEX"],
+    "minMarketCap": 250000000,
+    "minAverageVolume": 250000,
+    "maxNegativeCashFlow": -100000000,
+    "maxDebtRatio": 3,
+    "maxMissingCriticalFields": 1,
+    "priceDeviationThreshold": 0.07,
+    "marketCapDeviationThreshold": 0.15,
+    "lowConfidencePenalty": 0.8
+  },
+  "reporting": {
+    "attachArchive": true
+  },
+  "email": {
+    "enabled": true,
+    "adapter": "gmail-mail"
+  }
+}

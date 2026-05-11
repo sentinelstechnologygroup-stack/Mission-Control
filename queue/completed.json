@@ -1,0 +1,26 @@
+[
+  {
+    "task_id": "SYS-001",
+    "type": "SETUP",
+    "status": "complete",
+    "description": "Verify Ollama install and pull base models",
+    "preferred": "local",
+    "fallback": "gpt"
+  },
+  {
+    "task_id": "SYS-002",
+    "type": "TEST",
+    "status": "complete",
+    "description": "Run local model tests (mistral, qwen, deepseek)",
+    "preferred": "local",
+    "fallback": "gpt"
+  },
+  {
+    "task_id": "SYS-003",
+    "type": "TEST",
+    "status": "pending",
+    "description": "Confirm queue runner can process a newly added task end-to-end",
+    "preferred": "local",
+    "fallback": "gpt"
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "weights": {
+    "Business Quality": 0.15,
+    "Management Quality": 0.10,
+    "Competitive Moat": 0.15,
+    "Growth Potential": 0.10,
+    "Financial Strength": 0.15,
+    "Valuation / Entry": 0.15,
+    "Catalyst Quality": 0.10,
+    "Risk Profile": 0.10,
+    "Timing / Setup": 0.10
+  },
+  "ratingBands": [
+    { "min": 8.5, "label": "Strong Buy" },
+    { "min": 7.0, "label": "Buy" },
+    { "min": 5.5, "label": "Watch" },
+    { "min": 0.0, "label": "Pass" }
+  ]
+}

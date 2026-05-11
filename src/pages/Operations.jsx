@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import SubTabBar from "../components/mission-control/SubTabBar";
@@ -10,6 +10,7 @@ import {
   CheckCircle, XCircle, RotateCcw, AlertTriangle, User, Flag, Clock,
   ChevronRight, X, ArrowUpRight, Zap
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import BuildLogs from "../components/mission-control/BuildLogs";
 
 const tabs = [
@@ -95,20 +96,34 @@ const pipelineStageColors = {
   failed: "bg-red-500/15 text-red-300",
 };
 
+const OPEN_JOB_STATUSES = new Set(["queued", "running", "active", "paused", "blocked", "in_progress"]);
+
+function truncateText(value, max = 92) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function isOpenJob(job) {
+  return OPEN_JOB_STATUSES.has(String(job?.status || "").toLowerCase());
+}
+
 function normalizeJob(job) {
   return {
     id: job.id,
-    title: job.title ?? job.name ?? "Untitled job",
+    title: truncateText(job.title ?? job.name ?? job.task ?? "Untitled job", 120),
+    fullTitle: job.title ?? job.name ?? job.task ?? "Untitled job",
     owner: job.owner ?? job.assignee ?? job.agent ?? "Unassigned",
     dept: job.dept ?? job.department ?? "—",
     priority: job.priority ?? "medium",
     stage: job.stage ?? job.status ?? "INTAKE",
+    status: String(job.status ?? "unknown").toLowerCase(),
     due: job.due ?? job.dueDate ?? "Unscheduled",
-    source: job.source ?? job.missionName ?? job.description ?? "—",
-    blocker: job.blocker ?? job.blockedReason ?? null,
+    source: truncateText(job.source ?? job.missionName ?? job.description ?? "—", 96),
+    blocker: truncateText(job.blocker ?? job.blockedReason ?? null, 120),
     progress: typeof job.progress === "number" ? job.progress : (job.percentComplete ?? 0),
     subtasks: job.subtasks ?? job.totalSubtasks ?? job.taskCount ?? 0,
     done: job.done ?? job.completedSubtasks ?? 0,
+    sourceType: job.sourceType ?? "mission-control",
     raw: job,
   };
 }
@@ -175,7 +190,7 @@ function TaskDetail({ task, onClose }) {
           <StageBadge stage={task.stage} />
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/25"><X className="w-4 h-4" /></button>
         </div>
-        <h2 className="text-[15px] font-semibold text-white/80 mb-4">{task.title}</h2>
+        <h2 className="text-[15px] font-semibold text-white/80 mb-4">{task.fullTitle || task.title}</h2>
         <div className="grid grid-cols-2 gap-2 mb-5">
           {[["Owner", task.owner], ["Department", task.dept], ["Priority", task.priority], ["Due", task.due], ["Source", task.source], ["Progress", `${task.progress}%`]].map(([k, v], i) => (
             <div key={i} className="p-2.5 rounded-xl bg-white/[0.02]">
@@ -234,14 +249,29 @@ export default function Operations() {
     refetchInterval: 10000,
   });
 
-  const liveTasks = Array.isArray(rawJobs) ? rawJobs.map(normalizeJob) : tasks;
+  const { data: workRegistry } = useQuery({
+    queryKey: ["operations", "registry"],
+    queryFn: api.workRegistry,
+    refetchInterval: 10000,
+  });
 
-  // Derive lifecycle columns from live data; fall back to static stage items if API failed
+  const liveTasks = Array.isArray(rawJobs) ? rawJobs.map(normalizeJob) : tasks;
+  const curatedLiveTasks = useMemo(() => {
+    if (!Array.isArray(rawJobs)) return tasks;
+    return liveTasks
+      .filter((task) => isOpenJob(task) && task.sourceType !== 'project-ledger')
+      .sort((a, b) => String(b.raw?.updatedAt || '').localeCompare(String(a.raw?.updatedAt || '')))
+      .slice(0, 24);
+  }, [liveTasks, rawJobs]);
+
+  const displayTasks = curatedLiveTasks.length ? curatedLiveTasks : tasks;
+
+  // Derive lifecycle columns from a curated live subset; fall back to static stage items if API failed
   const liveStages = stages.map((stage) => ({
     ...stage,
     items: jobsError
       ? stage.items
-      : liveTasks.filter((t) => t.stage === stage.id),
+      : displayTasks.filter((t) => t.stage === stage.id).slice(0, 6),
   }));
 
   // Mutation exists but not yet connected to buttons — target stage mapping unclear
@@ -263,6 +293,26 @@ export default function Operations() {
           </span>
         </div>
         <p className="text-[11px] text-white/30">Execution layer — lifecycle board, task tracking, workload, pipeline</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-4">
+        {[
+          { label: 'Running', value: workRegistry?.running?.length ?? displayTasks.filter((task) => task.status === 'running').length, accent: 'text-emerald-400' },
+          { label: 'Queued', value: workRegistry?.queued?.length ?? displayTasks.filter((task) => task.status === 'queued').length, accent: 'text-blue-400' },
+          { label: 'Blocked', value: workRegistry?.blocked?.length ?? displayTasks.filter((task) => task.status === 'blocked').length, accent: 'text-amber-400' },
+          { label: 'Live Subset', value: displayTasks.length, accent: 'text-white/70' },
+        ].map((item, index) => (
+          <GlassCard key={item.label} delay={index * 0.03} className="py-3">
+            <p className="text-[9px] text-white/20 uppercase tracking-wider">{item.label}</p>
+            <p className={`mt-2 text-[18px] font-bold font-mono ${item.accent}`}>{item.value}</p>
+          </GlassCard>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <Link to="/projects" className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-[10px] text-white/45 transition-colors">Project Registry</Link>
+        <Link to="/departments/van" className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-[10px] text-white/45 transition-colors">Van Active Local</Link>
+        <Link to="/reports" className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-[10px] text-white/45 transition-colors">Reports</Link>
       </div>
       <SubTabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
@@ -296,7 +346,7 @@ export default function Operations() {
         {activeTab === "tasks" && (
           <motion.div key="tasks" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="space-y-2">
-              {liveTasks.map((task, i) => (
+              {displayTasks.map((task, i) => (
                 <TaskRow key={task.id ?? i} task={task} onClick={() => setSelectedTask(task)} />
               ))}
             </div>

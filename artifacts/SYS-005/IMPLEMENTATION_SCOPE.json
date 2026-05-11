@@ -1,0 +1,32 @@
+{
+  "filesModified": [
+    "queue-runner.sh"
+  ],
+  "filesCreated": [
+    "tmp/task_result.json",
+    "tmp/queue_runner_state.json",
+    "tmp/ollama-task-note.json"
+  ],
+  "behaviorChanged": [
+    "Tasks must pass validation before completion",
+    "Failed validation triggers retry or blocking",
+    "Retry state is tracked outside queue payloads"
+  ],
+  "behaviorUnchanged": [
+    "Queue structure",
+    "Task format"
+  ],
+  "commandsExecuted": [
+    "python3 scripts/validate_task_result.py"
+  ],
+  "exitCodes": {
+    "0": "valid",
+    "non-zero": "validation failure"
+  },
+  "risks": [
+    "incorrect blocking due to strict validation",
+    "retry loops if not bounded",
+    "slow advisory model responses can lengthen a runner cycle"
+  ],
+  "nextPhase": "Retry + fallback model routing"
+}

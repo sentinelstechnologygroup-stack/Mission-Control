@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import CommandConsole from "../components/mission-control/CommandConsole";
 import NettieOrchestrationPanel from "../components/mission-control/NettieOrchestrationPanel";
 import CostPanel from "../components/mission-control/CostPanel";
@@ -17,7 +19,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
-const quickStats = [
+const defaultQuickStats = [
   { label: "Active Jobs", value: "24", color: "text-emerald-400", bg: "bg-emerald-500/10" },
   { label: "Pending QA", value: "7", color: "text-amber-400", bg: "bg-amber-500/10" },
   { label: "Approved Today", value: "12", color: "text-blue-400", bg: "bg-blue-500/10" },
@@ -118,6 +120,20 @@ function InboxDrawer({ item, onClose }) {
 
 export default function Home() {
   const [selectedInbox, setSelectedInbox] = useState(null);
+  const { data: dashboard } = useQuery({
+    queryKey: ["home", "dashboard"],
+    queryFn: api.dashboard,
+    refetchInterval: 10000,
+  });
+
+  const quickStats = dashboard?.counts
+    ? [
+        { label: "Active Jobs", value: String(dashboard.counts.activeJobs ?? 0), color: "text-emerald-400", bg: "bg-emerald-500/10" },
+        { label: "Pending QA", value: String(dashboard.counts.qa ?? 0), color: "text-amber-400", bg: "bg-amber-500/10" },
+        { label: "Approved Today", value: String(dashboard.counts.approvals ?? 0), color: "text-blue-400", bg: "bg-blue-500/10" },
+        { label: "Escalations", value: String(dashboard.counts.blockedJobs ?? 0), color: "text-red-400", bg: "bg-red-500/10" },
+      ]
+    : defaultQuickStats;
 
   return (
     <div className="space-y-4">

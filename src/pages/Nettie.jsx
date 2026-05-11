@@ -793,7 +793,7 @@ export default function Nettie() {
             {/* Messages — live history + optimistic local messages */}
             <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
               {displayMessages.map((msg, i) => (
-                <div key={msg.id ?? i}>
+                <div key={`${msg.id ?? 'msg'}-${msg.ts ?? msg.time ?? i}-${i}`}>
                   {i > 0 && <div className="border-t border-white/[0.04] mb-5" />}
                   <ThreadMessage msg={msg} />
                   {msg.failed && (
