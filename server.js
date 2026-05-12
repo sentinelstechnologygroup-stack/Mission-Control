@@ -38,7 +38,7 @@ function loadLocalEnvFile(filePath) {
     if (!line || /^\s*#/.test(line) || !line.includes('=')) continue
     const index = line.indexOf('=')
     const key = line.slice(0, index).trim()
-    if (!key || process.env[key] !== undefined) continue
+    if (!key || (process.env[key] !== undefined && process.env[key] !== '')) continue
     let value = line.slice(index + 1).trim()
     if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
       value = value.slice(1, -1)
