@@ -1,20 +1,40 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+const API_BASE =
+  import.meta.env.VITE_MC_API_BASE_URL
+  || import.meta.env.VITE_API_BASE_URL
+  || 'http://127.0.0.1:4174'
+
+const BRIDGE_TOKEN = import.meta.env.VITE_MC_BRIDGE_TOKEN || ''
+const AUTHENTICATED_PATHS = new Set([
+  '/api/executor/status',
+  '/api/nettie/messages',
+])
+
+function buildHeaders(path, extraHeaders = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...extraHeaders,
+  }
+
+  if (AUTHENTICATED_PATHS.has(path) && BRIDGE_TOKEN) {
+    headers.Authorization = `Bearer ${BRIDGE_TOKEN}`
+  }
+
+  return headers
+}
 
 async function request(path, options = {}) {
   const requestUrl = `${API_BASE}${path}`
   const requestOptions = {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
+    headers: buildHeaders(path, options.headers || {}),
     ...options,
   }
 
-  if (path === '/api/chat') {
-    console.log('Sending request to /api/chat', {
+  if (path === '/api/nettie/messages' || path === '/api/chat') {
+    console.log(`Sending request to ${path}`, {
       url: requestUrl,
       method: requestOptions.method || 'GET',
       body: requestOptions.body || null,
+      authenticated: Boolean(requestOptions.headers.Authorization),
     })
   }
 
@@ -22,7 +42,7 @@ async function request(path, options = {}) {
   try {
     response = await fetch(requestUrl, requestOptions)
   } catch (e) {
-    if (path === '/api/chat') {
+    if (path === '/api/nettie/messages' || path === '/api/chat') {
       console.error('CHAT ERROR:', e)
     }
     throw e
@@ -36,14 +56,16 @@ async function request(path, options = {}) {
     data = null
   }
 
-  if (path === '/api/chat') {
+  if (path === '/api/nettie/messages' || path === '/api/chat') {
     console.log('Response:', data ?? rawText)
   }
 
   if (!response.ok) {
-    const message = data?.error || data?.message || rawText || `${response.status} ${response.statusText}`
+    const message = data?.error || data?.reason || data?.message || rawText || `${response.status} ${response.statusText}`
     const error = new Error(message)
-    if (path === '/api/chat') {
+    error.status = response.status
+    error.payload = data
+    if (path === '/api/nettie/messages' || path === '/api/chat') {
       console.error('CHAT ERROR:', error)
     }
     throw error
@@ -56,6 +78,7 @@ export const api = {
   dashboard: () => request('/api/dashboard'),
   system: () => request('/api/system'),
   systemHealth: () => request('/api/system/health'),
+  executorStatus: () => request('/api/executor/status'),
   jobs: () => request('/api/jobs'),
   jobsLedger: () => request('/api/jobs/ledger'),
   workRegistry: () => request('/api/work/registry'),
@@ -79,4 +102,5 @@ export const api = {
   runJob: (jobId, payload) => request(`/api/jobs/${jobId}/run`, { method: 'POST', body: JSON.stringify(payload) }),
   stopWorker: (workerId) => request(`/api/workers/${workerId}/stop`, { method: 'POST' }),
   sendChat: (message) => request('/api/chat', { method: 'POST', body: JSON.stringify({ message, sender: 'Patrick', channel: 'mission-control' }) }),
+  sendNettieMessage: (message) => request('/api/nettie/messages', { method: 'POST', body: JSON.stringify({ message, sender: 'Patrick', channel: 'mission-control' }) }),
 }

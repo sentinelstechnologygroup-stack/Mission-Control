@@ -350,12 +350,49 @@ function hasResolvedReply(message) {
 }
 
 function getDeliveryFailureText(error) {
-  const message = String(error?.message || "").toLowerCase();
-  if (message.includes("auth")) return "Not delivered - Codex auth error";
+  const message = String(error?.message || error?.payload?.reason || "").toLowerCase();
+  if (message.includes("missing_bridge_token") || message.includes("invalid_bridge_token") || message.includes("auth")) return "Not delivered - bridge auth required";
+  if (message.includes("cooldown")) return "Not delivered - executor cooling down";
+  if (message.includes("executor_unavailable") || message.includes("executor")) return "Not delivered - no executor available";
   if (message.includes("codex")) return "Not delivered - Codex executor unavailable";
   if (message.includes("hermes")) return "Not delivered - legacy Hermes unavailable";
-  if (message.includes("executor")) return "Not delivered - no executor available";
   return "Not delivered - send failed";
+}
+
+function getExecutorStateView(status, isLoading, isError) {
+  if (isLoading) {
+    return { label: "Checking", detail: "Bridge status pending", variant: "warning" };
+  }
+
+  if (isError || !status) {
+    return { label: "Offline", detail: "Bridge unavailable", variant: "critical" };
+  }
+
+  if (status.cooldown) {
+    return {
+      label: "Cooling down",
+      detail: status.cooldown.estimatedResetTime || "Provider cooldown active",
+      variant: "warning",
+    };
+  }
+
+  if (!status.available) {
+    return { label: "Offline", detail: "No executor available", variant: "critical" };
+  }
+
+  if ((status.queueDepth || 0) > 0) {
+    return {
+      label: "Queue active",
+      detail: `${status.queueDepth} queued via ${status.executor || "executor"}`,
+      variant: "info",
+    };
+  }
+
+  return {
+    label: "Online",
+    detail: `${status.executor || "executor"} on ${status.runtime || "runtime"}`,
+    variant: "active",
+  };
 }
 
 // ===========================================================
@@ -473,6 +510,18 @@ export default function Nettie() {
     refetchInterval: 10000,
   });
 
+  const {
+    data: executorStatus,
+    isLoading: executorStatusLoading,
+    isError: executorStatusError,
+    refetch: refetchExecutorStatus,
+  } = useQuery({
+    queryKey: ["nettie", "executor-status"],
+    queryFn: api.executorStatus,
+    refetchInterval: 10000,
+    retry: false,
+  });
+
   useEffect(() => {
     saveTrackedOperatorThread(trackedOperatorThread);
   }, [trackedOperatorThread]);
@@ -553,8 +602,10 @@ export default function Nettie() {
     };
   }, [pendingReplyId, queryClient]);
 
+  const executorStateView = getExecutorStateView(executorStatus, executorStatusLoading, executorStatusError);
+
   const sendChatMutation = useMutation({
-    mutationFn: (message) => api.sendChat(message),
+    mutationFn: (message) => api.sendNettieMessage(message),
     onSuccess: (data) => {
       console.log("NETTIE_ON_SUCCESS_RAW", data);
       const serverReply = extractCanonicalReply(data);
@@ -587,12 +638,14 @@ export default function Nettie() {
       }
 
       refetchHistory();
+      refetchExecutorStatus();
     },
     onError: (error) => {
       setPendingReplyId(null);
       setLocalMessages(prev =>
         prev.map(m => m._optimistic ? { ...m, failed: true, failureText: getDeliveryFailureText(error) } : m)
       );
+      refetchExecutorStatus();
     },
   });
 
@@ -665,9 +718,10 @@ export default function Nettie() {
             </div>
             <div>
               <p className="text-[12px] font-bold text-white/80">Nettie</p>
-              <p className="text-[8px] text-white/30 font-mono">Chief of Staff · Online</p>
+              <p className="text-[8px] text-white/30 font-mono">Chief of Staff · {executorStateView.label}</p>
+              <p className="text-[7px] text-white/20 font-mono mt-0.5">{executorStateView.detail}</p>
             </div>
-            <StatusBadge variant="active" dot={true} className="ml-auto">Live</StatusBadge>
+            <StatusBadge variant={executorStateView.variant} dot={true} className="ml-auto">{executorStateView.label}</StatusBadge>
           </div>
 
           {/* View toggle */}
@@ -743,10 +797,10 @@ export default function Nettie() {
         <div className="border-t border-white/[0.05] px-4 py-3">
           <p className="text-[8px] text-white/20 uppercase tracking-wider mb-2">System Pulse</p>
           {[
-            { label: "Active Jobs", value: "24", color: "text-emerald-400" },
-            { label: "In QA", value: "7", color: "text-amber-400" },
-            { label: "Awaiting Patrick", value: "2", color: "text-red-400" },
-            { label: "Daily Spend", value: "$128", color: "text-white/40" },
+            { label: "Executor", value: executorStateView.label, color: "text-emerald-400" },
+            { label: "Queue Depth", value: String(executorStatus?.queueDepth ?? "—"), color: "text-amber-400" },
+            { label: "Runtime", value: executorStatus?.runtime ?? "—", color: "text-white/50" },
+            { label: "Mode", value: executorStatus?.executor ?? "—", color: "text-white/40" },
           ].map((item, i) => (
             <div key={i} className="flex items-center justify-between mb-0.5">
               <span className="text-[9px] text-white/25">{item.label}</span>
@@ -848,8 +902,11 @@ export default function Nettie() {
                 <span className="flex items-center gap-1 ml-auto shrink-0">
                   <span className={`w-1 h-1 rounded-full ${chatLoading ? "bg-amber-500" : chatError ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
                   <span className="text-[7px] text-white/15 font-mono">
-                    {chatLoading ? "Loading" : chatError ? "History offline" : "Live"}
+                    {chatLoading ? "Loading" : chatError ? "History offline" : `Executor ${executorStateView.label}`}
                   </span>
+                  {executorStatus?.queueDepth > 0 && (
+                    <span className="text-[7px] text-white/20 font-mono ml-1">· Queue {executorStatus.queueDepth}</span>
+                  )}
                   {sendChatMutation.isPending && <span className="text-[7px] text-blue-400/50 font-mono ml-1">· Sending…</span>}
                   {sendChatMutation.isError && <span className="text-[7px] text-red-400/50 font-mono ml-1">· {getDeliveryFailureText(sendChatMutation.error).replace(/^Not delivered - /, "")}</span>}
                 </span>

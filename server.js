@@ -44,10 +44,150 @@ const LOCAL_EXECUTION_FALLBACK = String(process.env.LOCAL_EXECUTION_FALLBACK || 
 const CODEX_EXEC_TIMEOUT_MS = Number(process.env.CODEX_EXEC_TIMEOUT_MS || 120000)
 const EXECUTOR_HEALTH_CACHE_MS = Number(process.env.EXECUTOR_HEALTH_CACHE_MS || 120000)
 const CODEX_CONNECTED_TEXT = 'CODEX_EXECUTOR_CONNECTED'
+const MC_RUNTIME_NAME = String(process.env.MC_RUNTIME_NAME || 'aicenter').trim() || 'aicenter'
+const MC_BRIDGE_TOKEN = String(process.env.MC_BRIDGE_TOKEN || '').trim()
+const MC_ALLOWED_ORIGINS = new Set(
+  String(
+    process.env.MC_ALLOWED_ORIGINS
+    || 'https://mission-control-livid-zeta.vercel.app,http://127.0.0.1:5173,http://localhost:5173'
+  )
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+)
 let lastExecutorError = null
 let executorHealthCache = null
 
 const nowIso = () => new Date().toISOString()
+
+function getBridgeAuthToken(req) {
+  const header = String(req.headers.authorization || '').trim()
+  const match = header.match(/^Bearer\s+(.+)$/i)
+  return match ? match[1].trim() : ''
+}
+
+function isBridgeOriginAllowed(origin = '') {
+  if (!origin) return false
+  if (MC_ALLOWED_ORIGINS.has('*')) return true
+  return MC_ALLOWED_ORIGINS.has(origin)
+}
+
+function getExecutorQueueDepth() {
+  return jobsLedger.filter((job) => {
+    const status = String(job?.status || '').toLowerCase()
+    const owner = String(job?.owner || job?.agent || '').toLowerCase()
+    const source = String(job?.source || '').toLowerCase()
+    return ['queued', 'running', 'in_progress', 'paused', 'blocked'].includes(status)
+      && (owner === 'hermes' || source === 'nettie')
+  }).length
+}
+
+function getExecutorLastHeartbeat() {
+  const candidates = [
+    state?.system?.updatedAt,
+    ...((state?.workers || []).flatMap((worker) => [worker?.endedAt, worker?.updatedAt, worker?.startedAt])),
+    ...jobsLedger.flatMap((job) => [job?.heartbeatAt, job?.updatedAt, job?.createdAt]),
+  ].filter(Boolean)
+
+  if (!candidates.length) return nowIso()
+  return candidates.sort().at(-1)
+}
+
+function getExecutorCooldownSummary() {
+  try {
+    const cooldown = buildControlPlaneSnapshot()?.costs?.cooldown
+    if (!cooldown || cooldown.cooldownStatus !== 'cooldown') return null
+    return {
+      provider: cooldown.provider || null,
+      model: cooldown.model || null,
+      status: cooldown.cooldownStatus,
+      estimatedResetTime: cooldown.estimatedResetTime || null,
+      retryDelaySeconds: cooldown.retryDelaySeconds ?? null,
+      providerQuotaResetSeconds: cooldown.providerQuotaResetSeconds ?? null,
+      fallbackAttempted: Boolean(cooldown.fallbackAttempted),
+      fallbackResult: cooldown.fallbackResult || null,
+    }
+  } catch {
+    return null
+  }
+}
+
+function buildExecutorBridgeStatus() {
+  const selectedExecutor = selectExecutor()
+  return {
+    available: selectedExecutor !== 'none',
+    runtime: MC_RUNTIME_NAME,
+    executor: selectedExecutor === 'none' ? 'unavailable' : selectedExecutor,
+    queueDepth: getExecutorQueueDepth(),
+    lastHeartbeat: getExecutorLastHeartbeat(),
+    cooldown: getExecutorCooldownSummary(),
+    selectedExecutor,
+    lastError: lastExecutorError,
+  }
+}
+
+function buildBridgeExecutionPacket(message = '') {
+  return {
+    filesCreated: ['none'],
+    filesModified: ['none'],
+    filesDeleted: ['none'],
+    behaviorChanged: `Queued command bridge request for: ${String(message || '').slice(0, 140)}`,
+    behaviorUnchanged: 'Mission Control UI, project files, and executor host remain unchanged at queue acceptance time.',
+    commandsExecuted: ['Mission Control bridge queue'],
+    exitCodes: { 'Mission Control bridge queue': 0 },
+    risks: ['none at queue acceptance'],
+    nextPhase: 'Dispatch queued bridge job to the active executor runtime.',
+  }
+}
+
+async function queueBridgeMessageForExecutor(message, requestedExecutor = '') {
+  const executor = requestedExecutor || selectExecutor()
+  const runtimeBaseUrl = `http://127.0.0.1:${Number(process.env.PORT || 4174)}`
+  const response = await fetch(`${runtimeBaseUrl}/api/hermes/execute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source: 'Nettie',
+      type: 'execution',
+      executeNow: false,
+      executor,
+      inputPayload: {
+        task: message,
+        text: message,
+        issuedAt: nowIso(),
+        assignedDepartmentHead: 'Dana',
+        executionPacket: buildBridgeExecutionPacket(message),
+      },
+    }),
+  })
+
+  const raw = await response.text()
+  let data = null
+  try {
+    data = raw ? JSON.parse(raw) : null
+  } catch {
+    data = { error: 'invalid_executor_response', rawPreview: raw.slice(0, 200) }
+  }
+
+  return { ok: response.ok, statusCode: response.status, data }
+}
+
+function requireBridgeToken(req, res, next) {
+  if (!MC_BRIDGE_TOKEN) {
+    return res.status(503).json({ error: 'bridge_token_not_configured', delivered: false, reason: 'bridge_token_not_configured' })
+  }
+
+  const token = getBridgeAuthToken(req)
+  if (!token) {
+    return res.status(401).json({ error: 'missing_bridge_token', delivered: false, reason: 'missing_bridge_token' })
+  }
+
+  if (token !== MC_BRIDGE_TOKEN) {
+    return res.status(403).json({ error: 'invalid_bridge_token', delivered: false, reason: 'invalid_bridge_token' })
+  }
+
+  return next()
+}
 
 const NETTIE_PERSONA_DEFAULT = [
   'You are Nettie, Patrick\'s executive assistant and Mission Control command authority.',
@@ -2441,6 +2581,21 @@ function makeReplyForPrompt(prompt, createdJob) {
 }
 
 const app = express()
+app.use((req, res, next) => {
+  const origin = String(req.headers.origin || '')
+  if (origin && isBridgeOriginAllowed(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Vary', 'Origin')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+  }
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end()
+  }
+
+  return next()
+})
 app.use(express.json({ limit: '1mb' }))
 
 app.get('/api/health', (_, res) => {
@@ -2454,6 +2609,10 @@ app.get('/api/health', (_, res) => {
     fallbackExecutor: AI_EXECUTION_FALLBACK,
     launchedAt: state.system.launchedAt,
   })
+})
+
+app.get('/api/executor/status', requireBridgeToken, (_, res) => {
+  res.json(buildExecutorBridgeStatus())
 })
 
 app.get('/api/executors/health', async (_, res) => {
@@ -4226,6 +4385,91 @@ function handleNettieInbound({ message, sender = 'Patrick', channel = 'mission-c
   }
 }
 
+app.post('/api/nettie/messages', requireBridgeToken, async (req, res) => {
+  const message = String(req.body?.message || '').trim()
+  const sender = req.body?.sender || 'Patrick'
+  const channel = req.body?.channel || 'mission-control-bridge'
+
+  if (!message) {
+    return res.status(400).json({ delivered: false, reason: 'message_required', error: 'message is required' })
+  }
+
+  addChatMessage({
+    id: crypto.randomUUID(),
+    from: sender,
+    role: 'Operator',
+    kind: 'command',
+    channel,
+    text: message,
+    ts: nowIso(),
+  })
+
+  const executorStatus = buildExecutorBridgeStatus()
+  if (!executorStatus.available) {
+    const reply = {
+      id: crypto.randomUUID(),
+      from: 'Nettie',
+      role: 'Executive Assistant',
+      kind: 'ack',
+      channel,
+      text: 'Nettie: Executor unavailable. Command not delivered.',
+      ts: nowIso(),
+      jobId: null,
+      workerId: null,
+    }
+    addChatMessage(reply)
+    refreshDerivedState()
+    return res.status(503).json({ delivered: false, reason: 'executor_unavailable', reply, executorStatus })
+  }
+
+  const requestedExecutor = isExplicitHermesRequest(message) ? 'hermes' : selectExecutor()
+  const queued = await queueBridgeMessageForExecutor(message, requestedExecutor)
+
+  if (!queued.ok || !queued.data?.jobId) {
+    const reply = {
+      id: crypto.randomUUID(),
+      from: 'Nettie',
+      role: 'Executive Assistant',
+      kind: 'ack',
+      channel,
+      text: `Nettie: Command not delivered. ${queued.data?.reason || queued.data?.error || 'executor rejected the request.'}`,
+      ts: nowIso(),
+      jobId: queued.data?.jobId || null,
+      workerId: null,
+    }
+    addChatMessage(reply)
+    refreshDerivedState()
+    return res.status(queued.statusCode || 502).json({
+      delivered: false,
+      reason: queued.data?.reason || queued.data?.error || 'executor_rejected',
+      reply,
+      executorStatus,
+    })
+  }
+
+  const reply = {
+    id: crypto.randomUUID(),
+    from: 'Nettie',
+    role: 'Executive Assistant',
+    kind: 'system',
+    channel,
+    text: `Queued\nJob ID: ${queued.data.jobId}\nStatus: ${queued.data.status || 'queued'}`,
+    ts: nowIso(),
+    jobId: queued.data.jobId,
+    workerId: queued.data.worker?.id || null,
+  }
+  addChatMessage(reply)
+  refreshDerivedState()
+
+  return res.status(202).json({
+    delivered: true,
+    jobId: queued.data.jobId,
+    status: queued.data.status || 'queued',
+    reply,
+    executorStatus: buildExecutorBridgeStatus(),
+  })
+})
+
 app.post('/api/chat', async (req, res) => {
   const startedAt = Date.now()
   const message = String(req.body?.message || '').trim()
@@ -4251,7 +4495,7 @@ app.post('/api/chat', async (req, res) => {
       ts: nowIso(),
     })
 
-    const hermesRes = await fetch('http://localhost:4174/api/hermes/execute', {
+    const hermesRes = await fetch('http://127.0.0.1:4174/api/hermes/execute', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
