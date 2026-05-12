@@ -7,6 +7,7 @@ import { spawn, spawnSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import * as jobStore from './lib/jobStore.js'
 import { buildMissionControlData } from './lib/controlPlaneData.js'
+import { saveSessionTelemetry, saveCooldownTelemetry } from './lib/tokenTelemetry.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -2518,6 +2519,24 @@ app.get('/api/reports', (_, res) => {
 
 app.get('/api/costs', (_, res) => {
   res.json(buildControlPlaneSnapshot().costs)
+})
+
+app.post('/api/costs/session', (req, res) => {
+  try {
+    const saved = saveSessionTelemetry(runtimeDir, req.body || {})
+    res.status(201).json(saved)
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Failed to save session telemetry' })
+  }
+})
+
+app.post('/api/costs/cooldowns', (req, res) => {
+  try {
+    const saved = saveCooldownTelemetry(runtimeDir, req.body || {})
+    res.status(201).json(saved)
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Failed to save cooldown telemetry' })
+  }
 })
 
 app.get('/api/qa', (_, res) => {

@@ -1,5 +1,5 @@
 # Mission Control — Work Recovery Ledger
-_Last synced: 2026-05-11T21:39:25.034Z_
+_Last synced: 2026-05-12T03:58:13.136Z_
 _Total entries: 140 | Outage flags: 0_
 
 ## Recovery Quick Reference
@@ -15,11 +15,11 @@ _Total entries: 140 | Outage flags: 0_
 
 | Job ID | Task | Owner | Status | Source | Last Update | Outage |
 |--------|------|-------|--------|--------|-------------|--------|
-| project_cdaded1d | Healthcare Teams-to-Zoho Message Logging Midd | Van | running | MC UI | 2026-05-11T21:39 | no |
+| project_1ac9c44a | Shared Groceries App — Phase 7 — Final Scrub  | Van | complete | MC UI | 2026-05-12T03:58 | no |
+  - **Next:** Archive or close
+| project_cdaded1d | Healthcare Teams-to-Zoho Message Logging Midd | Van | running | MC UI | 2026-05-12T03:58 | no |
   - **Next:** Monitor for completion
   - **Resume:** `curl -s -X POST http://localhost:4174/api/chat -H "Content-Type: application/jso...`
-| project_e341a738 | Shared Groceries App — Phase 7 — Final Scrub  | Van | complete | MC UI | 2026-05-11T21:39 | no |
-  - **Next:** Archive or close
 | job_54b2d4e9 | test | Van | complete | MC UI | 2026-05-11T20:55 | no |
   - **Next:** Archive or close
 | job_01c7ced6 | MISSION CONTROL — PHASE 2 / SYS-004
@@ -43,10 +43,10 @@ ADD VALID | Hermes | complete | MC UI | 2026-05-01T18:30 | no |
   - **Next:** Archive or close
 | job_b7da0de4 | foundation-check | Hermes | complete | MC UI | 2026-04-26T21:31 | no |
   - **Next:** Archive or close
-| job_d3a1a11b | new feature | Van | running | MC UI | 2026-04-26T16:44 | no |
+| job_76b6ec28 | Have Van start the Comss-MWD project locally. | Van | running | MC UI | 2026-04-26T16:44 | no |
   - **Next:** Monitor for completion
   - **Resume:** `curl -s -X POST http://localhost:4174/api/chat -H "Content-Type: application/jso...`
-| job_76b6ec28 | Have Van start the Comss-MWD project locally. | Van | running | MC UI | 2026-04-26T16:44 | no |
+| job_d3a1a11b | new feature | Van | running | MC UI | 2026-04-26T16:44 | no |
   - **Next:** Monitor for completion
   - **Resume:** `curl -s -X POST http://localhost:4174/api/chat -H "Content-Type: application/jso...`
 | job_49e9dbc7 | fix operational brief duplication | Van | complete | MC UI | 2026-04-26T13:57 | no |
@@ -330,9 +330,9 @@ ADD VALID | Hermes | failed | MC UI | 2026-05-01T18:29 | no |
   - **Next:** Review and update status
 | job_cad11fce | the validation-probe-1777072408 | Van | failed | MC UI | 2026-04-25T03:05 | no |
   - **Next:** Review and update status
-| job_d1fae101 | validation-dedupe-check | Van | failed | MC UI | 2026-04-25T03:05 | no |
-  - **Next:** Review and update status
 | job_a9e13ec3 | validation-probe-1777072482 | Van | failed | MC UI | 2026-04-25T03:05 | no |
+  - **Next:** Review and update status
+| job_d1fae101 | validation-dedupe-check | Van | failed | MC UI | 2026-04-25T03:05 | no |
   - **Next:** Review and update status
 | job_8b1f0830 | job_x | Van | failed | MC UI | 2026-04-25T03:05 | no |
   - **Next:** Review and update status

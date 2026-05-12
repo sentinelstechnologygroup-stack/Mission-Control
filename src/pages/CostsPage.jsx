@@ -34,6 +34,9 @@ export default function CostsPage() {
   const modelChangeLog = data?.modelChangeLog || []
   const costByDepartment = data?.costByDepartment || []
   const costByWorkType = data?.costByWorkType || []
+  const activeModelUsage = data?.activeModelUsage || {}
+  const modelAssignmentMatrix = data?.modelAssignmentMatrix || []
+  const apiKeyTracking = data?.apiKeyTracking || []
 
   return (
     <div className="space-y-4">
@@ -72,8 +75,10 @@ export default function CostsPage() {
               { label: 'Cooldown started', value: cooldown.cooldownStarted || '—' },
               { label: 'Estimated reset time', value: cooldown.estimatedResetTime || '—' },
               { label: 'Known limit type', value: cooldown.knownLimitType || '—' },
+              { label: 'Retry delay seconds', value: cooldown.retryDelaySeconds ?? '—' },
+              { label: 'Provider reset seconds', value: cooldown.providerQuotaResetSeconds ?? '—' },
               { label: 'Next recommended model', value: cooldown.nextRecommendedModel || '—' },
-              { label: 'Fallback safe', value: cooldown.fallbackSafe ? 'yes' : 'no' },
+              { label: 'Fallback result', value: cooldown.fallbackResult || '—' },
             ]}
           />
         </SectionCard>
@@ -85,18 +90,28 @@ export default function CostsPage() {
             items={[
               { label: 'Tokens per minute', value: burnRate.tokensPerMinute ?? 'Unavailable' },
               { label: 'Tokens per hour', value: burnRate.tokensPerHour ?? 'Unavailable' },
+              { label: 'Rolling 5-minute burn', value: burnRate.rollingFiveMinute ?? 'Unavailable' },
+              { label: 'Rolling 15-minute burn', value: burnRate.rollingFifteenMinute ?? 'Unavailable' },
+              { label: 'Rolling session average', value: burnRate.rollingSessionAverage ?? 'Unavailable' },
               { label: 'Estimated time until cap', value: burnRate.estimatedTimeUntilCap ?? 'Unavailable' },
               { label: 'High-use warning', value: burnRate.highUseWarning || '—' },
               { label: 'Recommended pause window', value: burnRate.recommendedPauseWindow || '—' },
             ]}
           />
         </SectionCard>
-        <SectionCard title="Scheduling recommendation" subtitle="Batching guidance for expensive work">
-          <ul className="space-y-2 text-[10px] text-white/45">
-            {(data?.schedulingRecommendation || []).map((item) => (
-              <li key={item}>• {item}</li>
-            ))}
-          </ul>
+        <SectionCard title="Active model usage" subtitle="Current model assignment driving live work">
+          <KeyValueList
+            items={[
+              { label: 'Provider', value: activeModelUsage.provider || 'Unavailable' },
+              { label: 'Model', value: activeModelUsage.model || 'Unavailable' },
+              { label: 'Version', value: activeModelUsage.version || 'Unavailable' },
+              { label: 'Department', value: activeModelUsage.activeDepartment || 'Unavailable' },
+              { label: 'Agent', value: activeModelUsage.activeAgent || 'Unavailable' },
+              { label: 'Job', value: activeModelUsage.activeJob || 'Unavailable' },
+              { label: 'Project', value: activeModelUsage.activeProject || 'Unavailable' },
+              { label: 'Burn status', value: activeModelUsage.currentBurnStatus || 'Unavailable' },
+            ]}
+          />
         </SectionCard>
       </div>
 
@@ -117,14 +132,26 @@ export default function CostsPage() {
               { key: 'owner', label: 'Owner' },
             ]}
             rows={modelChangeLog}
-            empty="No model-change log entries found." 
+            empty="No model-change log entries found."
           />
         </SectionCard>
+        <SectionCard title="Scheduling recommendation" subtitle="Batching guidance for expensive work">
+          <ul className="space-y-2 text-[10px] text-white/45">
+            {(data?.schedulingRecommendation || []).map((item) => (
+              <li key={item}>• {item}</li>
+            ))}
+          </ul>
+        </SectionCard>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
         <SectionCard title="Cost by department / work type" subtitle="Tracking status remains explicit until a native meter exists.">
           <div className="grid gap-4 md:grid-cols-2">
             <SimpleTable
               columns={[
                 { key: 'department', label: 'Department' },
+                { key: 'model', label: 'Model' },
+                { key: 'tokens', label: 'Tokens' },
                 { key: 'estimatedCost', label: 'Cost' },
                 { key: 'trackedJobs', label: 'Tracked jobs' },
                 { key: 'trackingStatus', label: 'Status', render: (row) => <StatusPill status={row.trackingStatus} /> },
@@ -135,6 +162,7 @@ export default function CostsPage() {
             <SimpleTable
               columns={[
                 { key: 'workType', label: 'Work type' },
+                { key: 'tokens', label: 'Tokens' },
                 { key: 'estimatedCost', label: 'Cost' },
                 { key: 'trackingStatus', label: 'Status', render: (row) => <StatusPill status={row.trackingStatus} /> },
               ]}
@@ -143,7 +171,38 @@ export default function CostsPage() {
             />
           </div>
         </SectionCard>
+
+        <SectionCard title="Model assignment matrix" subtitle="Default, fallback, and task-specific model routing by agent">
+          <SimpleTable
+            columns={[
+              { key: 'agent', label: 'Agent' },
+              { key: 'department', label: 'Department' },
+              { key: 'defaultModel', label: 'Default Model' },
+              { key: 'fallbackModel', label: 'Fallback Model' },
+              { key: 'taskOverride', label: 'Task Override' },
+              { key: 'costTier', label: 'Cost Tier' },
+            ]}
+            rows={modelAssignmentMatrix}
+            empty="No model assignments configured."
+          />
+        </SectionCard>
       </div>
+
+      <SectionCard title="Future API-key cost tracking" subtitle="Alias-only structure for future provider billing telemetry">
+        <SimpleTable
+          columns={[
+            { key: 'alias', label: 'Key Alias' },
+            { key: 'provider', label: 'Provider' },
+            { key: 'requestCount', label: 'Requests' },
+            { key: 'totalTokens', label: 'Total Tokens' },
+            { key: 'estimatedCost', label: 'Estimated Cost' },
+            { key: 'actualCost', label: 'Actual Cost' },
+            { key: 'notes', label: 'Notes' },
+          ]}
+          rows={apiKeyTracking}
+          empty="No API-key aliases configured."
+        />
+      </SectionCard>
     </div>
   )
 }
