@@ -30,6 +30,25 @@ fs.mkdirSync(runtimeDir, { recursive: true })
 fs.mkdirSync(workersDir, { recursive: true })
 fs.mkdirSync(sharedLedgerDir, { recursive: true })
 
+const localEnvPath = path.join(root, '.env')
+function loadLocalEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return
+  const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/)
+  for (const line of lines) {
+    if (!line || /^\s*#/.test(line) || !line.includes('=')) continue
+    const index = line.indexOf('=')
+    const key = line.slice(0, index).trim()
+    if (!key || process.env[key] !== undefined) continue
+    let value = line.slice(index + 1).trim()
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1)
+    }
+    process.env[key] = value
+  }
+}
+
+loadLocalEnvFile(localEnvPath)
+
 const hermesCheck = spawnSync('hermes', ['--version'], { encoding: 'utf8' })
 const hermesAvailable = hermesCheck.status === 0
 const codexCheck = spawnSync('which', ['codex'], { encoding: 'utf8' })
