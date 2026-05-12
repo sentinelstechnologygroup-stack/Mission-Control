@@ -56,5 +56,57 @@ This project follows these working rules:
 ```bash
 npm install
 npm run dev
+npm run backend
+npm run dev:all
 npm run build
 npm run preview
+```
+
+### Runtime commands
+
+- `npm run dev` — starts the Vite frontend on port `5173`
+- `npm run backend` — starts the Mission Control API/runtime on port `4174`
+- `npm run dev:all` — starts frontend + backend together
+
+### Executor bridge requirements
+
+`/nettie` is operational only when the frontend can reach the Mission Control backend runtime.
+
+Required local endpoints:
+
+- `GET /api/health`
+- `POST /api/chat`
+- `GET /api/chat/history`
+- `GET /api/jobs/ledger`
+- `GET /api/workers`
+
+Local development contract:
+
+- frontend origin: `http://127.0.0.1:5173`
+- backend origin: `http://127.0.0.1:4174`
+- Vite proxies `/api/*` to the backend runtime
+- executor availability is determined by the live backend, not by static UI state
+
+### Remote frontend / Vercel limitation
+
+Vercel can host the React frontend, but it does not host the persistent Mission Control executor runtime by itself.
+
+For a truthful remote `/nettie` deployment, use this architecture:
+
+- Vercel frontend
+- persistent Mission Control backend/runtime on a sandbox or server
+- executor process available on that backend host
+- `VITE_API_BASE_URL` pointed at the backend origin
+- secure command bridge between frontend and runtime
+
+If `VITE_API_BASE_URL` is not set for a remote deployment, frontend requests to `/api/*` will hit the Vercel origin and can fall back to static HTML or fail to reach the real executor. That can make `/nettie` look loaded while command delivery is not actually connected.
+
+Example remote env:
+
+```bash
+VITE_API_BASE_URL=https://your-runtime-host.example.com
+```
+
+### Deployment note
+
+Do not represent remote executor availability unless the backend runtime is live and responding. `/nettie` must show real backend state, create real jobs, and preserve truthful unavailable states when the executor bridge is offline.
