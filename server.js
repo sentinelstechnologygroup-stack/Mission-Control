@@ -80,9 +80,12 @@ let executorHealthCache = null
 const nowIso = () => new Date().toISOString()
 
 function getBridgeAuthToken(req) {
-  const header = String(req.headers.authorization || '').trim()
-  const match = header.match(/^Bearer\s+(.+)$/i)
-  return match ? match[1].trim() : ''
+  const bearerHeader = String(req.headers.authorization || '').trim()
+  const bearerMatch = bearerHeader.match(/^Bearer\s+(.+)$/i)
+  if (bearerMatch) return bearerMatch[1].trim()
+
+  const directHeader = String(req.headers['x-mc-bridge-token'] || '').trim()
+  return directHeader
 }
 
 function isBridgeOriginAllowed(origin = '') {

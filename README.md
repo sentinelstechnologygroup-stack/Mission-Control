@@ -126,3 +126,22 @@ VITE_MC_BRIDGE_TOKEN=<same secure token>
 ### Deployment note
 
 Do not represent remote executor availability unless the backend runtime is live and responding. `/nettie` must show real backend state, create real jobs, and preserve truthful unavailable states when the executor bridge is offline.
+
+### Persistent runtime service
+
+Mission Control should not depend on an open terminal session.
+
+A systemd unit template is available at:
+
+- `deploy/systemd/mission-control.service`
+
+Suggested install flow on AICenter:
+
+```bash
+sudo cp deploy/systemd/mission-control.service /etc/systemd/system/mission-control.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now mission-control
+sudo systemctl status mission-control --no-pager
+```
+
+This should only be activated after the final `.env` bridge token and origin values are approved and in place.

@@ -1,0 +1,17 @@
+[Unit]
+Description=Mission Control backend runtime
+After=network.target
+
+[Service]
+Type=simple
+User=patrick
+WorkingDirectory=/home/patrick/mission-control
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/env node /home/patrick/mission-control/server.js
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/patrick/mission-control/logs/mission-control-runtime.log
+StandardError=append:/home/patrick/mission-control/logs/mission-control-runtime.log
+
+[Install]
+WantedBy=multi-user.target
