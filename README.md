@@ -96,15 +96,31 @@ For a truthful remote `/nettie` deployment, use this architecture:
 - Vercel frontend
 - persistent Mission Control backend/runtime on a sandbox or server
 - executor process available on that backend host
-- `VITE_API_BASE_URL` pointed at the backend origin
+- `VITE_MC_API_BASE_URL` pointed at the backend origin
+- `VITE_MC_BRIDGE_TOKEN` configured for authenticated executor routes
 - secure command bridge between frontend and runtime
 
-If `VITE_API_BASE_URL` is not set for a remote deployment, frontend requests to `/api/*` will hit the Vercel origin and can fall back to static HTML or fail to reach the real executor. That can make `/nettie` look loaded while command delivery is not actually connected.
+If `VITE_MC_API_BASE_URL` is not set for a remote deployment, frontend requests to `/api/*` will hit the Vercel origin and can fall back to static HTML or fail to reach the real executor. That can make `/nettie` look loaded while command delivery is not actually connected.
 
-Example remote env:
+Authenticated bridge routes now expect:
 
 ```bash
-VITE_API_BASE_URL=https://your-runtime-host.example.com
+Authorization: Bearer <MC_BRIDGE_TOKEN>
+```
+
+Backend environment:
+
+```bash
+MC_RUNTIME_NAME=aicenter
+MC_BRIDGE_TOKEN=<secure-token>
+MC_ALLOWED_ORIGINS=https://mission-control-livid-zeta.vercel.app,http://127.0.0.1:5173,http://localhost:5173
+```
+
+Example remote frontend env:
+
+```bash
+VITE_MC_API_BASE_URL=https://your-runtime-host.example.com
+VITE_MC_BRIDGE_TOKEN=<same secure token>
 ```
 
 ### Deployment note
