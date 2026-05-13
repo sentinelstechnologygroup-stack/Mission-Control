@@ -134,15 +134,59 @@ function getExecutorCooldownSummary() {
   }
 }
 
+function getExecutorFallbackSummary(selectedExecutor = 'none', cooldown = null) {
+  const configuredFallback = AI_EXECUTION_FALLBACK !== 'none' ? AI_EXECUTION_FALLBACK : null
+  const discoveredFallback = selectedExecutor !== 'hermes' && hermesAvailable ? 'hermes' : null
+  const effectiveFallback = configuredFallback || discoveredFallback || null
+
+  if (!effectiveFallback) {
+    return {
+      available: false,
+      executor: null,
+      mode: null,
+      autoRoutable: false,
+      configured: false,
+      detail: 'No fallback executor available.',
+    }
+  }
+
+  const autoRoutable = Boolean(configuredFallback) || (effectiveFallback === 'hermes' && hermesAvailable && Boolean(cooldown))
+  const mode = configuredFallback
+    ? 'configured'
+    : autoRoutable
+      ? 'automatic-on-cooldown'
+      : 'manual-only'
+  const detail = cooldown
+    ? `${effectiveFallback} fallback ${autoRoutable ? 'configured' : 'available manually'} while ${selectedExecutor} cools down.`
+    : `${effectiveFallback} fallback ${autoRoutable ? 'configured' : 'available manually'}.`
+
+  return {
+    available: true,
+    executor: effectiveFallback,
+    mode,
+    autoRoutable,
+    configured: Boolean(configuredFallback),
+    detail,
+  }
+}
+
 function buildExecutorBridgeStatus() {
   const selectedExecutor = selectExecutor()
+  const cooldown = getExecutorCooldownSummary()
+  const fallback = getExecutorFallbackSummary(selectedExecutor, cooldown)
+  const executorCoolingDown = Boolean(cooldown)
+  const executorReady = selectedExecutor !== 'none' && !executorCoolingDown
   return {
     available: selectedExecutor !== 'none',
+    bridgeConnected: true,
     runtime: MC_RUNTIME_NAME,
     executor: selectedExecutor === 'none' ? 'unavailable' : selectedExecutor,
+    executorReady,
+    executorCoolingDown,
     queueDepth: getExecutorQueueDepth(),
     lastHeartbeat: getExecutorLastHeartbeat(),
-    cooldown: getExecutorCooldownSummary(),
+    cooldown,
+    fallback,
     selectedExecutor,
     lastError: lastExecutorError,
   }

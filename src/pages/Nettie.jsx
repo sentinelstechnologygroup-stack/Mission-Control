@@ -364,28 +364,41 @@ function getExecutorStateView(status, isLoading, isError) {
     return { label: "Checking", detail: "Bridge status pending", variant: "warning" };
   }
 
-  if (isError || !status) {
+  if (isError || !status || status.bridgeConnected === false) {
     return { label: "Offline", detail: "Bridge unavailable", variant: "critical" };
   }
 
-  if (status.cooldown) {
+  if (status.executorCoolingDown) {
+    const fallbackDetail = status.fallback?.available
+      ? ` · fallback ${status.fallback.executor}${status.fallback.mode === "manual-only" ? " manual-only" : " ready"}`
+      : "";
     return {
       label: "Cooling down",
-      detail: status.cooldown.estimatedResetTime || "Provider cooldown active",
+      detail: `${status.executor || "executor"} cooldown${status.cooldown?.estimatedResetTime ? ` · ${status.cooldown.estimatedResetTime}` : ""}${fallbackDetail}`,
       variant: "warning",
+    };
+  }
+
+  if (status.executorReady) {
+    return {
+      label: "Online",
+      detail: (status.queueDepth || 0) > 0
+        ? `${status.executor || "executor"} connected · ${status.queueDepth} queued`
+        : `${status.executor || "executor"} connected`,
+      variant: "success",
+    };
+  }
+
+  if (status.fallback?.available) {
+    return {
+      label: "Fallback available",
+      detail: `${status.fallback.executor} ${status.fallback.mode === "manual-only" ? "manual fallback ready" : "fallback connected"}`,
+      variant: "info",
     };
   }
 
   if (!status.available) {
     return { label: "Offline", detail: "No executor available", variant: "critical" };
-  }
-
-  if ((status.queueDepth || 0) > 0) {
-    return {
-      label: "Queue active",
-      detail: `${status.queueDepth} queued via ${status.executor || "executor"}`,
-      variant: "info",
-    };
   }
 
   return {
