@@ -3460,6 +3460,32 @@ function handleCIQuery(message) {
   }
 }
 
+function isExecutorStatusQuery(message = '') {
+  const text = String(message || '').trim().toLowerCase()
+  if (!text) return false
+  return /\b(executor|bridge|fallback|route)\b/.test(text)
+    && /\b(status|current|live|confirm|connected|cooling|cooldown|available|availability|ready)\b/.test(text)
+}
+
+function handleExecutorStatus() {
+  const status = buildExecutorBridgeStatus()
+  const fallbackLine = status.fallback?.available
+    ? `${status.fallback.executor} (${status.fallback.mode}${status.fallback.autoRoutable ? ', auto-routable' : ''})`
+    : 'none'
+  const lines = [
+    'Nettie: Executor status.',
+    `Bridge: ${status.bridgeConnected ? 'connected' : 'unavailable'}`,
+    `Primary route: ${status.selectedExecutor || status.executor || 'unavailable'}`,
+    `Executor ready: ${status.executorReady ? 'yes' : 'no'}`,
+    `Cooling down: ${status.executorCoolingDown ? 'yes' : 'no'}`,
+    `Fallback: ${fallbackLine}`,
+    `Queue depth: ${status.queueDepth || 0}`,
+  ]
+  if (status.cooldown?.estimatedResetTime) lines.push(`Cooldown ETA: ${status.cooldown.estimatedResetTime}`)
+  if (status.lastError?.message) lines.push(`Last error: ${status.lastError.message}`)
+  return { replyText: lines.join('\n'), replyKind: 'status' }
+}
+
 const JOB_ID_RE = /\bjob_[a-f0-9]{8}\b/i
 
 const GLOBAL_INSPECTION_PATTERNS = [
@@ -3657,7 +3683,7 @@ function detectIntent(message) {
       if (scores.refinement === max) return 'job_refinement_directive'
       if (scores.creation === max) return 'job_creation_directive'
       if (scores.execution === max) return 'execution_packet_directive'
-      if (scores.status === max) return 'job_status'
+      if (scores.status === max) return isExecutorStatusQuery(message) ? 'executor_status' : 'status_query'
     }
   }
 
@@ -3694,6 +3720,9 @@ function detectIntent(message) {
 
   // PRIORITY 5: recovery/outage queries
   if (/\b(recovery ledger|show recovery|what is blocked|what is active|what needs resumed|outage|token outage)\b/.test(msg)) return 'recovery_query'
+
+  // PRIORITY 5.5: explicit executor / bridge / fallback status
+  if (isExecutorStatusQuery(message)) return 'executor_status'
 
   // PRIORITY 6a.5: registry-wide inspection — never requires job ID
   if (isGlobalInspectionQuery(message)) return 'global_inspection'
@@ -4416,6 +4445,10 @@ function handleNettieInbound({ message, sender = 'Patrick', channel = 'mission-c
     replyKind = result.replyKind
   } else if (intent === 'recovery_query') {
     const result = handleRecoveryQuery(cleanMessage)
+    replyText = result.replyText
+    replyKind = result.replyKind
+  } else if (intent === 'executor_status') {
+    const result = handleExecutorStatus()
     replyText = result.replyText
     replyKind = result.replyKind
   } else if (intent === 'global_inspection') {
