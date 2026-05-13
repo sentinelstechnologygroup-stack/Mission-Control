@@ -3304,6 +3304,7 @@ function handleControlDirective(message) {
 
   const STRUCTURED_PLAN_RE = /\b(approval plan|approval plans|active execution|expand|for each job)\b|provide.*\bplan\b|\bprovide.*\bjob id\b/
   const ANALYSIS_RE = /\b(provide|analyze|analyse|summarize|summarise|review|generate plan)\b/
+  const operationalInspection = isOperationalInspectionDirective(message)
 
   if (STRUCTURED_PLAN_RE.test(msg)) {
     const running = jobsLedger.filter(j => j.status === 'running')
@@ -3366,7 +3367,7 @@ function handleControlDirective(message) {
     return { replyText: body, replyKind: 'system', job: null }
   }
 
-  if (ANALYSIS_RE.test(msg)) {
+  if (ANALYSIS_RE.test(msg) && operationalInspection) {
     const running = jobsLedger.filter(j => j.status === 'running')
     const queued  = jobsLedger.filter(j => j.status === 'queued')
     const fmt = (jobs) => jobs.length
@@ -3500,6 +3501,16 @@ const GLOBAL_INSPECTION_PATTERNS = [
   /what is currently running/i,
   /(?:job registry|job ledger|master work registry)/i,
 ]
+
+function isOperationalInspectionDirective(message = '') {
+  const text = String(message || '').trim()
+  if (!text) return false
+  if (JOB_ID_RE.test(text)) return true
+  const lower = text.toLowerCase()
+  const inspectionVerb = /\b(show|list|inspect|audit|report|review|analyze|analyse|summarize|summarise|provide)\b/.test(lower)
+  const operationalTarget = /\b(job|jobs|queue|queued|running|ledger|registry|active work|blocked|completed|cancelled)\b/.test(lower)
+  return inspectionVerb && operationalTarget
+}
 
 function isGlobalInspectionQuery(message = '') {
   const text = String(message || '').trim()
@@ -3690,8 +3701,9 @@ function detectIntent(message) {
   // FALLBACK Nettie-prefix regex guards (catch max < 3 cases)
   if (
     /^nettie\s*[—–,\-]/i.test(message.trim()) &&
-    /\b(hold|pause|stop|wait|do not|convert|review|inspect|report|provide|analyze|analyse|summarize|summarise|generate|plan|approval)\b/.test(msg)
+    /\b(hold|pause|stop|wait|do not|convert|approval)\b/.test(msg)
   ) return 'control_directive'
+  if (/^nettie\s*[—–,\-]/i.test(message.trim()) && isOperationalInspectionDirective(message)) return 'control_directive'
 
   // PRIORITY 1: self-referential system-update requests — never create jobs
   if (
