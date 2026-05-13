@@ -9,11 +9,13 @@ Restore Mission Control automatically after Hermes terminal loss, PM2 daemon los
 - Local backend URL: `http://127.0.0.1:4174`.
 - Active runtime manager: PM2.
 - `systemd` is not available because PID 1 is not `systemd` in this environment.
-- Cloudflare Tunnel should be managed under PM2, not `systemctl`.
+- Cloudflare Tunnel must be managed under PM2, not `systemctl`.
+- The prior `cert.pem` / `cloudflared tunnel login` path was abandoned for this environment.
+- The canonical tunnel method is now a dashboard-created Cloudflare tunnel token stored outside the repo.
 
 ## Recovery Objectives
 1. Restore the Mission Control backend automatically.
-2. Restore the Cloudflare API tunnel automatically when tunnel config exists.
+2. Restore the Cloudflare API tunnel automatically when the tunnel token exists.
 3. Validate local backend health after startup.
 4. Validate the protected executor endpoint without printing secrets.
 5. Record recovery output to a persistent startup log.
@@ -27,7 +29,7 @@ power returns
 → WSL runs /home/patrick/start-mission-control.sh
 → script runs pm2 resurrect
 → mission-control backend is restored or restarted
-→ mc-api-tunnel is restored or restarted when ~/.cloudflared/config.yml exists
+→ mc-api-tunnel is restored or restarted when /home/patrick/.cloudflared/mission-control-api.token exists
 → local health check passes
 → protected executor check passes
 → Cloudflare reconnects when internet is available
@@ -42,7 +44,7 @@ Responsibilities:
 - confirm `pm2` is available
 - run `pm2 resurrect`
 - ensure `mission-control` is online under PM2
-- ensure `mc-api-tunnel` is online under PM2 when `/home/patrick/.cloudflared/config.yml` exists
+- ensure `mc-api-tunnel` is online under PM2 when `/home/patrick/.cloudflared/mission-control-api.token` exists
 - run local `GET /api/health`
 - run protected local `GET /api/executor/status` without printing `MC_BRIDGE_TOKEN`
 - append output to `/home/patrick/mission-control/logs/startup-recovery.log`
@@ -59,28 +61,50 @@ pm2 status
 pm2 restart mission-control
 pm2 start server.js --name mission-control --cwd /home/patrick/mission-control
 pm2 restart mc-api-tunnel
-pm2 start "$(command -v cloudflared)" --name mc-api-tunnel -- tunnel --config /home/patrick/.cloudflared/config.yml run mission-control-api
+pm2 start /bin/bash --name mc-api-tunnel -- -lc 'exec "$(command -v cloudflared)" tunnel run --token "$(cat /home/patrick/.cloudflared/mission-control-api.token)"'
 pm2 save
 ```
 
 ## Cloudflare Tunnel Recovery Behavior
 The tunnel process is conditional:
-- if `/home/patrick/.cloudflared/config.yml` does not exist, startup recovery must skip the tunnel cleanly
-- if config exists and `cloudflared` is installed, PM2 must restore or restart `mc-api-tunnel`
-- tunnel config must stay outside the repository
-- never print or commit `cert.pem`, tunnel credential JSON, or token values
+- if `/home/patrick/.cloudflared/mission-control-api.token` does not exist, startup recovery must skip the tunnel cleanly
+- if the token exists and `cloudflared` is installed, PM2 must restore or restart `mc-api-tunnel`
+- the tunnel token must stay outside the repository at `/home/patrick/.cloudflared/mission-control-api.token`
+- `chmod 600 /home/patrick/.cloudflared/mission-control-api.token`
+- never print or commit the tunnel token or bridge token
+- do not keep using the abandoned `cert.pem` path in this environment
+
+## Cloudflare Dashboard Tunnel Method
+Canonical setup flow:
+```text
+Cloudflare Dashboard
+→ Zero Trust
+→ Networks
+→ Tunnels
+→ Create tunnel
+→ Cloudflared
+→ Name: mission-control-api
+→ Public hostname: mc-api.sentinelstechnologygroup.com
+→ Service: http://127.0.0.1:4174
+→ copy generated tunnel token or install command
+```
+
+Local handling rules:
+- store the token only at `/home/patrick/.cloudflared/mission-control-api.token`
+- never store the token in the Mission Control repo
+- never print the token in reports
+- never `cat` the token file to visible output
+- do not use `systemctl`
+- do not open router or firewall ports
 
 ## Cloudflare Tunnel Completion Gate
 Do not claim the remote API tunnel is ready until all of the following are true:
-- `/home/patrick/.cloudflared/cert.pem` exists
-- named tunnel `mission-control-api` exists
-- `/home/patrick/.cloudflared/config.yml` exists and validates
-- DNS routes `mc-api.sentinelstechnologygroup.com` through the tunnel
+- `/home/patrick/.cloudflared/mission-control-api.token` exists with restricted permissions
 - PM2 shows `mc-api-tunnel` online
 - public `/api/health` is reachable
 - public `/api/executor/status` rejects no token
 - public `/api/executor/status` rejects invalid token
-- public `/api/executor/status` accepts a valid token with HTTP 200
+- public `/api/executor/status` accepts a valid bridge token with HTTP 200
 
 ## Windows Task Scheduler Setup
 Program:
@@ -122,7 +146,7 @@ Why it matters:
 - script is executable
 - `pm2 save` has been run
 - script starts or restores `mission-control`
-- script starts or restores `mc-api-tunnel` when config exists
+- script starts or restores `mc-api-tunnel` when the token file exists
 - script writes to `logs/startup-recovery.log`
 - local `/api/health` check passes
 - protected local `/api/executor/status` check passes without printing token
@@ -147,8 +171,8 @@ Why it matters:
 - `MC_BRIDGE_TOKEN` missing
 - local health endpoint fails
 - local protected executor endpoint fails
-- Cloudflare config exists but `cloudflared` binary is missing
-- tunnel config is absent because cert/tunnel setup is incomplete
+- tunnel token exists but `cloudflared` binary is missing
+- tunnel token is absent because dashboard token setup is incomplete
 - Windows scheduled task is absent or misconfigured
 - BIOS does not restore power automatically after outage
 
@@ -157,8 +181,9 @@ Why it matters:
 cd /home/patrick/mission-control
 pm2 resurrect || true
 pm2 restart mission-control || pm2 start server.js --name mission-control --cwd /home/patrick/mission-control
-if [ -f /home/patrick/.cloudflared/config.yml ]; then
-  pm2 restart mc-api-tunnel || pm2 start "$(command -v cloudflared)" --name mc-api-tunnel -- tunnel --config /home/patrick/.cloudflared/config.yml run mission-control-api
+if [ -f /home/patrick/.cloudflared/mission-control-api.token ]; then
+  chmod 600 /home/patrick/.cloudflared/mission-control-api.token
+  pm2 restart mc-api-tunnel || pm2 start /bin/bash --name mc-api-tunnel -- -lc 'exec "$(command -v cloudflared)" tunnel run --token "$(cat /home/patrick/.cloudflared/mission-control-api.token)"'
 fi
 pm2 save
 /home/patrick/start-mission-control.sh
@@ -167,7 +192,7 @@ pm2 save
 ## Truthful Reporting Rules
 - Do not use `systemctl` in this environment.
 - Do not print `MC_BRIDGE_TOKEN`.
+- Do not print the tunnel token.
 - Do not `cat .env`.
-- Do not print `cert.pem` or tunnel credential JSON.
 - Do not declare Mission Control operational until phone-to-AICenter validation passes.
 - Do not declare full power-outage resilience until a restart simulation passes.

@@ -54,11 +54,19 @@ pm2 save
 - Confirm PM2 `mission-control` is online.
 - Confirm backend is listening on `http://127.0.0.1:4174`.
 - Install `cloudflared` if missing.
-- Run `cloudflared tunnel login`.
-- If browser auth downloads the origin cert instead of writing it automatically, place the downloaded cert at `/home/patrick/.cloudflared/cert.pem` before continuing.
-- Create named tunnel `mission-control-api`.
-- Keep tunnel config under `/home/patrick/.cloudflared/config.yml`, not in the repo.
-- Route `mc-api.sentinelstechnologygroup.com` to `http://127.0.0.1:4174`.
+- Do not continue using the `cert.pem` / `cloudflared tunnel login` path in this environment.
+- Use the Cloudflare dashboard-created tunnel token method as canonical.
+- Dashboard path:
+  - Zero Trust
+  - Networks
+  - Tunnels
+  - Create tunnel
+  - Cloudflared
+  - Name: `mission-control-api`
+  - Public hostname: `mc-api.sentinelstechnologygroup.com`
+  - Service: `http://127.0.0.1:4174`
+- Store the tunnel token only at `/home/patrick/.cloudflared/mission-control-api.token`.
+- Set `chmod 600 /home/patrick/.cloudflared/mission-control-api.token`.
 - Run the tunnel under PM2 as `mc-api-tunnel`.
 - Validate public `GET /api/health`.
 - Validate public protected status behavior:
@@ -74,8 +82,8 @@ pm2 save
 ## Startup Recovery Doctrine
 - Mission Control must recover automatically after Hermes terminal loss, PM2 daemon loss, mini-stack updates, WSL/Ubuntu restart, Windows restart, internet interruption, and power return.
 - The canonical recovery entrypoint is `/home/patrick/start-mission-control.sh`.
-- The recovery script must run `pm2 resurrect`, restore or restart `mission-control`, restore or restart `mc-api-tunnel` when Cloudflare config exists, validate local health, validate protected executor status, and log results.
-- The recovery script must not print secrets, token values, `.env`, `cert.pem`, or tunnel credential JSON.
+- The recovery script must run `pm2 resurrect`, restore or restart `mission-control`, restore or restart `mc-api-tunnel` when the tunnel token file exists, validate local health, validate protected executor status, and log results.
+- The recovery script must not print secrets, token values, `.env`, token files, or credential material.
 - `mc-api-tunnel` must stay under PM2 in this environment. Do not move it to `systemd`.
 
 ## Windows Startup Task Requirement
@@ -124,7 +132,7 @@ power returns
 - Treat `VITE_MC_BRIDGE_TOKEN` as temporary only because it is browser-visible.
 - Long-term auth must move behind a server-side proxy or secure session layer.
 - Do not declare production-ready until Perry completes a security review.
-- Never commit `/home/patrick/.cloudflared/config.yml`, `cert.pem`, or tunnel credential JSON.
+- Never commit `/home/patrick/.cloudflared/mission-control-api.token` or any other tunnel credential material.
 
 ## Escalation Rules
 - Escalate before any production-ready declaration.
@@ -132,7 +140,7 @@ power returns
 - Escalate if token exposure is suspected or confirmed.
 - Escalate if public validation reveals that the backend accepts unauthenticated or invalid-token requests.
 - Escalate if hosted frontend behavior diverges from truthful backend acceptance state.
-- Escalate if the Cloudflare cert is still missing and tunnel creation is blocked.
+- Escalate if the dashboard tunnel token is still missing and remote validation is blocked.
 
 ## Definitions of Done
 ### Local Runtime Ready
@@ -146,7 +154,7 @@ power returns
 - Script is executable.
 - `pm2 save` completed.
 - Script restores or starts `mission-control`.
-- Script restores or starts `mc-api-tunnel` when config exists.
+- Script restores or starts `mc-api-tunnel` when the token file exists.
 - Script writes to `logs/startup-recovery.log`.
 - Local health validation passes.
 - Protected local executor validation passes without printing token.
