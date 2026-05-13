@@ -13,11 +13,13 @@
    - If systemd is PID 1, systemd may be used.
    - If systemd is not PID 1, do not use `systemctl`.
    - Use PM2 as the active Node runtime manager in this AICenter environment.
+   - In the current Mission Control stack, treat `systemd` as unavailable and PM2 as canonical unless proven otherwise.
 
 2. Check PM2:
    - `pm2 status mission-control`
    - If online, validate the backend endpoint.
    - If missing, start with PM2.
+   - Always run `pm2 save` after stable runtime changes.
 
 3. Validate protected backend:
    - Validate local `/api/executor/status` with token.
@@ -53,8 +55,11 @@ pm2 save
 - Confirm backend is listening on `http://127.0.0.1:4174`.
 - Install `cloudflared` if missing.
 - Run `cloudflared tunnel login`.
+- If browser auth downloads the origin cert instead of writing it automatically, place the downloaded cert at `/home/patrick/.cloudflared/cert.pem` before continuing.
 - Create named tunnel `mission-control-api`.
+- Keep tunnel config under `/home/patrick/.cloudflared/config.yml`, not in the repo.
 - Route `mc-api.sentinelstechnologygroup.com` to `http://127.0.0.1:4174`.
+- Run the tunnel under PM2 as `mc-api-tunnel`.
 - Validate public `GET /api/health`.
 - Validate public protected status behavior:
   - no token rejects
@@ -65,6 +70,47 @@ pm2 save
 - Validate `/nettie` from phone.
 - Run harmless queue-only bridge validation.
 - Stop before production claims until Perry review is complete.
+
+## Startup Recovery Doctrine
+- Mission Control must recover automatically after Hermes terminal loss, PM2 daemon loss, mini-stack updates, WSL/Ubuntu restart, Windows restart, internet interruption, and power return.
+- The canonical recovery entrypoint is `/home/patrick/start-mission-control.sh`.
+- The recovery script must run `pm2 resurrect`, restore or restart `mission-control`, restore or restart `mc-api-tunnel` when Cloudflare config exists, validate local health, validate protected executor status, and log results.
+- The recovery script must not print secrets, token values, `.env`, `cert.pem`, or tunnel credential JSON.
+- `mc-api-tunnel` must stay under PM2 in this environment. Do not move it to `systemd`.
+
+## Windows Startup Task Requirement
+- Because this runtime depends on WSL and does not use `systemd`, Windows must launch WSL on boot/logon and call the recovery script.
+- Required Task Scheduler command:
+```text
+wsl.exe -d Ubuntu -- bash -lc "/home/patrick/start-mission-control.sh"
+```
+- Required triggers:
+  - At startup
+  - At log on for Patrick
+- Recommended options:
+  - Run with highest privileges
+  - Restart every 5 minutes on failure
+  - Attempt restart at least 12 times
+  - Stop task if it runs longer than 30 minutes
+  - Allow task to be run on demand
+- Optional trigger:
+  - On workstation unlock
+
+## Power Outage Recovery Doctrine
+- Add UPS battery backup.
+- Set BIOS/UEFI `Restore on AC Power Loss` to `Power On` if available.
+- Expected recovery flow:
+```text
+power returns
+→ PC powers on
+→ Windows boots
+→ Task Scheduler launches WSL
+→ WSL runs /home/patrick/start-mission-control.sh
+→ pm2 resurrect restores mission-control and mc-api-tunnel
+→ Cloudflare reconnects when internet is available
+→ remote API becomes reachable again
+```
+- Do not declare power-outage resilience complete until restart simulation passes.
 
 ## Security Rules
 - Never print the bridge token.
@@ -78,6 +124,7 @@ pm2 save
 - Treat `VITE_MC_BRIDGE_TOKEN` as temporary only because it is browser-visible.
 - Long-term auth must move behind a server-side proxy or secure session layer.
 - Do not declare production-ready until Perry completes a security review.
+- Never commit `/home/patrick/.cloudflared/config.yml`, `cert.pem`, or tunnel credential JSON.
 
 ## Escalation Rules
 - Escalate before any production-ready declaration.
@@ -85,6 +132,7 @@ pm2 save
 - Escalate if token exposure is suspected or confirmed.
 - Escalate if public validation reveals that the backend accepts unauthenticated or invalid-token requests.
 - Escalate if hosted frontend behavior diverges from truthful backend acceptance state.
+- Escalate if the Cloudflare cert is still missing and tunnel creation is blocked.
 
 ## Definitions of Done
 ### Local Runtime Ready
@@ -92,6 +140,16 @@ pm2 save
 - Local protected status endpoint returns HTTP 200.
 - Backend reports truthful executor state.
 - No secrets exposed.
+
+### Startup Recovery Ready
+- `/home/patrick/start-mission-control.sh` exists.
+- Script is executable.
+- `pm2 save` completed.
+- Script restores or starts `mission-control`.
+- Script restores or starts `mc-api-tunnel` when config exists.
+- Script writes to `logs/startup-recovery.log`.
+- Local health validation passes.
+- Protected local executor validation passes without printing token.
 
 ### Remote Bridge Ready
 - Cloudflare Tunnel active.
