@@ -369,11 +369,12 @@ function getExecutorStateView(status, isLoading, isError) {
   }
 
   if (status.executorCoolingDown) {
-    const fallbackDetail = status.fallback?.available
+    const fallbackReady = status.fallback?.available;
+    const fallbackDetail = fallbackReady
       ? ` · fallback ${status.fallback.executor}${status.fallback.mode === "manual-only" ? " manual-only" : " ready"}`
       : "";
     return {
-      label: "Cooling down",
+      label: fallbackReady ? "Codex limited / Hermes active" : "Cooling down",
       detail: `${status.executor || "executor"} cooldown${status.cooldown?.estimatedResetTime ? ` · ${status.cooldown.estimatedResetTime}` : ""}${fallbackDetail}`,
       variant: "warning",
     };

@@ -15,6 +15,8 @@ const root = __dirname
 const distDir = path.join(root, 'dist')
 const runtimeDir = path.join(root, 'runtime')
 const workersDir = path.join(runtimeDir, 'workers')
+const jobArchiveDir = path.join(runtimeDir, 'job-archives')
+const staleJobArchivePath = path.join(jobArchiveDir, 'stale-test-jobs.json')
 const statePath = path.join(runtimeDir, 'mission-control-state.json')
 const jobsLedgerPath = path.join(runtimeDir, 'jobs.json')
 const IRL_STATE_FILE = path.join(runtimeDir, 'irl-state.json')
@@ -28,6 +30,7 @@ const agentsRoot = '/home/patrick/agents'
 
 fs.mkdirSync(runtimeDir, { recursive: true })
 fs.mkdirSync(workersDir, { recursive: true })
+fs.mkdirSync(jobArchiveDir, { recursive: true })
 fs.mkdirSync(sharedLedgerDir, { recursive: true })
 
 const localEnvPath = path.join(root, '.env')
@@ -1252,6 +1255,75 @@ function updateJobStatus(jobId, status, patch = {}) {
   return updated
 }
 
+function loadStaleJobArchive() {
+  try {
+    if (!fs.existsSync(staleJobArchivePath)) return []
+    return JSON.parse(fs.readFileSync(staleJobArchivePath, 'utf8'))
+  } catch {
+    return []
+  }
+}
+
+function saveStaleJobArchive(entries = []) {
+  fs.mkdirSync(jobArchiveDir, { recursive: true })
+  fs.writeFileSync(staleJobArchivePath, JSON.stringify(entries, null, 2))
+}
+
+function archiveJobSnapshot(job, reason) {
+  const archive = loadStaleJobArchive()
+  const id = job?.id || job?.jobId
+  if (!id || archive.some((entry) => entry.jobId === id)) return
+  archive.unshift({
+    jobId: id,
+    archivedAt: nowIso(),
+    reason,
+    task: job.task || job.title || '',
+    owner: job.agent || job.owner || '',
+    status: job.status || '',
+    routeStatus: job.routeStatus || '',
+    createdAt: job.createdAt || null,
+    updatedAt: job.updatedAt || null,
+    source: job.source || null,
+  })
+  saveStaleJobArchive(archive.slice(0, 500))
+}
+
+function isArchiveableStaleTestJob(job = {}) {
+  const status = String(job.status || '').toLowerCase()
+  if (status !== 'queued') return false
+  const text = `${job.task || ''} ${job.title || ''} ${job.description || ''}`.toLowerCase()
+  if (!/\b(test|validation ping|bridge validation|live response loop|smoke|ping only|executor status test)\b/.test(text)) return false
+  const updatedAt = job.updatedAt || job.createdAt
+  if (!updatedAt) return false
+  const ageMs = Date.now() - new Date(updatedAt).getTime()
+  return Number.isFinite(ageMs) && ageMs > 12 * 60 * 60 * 1000
+}
+
+function sweepStaleQueuedTestJobs() {
+  const candidates = getJobs(isArchiveableStaleTestJob)
+  if (!candidates.length) return { archived: 0, ids: [] }
+  const archivedIds = []
+  for (const job of candidates) {
+    archiveJobSnapshot(job, 'stale_queued_test_job')
+    const updated = updateJobStatus(job.id, 'cancelled', {
+      routeStatus: 'archived-stale-test-job',
+      updatedAt: nowIso(),
+      completedAt: nowIso(),
+      archivePath: staleJobArchivePath,
+      nextAction: 'Archived stale test/validation job',
+    })
+    const stateJob = state.jobs.find((entry) => entry.id === job.id)
+    if (stateJob) {
+      stateJob.status = 'cancelled'
+      stateJob.routeStatus = 'archived-stale-test-job'
+      stateJob.updatedAt = nowIso()
+    }
+    if (updated?.id) archivedIds.push(updated.id)
+  }
+  if (archivedIds.length) log('info', `Archived stale queued test jobs: ${archivedIds.join(', ')}`)
+  return { archived: archivedIds.length, ids: archivedIds }
+}
+
 function normalizeTaskKey(value = '') {
   return String(value || '')
     .toLowerCase()
@@ -1546,7 +1618,18 @@ function markJobOutage(jobId, { reason = 'Provider outage', lastKnownGoodStep = 
 }
 
 // Sync on startup
+const startupStaleSweep = sweepStaleQueuedTestJobs()
 syncRecoveryLedger()
+if (startupStaleSweep.archived > 0) {
+  console.log(`[STALE_SWEEP] Archived ${startupStaleSweep.archived} stale queued test job(s)`)
+}
+setInterval(() => {
+  const result = sweepStaleQueuedTestJobs()
+  if (result.archived > 0) {
+    syncRecoveryLedger()
+    console.log(`[STALE_SWEEP] Archived ${result.archived} stale queued test job(s)`)
+  }
+}, 60 * 60 * 1000)
 
 // ===========================================================
 // CONTINUOUS IMPROVEMENT (CI) LAYER
