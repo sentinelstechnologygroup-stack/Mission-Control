@@ -192,6 +192,22 @@ function buildExecutorBridgeStatus() {
   }
 }
 
+function resolveNettieConversationExecutor(status = buildExecutorBridgeStatus()) {
+  if (status.executorReady && status.selectedExecutor === 'codex') {
+    return { executor: 'codex', route: 'primary-ready' }
+  }
+
+  if (status.fallback?.available && status.fallback.autoRoutable && status.fallback.executor === 'hermes' && hermesAvailable) {
+    return { executor: 'hermes', route: 'fallback-cooldown' }
+  }
+
+  if (status.selectedExecutor === 'hermes' && hermesAvailable) {
+    return { executor: 'hermes', route: 'primary-hermes' }
+  }
+
+  return { executor: 'none', route: 'unavailable' }
+}
+
 function buildBridgeExecutionPacket(message = '') {
   return {
     filesCreated: ['none'],
@@ -4233,13 +4249,19 @@ function askHermesAsync(prompt, pendingMsgId) {
 }
 
 async function askSelectedExecutorAsync(prompt, pendingMsgId) {
-  const selectedExecutor = selectExecutor()
-
+  const executorStatus = buildExecutorBridgeStatus()
+  const selection = resolveNettieConversationExecutor(executorStatus)
   const msg = state.chat.find(m => m.id === pendingMsgId)
 
-  if (selectedExecutor !== 'codex') {
+  if (selection.executor === 'hermes') {
+    if (msg) msg.executorRoute = selection.route
+    askHermesAsync(prompt, pendingMsgId)
+    return
+  }
+
+  if (selection.executor !== 'codex') {
     if (msg) {
-      msg.text = executorFailureReply({ type: 'unavailable', message: 'No executor available — Codex unavailable.' })
+      msg.text = executorFailureReply({ type: 'unavailable', message: 'No executor available for live reply.' })
       msg.kind = 'ack'
       msg.resolvedAt = nowIso()
       persistState()
@@ -4257,6 +4279,13 @@ async function askSelectedExecutorAsync(prompt, pendingMsgId) {
     stdout: output,
     executor: 'Codex executor',
   })
+
+  if (classification.type === 'rate_limited' && hermesAvailable) {
+    lastExecutorError = { executor: 'codex', ...classification, at: nowIso() }
+    if (msg) msg.executorRoute = 'fallback-cooldown'
+    askHermesAsync(prompt, pendingMsgId)
+    return
+  }
 
   if (msg) {
     if (classification.type === 'ok') {
@@ -4420,8 +4449,21 @@ function handleNettieInbound({ message, sender = 'Patrick', channel = 'mission-c
     replyText = result.replyText
     replyKind = result.replyKind
   } else {
-    replyText = deterministicNettieReply(cleanMessage)
-    replyKind = 'ack'
+    pendingId = crypto.randomUUID()
+    replyText = 'Nettie: Command received. Processing now.'
+    replyKind = 'pending'
+    setImmediate(() => {
+      askSelectedExecutorAsync(buildNettiePrompt(cleanMessage), pendingId)
+        .catch((error) => {
+          const msg = state.chat.find((entry) => entry.id === pendingId)
+          if (msg) {
+            msg.text = `Nettie: Runtime error — ${error.message}`
+            msg.kind = 'ack'
+            msg.resolvedAt = nowIso()
+            persistState()
+          }
+        })
+    })
   }
 
   const outgoing = {
@@ -4458,6 +4500,16 @@ app.post('/api/nettie/messages', requireBridgeToken, async (req, res) => {
 
   if (!message) {
     return res.status(400).json({ delivered: false, reason: 'message_required', error: 'message is required' })
+  }
+
+  if (!shouldRouteChatToExecutor(message)) {
+    const result = handleNettieInbound({ message, sender, channel })
+    return res.status(result.statusCode).json({
+      delivered: true,
+      liveConversation: true,
+      ...result.payload,
+      executorStatus: buildExecutorBridgeStatus(),
+    })
   }
 
   addChatMessage({
