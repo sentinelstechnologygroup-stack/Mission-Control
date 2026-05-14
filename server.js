@@ -16,6 +16,21 @@ import {
   isAgentAvailabilityQuery,
   buildAgentAvailabilityBrief,
 } from './lib/agentRegistry.js'
+import {
+  loadGovernanceState,
+  saveGovernanceState,
+  updateGovernanceHeartbeat,
+  recordCooldown,
+  buildGovernedExecutorStatus,
+  evaluateHermesGovernance,
+  applyCooldownPauseToJobs,
+  recoverPausedProviderBlockedJobs,
+  recoverStaleRunningJobs,
+  reconcileRecurringRecovery,
+  markRecurringRunCompletedLate,
+  classifyJobTokenCost,
+  isLocalOnlyTask,
+} from './lib/runtimeGovernance.js'
 import { saveSessionTelemetry, saveCooldownTelemetry } from './lib/tokenTelemetry.js'
 import { registerChatRoutes } from './backend/chat/index.js'
 import { registerJobsRoutes } from './backend/jobs/index.js'
@@ -34,6 +49,7 @@ const staleJobArchivePath = path.join(jobArchiveDir, 'stale-test-jobs.json')
 const statePath = path.join(runtimeDir, 'mission-control-state.json')
 const jobsLedgerPath = path.join(runtimeDir, 'jobs.json')
 const agentRegistryPath = path.join(runtimeDir, 'agent-registry.json')
+const governanceStatePath = path.join(runtimeDir, 'executor-governance.json')
 const IRL_STATE_FILE = path.join(runtimeDir, 'irl-state.json')
 const nettiePromptPath = path.join(root, 'src', 'persona', 'nettie.system.prompt.md')
 const sharedLedgerDir = path.join(root, 'shared-ledger')
@@ -191,10 +207,17 @@ function getExecutorFallbackSummary(selectedExecutor = 'none', cooldown = null) 
 function buildExecutorBridgeStatus() {
   const selectedExecutor = selectExecutor()
   const cooldown = getExecutorCooldownSummary()
-  const fallback = getExecutorFallbackSummary(selectedExecutor, cooldown)
+  syncGovernanceStateFromRuntime(cooldown)
+  const rawFallback = getExecutorFallbackSummary(selectedExecutor, cooldown)
+  const fallback = {
+    ...rawFallback,
+    autoRoutable: rawFallback.executor === 'hermes' ? false : rawFallback.autoRoutable,
+    mode: rawFallback.executor === 'hermes' ? 'manual-only' : rawFallback.mode,
+    detail: rawFallback.executor === 'hermes' ? 'Hermes is governed/manual-only for recovery and approved MC execution; not a reliable automatic fallback.' : rawFallback.detail,
+  }
   const executorCoolingDown = Boolean(cooldown)
   const executorReady = selectedExecutor !== 'none' && !executorCoolingDown
-  return {
+  const baseStatus = {
     available: selectedExecutor !== 'none',
     bridgeConnected: true,
     runtime: MC_RUNTIME_NAME,
@@ -208,6 +231,7 @@ function buildExecutorBridgeStatus() {
     selectedExecutor,
     lastError: lastExecutorError,
   }
+  return buildGovernedExecutorStatus(baseStatus, governanceState, { mcRuntimeOnline: true })
 }
 
 function resolveNettieConversationExecutor(status = buildExecutorBridgeStatus()) {
@@ -983,6 +1007,7 @@ function createDocumentationLockJob(agentName, task, missing, source = 'mission-
 
 let state = readState()
 let agentRegistry = loadAgentRegistry(agentRegistryPath, { nowIso: nowIso(), legacyAgents: state.agents || [] })
+let governanceState = loadGovernanceState(governanceStatePath, state.system)
 const runningWorkers = new Map()
 
 // ===========================================================
@@ -1030,6 +1055,85 @@ function syncAgentRegistryState() {
   state.agents = buildStateAgentSummaries(view)
   writeAgentRegistry(agentRegistryPath, view)
   return view
+}
+
+function hasReliableFallback() {
+  return Boolean(governanceState?.claude_cli?.reliable)
+}
+
+function persistGovernance() {
+  saveGovernanceState(governanceStatePath, governanceState)
+}
+
+function syncGovernanceStateFromRuntime(cooldown = null) {
+  governanceState = updateGovernanceHeartbeat(governanceState, state.system)
+  governanceState = recordCooldown(governanceState, cooldown, {
+    reliableFallbackAvailable: hasReliableFallback(),
+    now: nowIso(),
+  })
+  persistGovernance()
+  return governanceState
+}
+
+function patchGovernedJobs(previousJobs = [], nextJobs = []) {
+  const previousById = new Map((previousJobs || []).map((job) => [job.id, job]))
+  for (const job of nextJobs || []) {
+    const prev = previousById.get(job.id)
+    if (!prev) continue
+    const fields = ['status', 'routeStatus', 'providerOutage', 'outageReason', 'recoveryNote', 'nextAction', 'resumeCommand', 'tokenCostClass', 'recurring', 'parentRecurringJobId', 'updatedAt']
+    const changed = fields.some((field) => JSON.stringify(prev[field] ?? null) !== JSON.stringify(job[field] ?? null))
+    if (!changed) continue
+    saveJob({
+      id: job.id,
+      status: job.status,
+      routeStatus: job.routeStatus,
+      providerOutage: job.providerOutage,
+      outageReason: job.outageReason,
+      recoveryNote: job.recoveryNote,
+      nextAction: job.nextAction,
+      resumeCommand: job.resumeCommand,
+      tokenCostClass: job.tokenCostClass,
+      recurring: job.recurring,
+      parentRecurringJobId: job.parentRecurringJobId,
+      updatedAt: job.updatedAt || nowIso(),
+    })
+  }
+}
+
+function reconcileGovernedRuntimeState({ providerHealthy = true } = {}) {
+  const startedAt = nowIso()
+  const cooldown = getExecutorCooldownSummary()
+  syncGovernanceStateFromRuntime(cooldown)
+
+  const before = jobStore.deriveLedgerView()
+  const stale = recoverStaleRunningJobs(before, { now: startedAt, timeoutMs: 60 * 60 * 1000 })
+  patchGovernedJobs(before, stale.jobs)
+
+  const afterStale = jobStore.deriveLedgerView()
+  const paused = applyCooldownPauseToJobs(afterStale, governanceState, { now: startedAt })
+  patchGovernedJobs(afterStale, paused.jobs)
+
+  const afterPause = jobStore.deriveLedgerView()
+  const resumed = recoverPausedProviderBlockedJobs(afterPause, governanceState, { providerHealthy, now: startedAt })
+  patchGovernedJobs(afterPause, resumed.jobs)
+
+  const afterResume = jobStore.deriveLedgerView()
+  const recurring = reconcileRecurringRecovery(afterResume, {
+    now: startedAt,
+    cooldownActive: Boolean(governanceState.cooldown?.active),
+    runtimeOutage: !providerHealthy,
+    providerHealthy,
+  })
+  patchGovernedJobs(afterResume, recurring.jobs)
+
+  for (const lateRun of recurring.createdLateRuns || []) {
+    saveJob(lateRun)
+  }
+
+  governanceState.cooldown.pausedJobIds = paused.pausedJobIds || []
+  governanceState.cooldown.resumedJobIds = resumed.resumedJobIds || []
+  governanceState.cooldown.missedRecurringJobIds = recurring.missedJobIds || []
+  persistGovernance()
 }
 
 function getAgentRegistryRecord(id = '') {
@@ -1209,8 +1313,9 @@ function normalizeHermesJobType(type, inputPayload = null) {
 function normalizeHermesStatus(status = 'queued') {
   const value = String(status || 'queued').toLowerCase().trim()
   if (value === 'completed' || value === 'success') return 'complete'
-  if (value === 'queued' || value === 'running' || value === 'complete' || value === 'failed') return value
-  if (value === 'stopping' || value === 'paused' || value === 'blocked' || value === 'cancelled') return 'failed'
+  if (value === 'queued' || value === 'running' || value === 'complete' || value === 'failed' || value === 'paused') return value
+  if (value === 'paused_provider_blocked' || value === 'recoverable_stale') return 'paused'
+  if (value === 'stopping' || value === 'blocked' || value === 'cancelled') return 'failed'
   return 'queued'
 }
 
@@ -1899,6 +2004,7 @@ function persistState() {
 }
 
 syncAgentRegistryState()
+reconcileGovernedRuntimeState()
 persistState()
 
 function log(level, message) {
@@ -2178,15 +2284,24 @@ function getJobProjectPath(job = {}) {
 }
 
 function updateWorkerJobOnFinish(worker, job, workerId) {
+  const providerBlocked = worker.errorClassification?.type === 'rate_limited'
+  const missionStatus = providerBlocked ? 'paused' : worker.status
   const idx = state.jobs.findIndex((entry) => entry.id === job.id)
   if (idx >= 0) {
-    state.jobs[idx] = { ...state.jobs[idx], status: worker.status, workerId, updatedAt: worker.endedAt }
+    state.jobs[idx] = { ...state.jobs[idx], status: missionStatus, workerId, updatedAt: worker.endedAt, routeStatus: providerBlocked ? 'paused_provider_blocked' : worker.status }
     if (worker.status === 'completed') state.jobs[idx].stage = 'EXEC_QA'
   }
-  const ledgerStatus = worker.status === 'completed' ? 'complete' : 'failed'
-  updateJobStatus(job.id, ledgerStatus, {
+  const ledgerStatus = providerBlocked ? 'paused_provider_blocked' : (worker.status === 'completed' ? 'complete' : 'failed')
+  const updatedJob = updateJobStatus(job.id, ledgerStatus, {
     updatedAt: worker.endedAt,
-    completedAt: worker.endedAt,
+    completedAt: providerBlocked ? null : worker.endedAt,
+    routeStatus: providerBlocked ? 'paused_provider_blocked' : undefined,
+    providerOutage: providerBlocked,
+    outageReason: providerBlocked ? worker.errorClassification?.message || 'provider cooldown/rate limit' : undefined,
+    recoveryNote: providerBlocked ? 'Worker paused after provider cooldown/rate-limit signal.' : undefined,
+    nextAction: providerBlocked ? 'Resume after provider cooldown clears.' : undefined,
+    resumeCommand: providerBlocked ? `resume ${job.id}` : undefined,
+    tokenCostClass: classifyJobTokenCost(job),
     outputPayload: {
       executor: worker.executor,
       exitCode: worker.exitCode,
@@ -2208,6 +2323,9 @@ function updateWorkerJobOnFinish(worker, job, workerId) {
       },
     }],
   })
+  if (updatedJob?.status === 'complete' && updatedJob?.recurring?.lateExecution) {
+    saveJob(markRecurringRunCompletedLate(updatedJob, { now: worker.endedAt }))
+  }
 }
 
 function launchCodexWorker(job, bodyPrompt = '') {
@@ -2284,7 +2402,7 @@ function launchCodexWorker(job, bodyPrompt = '') {
       code,
       executor: 'Codex executor',
     })
-    worker.status = worker.errorClassification.type === 'ok' ? 'completed' : signal ? 'stopped' : 'failed'
+    worker.status = worker.errorClassification.type === 'ok' ? 'completed' : signal ? 'stopped' : (worker.errorClassification.type === 'rate_limited' ? 'paused' : 'failed')
     worker.result = cleanCodexOutput(worker.stdout).slice(-8000) || sanitizeExecutorText(worker.stderr).slice(-4000)
     if (worker.status !== 'completed') {
       lastExecutorError = { executor: 'codex', ...worker.errorClassification, at: worker.endedAt }
@@ -2316,6 +2434,7 @@ function launchCodexWorker(job, bodyPrompt = '') {
 }
 
 function launchSelectedWorker(job, bodyPrompt = '', requestedExecutor = '') {
+  reconcileGovernedRuntimeState({ providerHealthy: true })
   const selected = selectExecutor(null, requestedExecutor)
   if (selected === 'codex') {
     try {
@@ -2329,6 +2448,20 @@ function launchSelectedWorker(job, bodyPrompt = '', requestedExecutor = '') {
 }
 
 function launchHermesWorker(job, bodyPrompt = '') {
+  const governance = evaluateHermesGovernance({
+    mcRuntimeOnline: true,
+    breakGlassMode: Boolean(governanceState.break_glass_mode),
+    hasApprovedOperatorCommand: Boolean(job?.source === 'Nettie' || job?.source === 'mission-control'),
+    hasJobRecord: Boolean(job?.id),
+    actionType: job?.inputPayload?.breakGlassMode ? 'recovery_diagnostic' : 'project_execution',
+    task: bodyPrompt || job?.task || '',
+  })
+  if (!governance.allowed) {
+    const error = new Error(governance.reason)
+    error.code = 'HERMES_GOVERNANCE_BLOCKED'
+    error.governance = governance
+    throw error
+  }
   if (!hermesAvailable) {
     throw new Error('Hermes CLI is not available on this machine.')
   }
@@ -4312,6 +4445,9 @@ const routeDeps = {
   buildControlPlaneSnapshot,
   getAgentRegistryView,
   getAgentRegistryRecord,
+  governanceState: () => governanceState,
+  reconcileGovernedRuntimeState,
+  evaluateHermesGovernance,
   attachWorker,
   refreshDerivedState,
   findOpenDuplicateJob,

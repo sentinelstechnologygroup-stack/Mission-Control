@@ -35,6 +35,9 @@ export function registerRuntimeRoutes(app, deps) {
     normalizeHermesStatus,
     classifyExecutorError,
     stateWorkers,
+    governanceState,
+    reconcileGovernedRuntimeState,
+    evaluateHermesGovernance,
   } = deps
 
   app.get('/api/health', (_, res) => {
@@ -199,6 +202,40 @@ export function registerRuntimeRoutes(app, deps) {
       return res.status(202).json(makeHermesResponse(job, null, makeHermesLogs(job, job.executionTrace), { reused: false }))
     }
 
+    reconcileGovernedRuntimeState({ providerHealthy: true })
+    const reconciledJob = jobStore.getJobById(job.id) || job
+    if (String(reconciledJob.routeStatus || '') === 'paused_provider_blocked') {
+      return res.status(202).json(makeHermesResponse(reconciledJob, {
+        paused: true,
+        reason: reconciledJob.outageReason || 'provider cooldown active',
+        classification: 'blocked_by_provider',
+      }, makeHermesLogs(reconciledJob, reconciledJob.executionTrace), { reused: false }))
+    }
+
+    if ((req.body?.executor || req.body?.provider || '').toLowerCase() === 'hermes') {
+      const governance = evaluateHermesGovernance({
+        mcRuntimeOnline: true,
+        breakGlassMode: Boolean(req.body?.breakGlassMode || inputPayload?.breakGlassMode),
+        hasApprovedOperatorCommand: source === 'Nettie',
+        hasJobRecord: Boolean(job.id),
+        actionType: req.body?.breakGlassMode || inputPayload?.breakGlassMode ? 'recovery_diagnostic' : 'project_execution',
+        task: inputPayload?.text || inputPayload?.task || '',
+      })
+      if (!governance.allowed) {
+        const blockedAt = nowIso()
+        const blockedJob = updateJobStatus(job.id, 'paused_provider_blocked', {
+          updatedAt: blockedAt,
+          routeStatus: 'paused_provider_blocked',
+          outageReason: governance.reason,
+          recoveryNote: 'Governance policy blocked Hermes normal execution.',
+          nextAction: 'Use break-glass recovery mode only for diagnostics while MC governance remains enforced.',
+          providerOutage: false,
+          executionTrace: [{ step: 'hermes_governance_blocked', at: blockedAt, level: 'warn', message: governance.reason, data: governance }],
+        })
+        return res.status(403).json(makeHermesResponse(blockedJob, { error: governance.reason, governance }, makeHermesLogs(blockedJob, blockedJob.executionTrace), { reused: false }))
+      }
+    }
+
     try {
       const workerJob = {
         ...job,
@@ -221,14 +258,21 @@ export function registerRuntimeRoutes(app, deps) {
       const failedAt = nowIso()
       const classification = classifyExecutorError({ error, stderr: error.message, code: 1, executor: 'executor' })
       setLastExecutorError({ executor: 'selected', ...classification, at: failedAt })
+      const pausedForProvider = classification.type === 'rate_limited'
       const failedResult = { error: classification.message, classification }
-      const failedJob = updateJobStatus(job.id, 'failed', {
+      const failedJob = updateJobStatus(job.id, pausedForProvider ? 'paused_provider_blocked' : 'failed', {
         updatedAt: failedAt,
-        completedAt: failedAt,
+        completedAt: pausedForProvider ? null : failedAt,
+        routeStatus: pausedForProvider ? 'paused_provider_blocked' : undefined,
+        providerOutage: pausedForProvider,
+        outageReason: pausedForProvider ? classification.message : undefined,
+        recoveryNote: pausedForProvider ? 'Execution paused during provider cooldown/rate limit.' : undefined,
+        nextAction: pausedForProvider ? 'Resume after provider cooldown clears.' : undefined,
+        resumeCommand: pausedForProvider ? `resume ${job.id}` : undefined,
         outputPayload: failedResult,
         executionTrace: [{ step: 'executor_launch_failed', at: failedAt, level: 'error', message: classification.message, data: classification }],
       })
-      return res.status(503).json(makeHermesResponse(failedJob, failedResult, makeHermesLogs(failedJob, failedJob.executionTrace), { reused: false }))
+      return res.status(pausedForProvider ? 202 : 503).json(makeHermesResponse(failedJob, failedResult, makeHermesLogs(failedJob, failedJob.executionTrace), { reused: false }))
     }
   })
 
