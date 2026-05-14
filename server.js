@@ -7,6 +7,15 @@ import { spawn, spawnSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import * as jobStore from './lib/jobStore.js'
 import { buildMissionControlData } from './lib/controlPlaneData.js'
+import {
+  loadAgentRegistry,
+  writeAgentRegistry,
+  buildAgentRegistryView,
+  buildStateAgentSummaries,
+  findAgentRecord,
+  isAgentAvailabilityQuery,
+  buildAgentAvailabilityBrief,
+} from './lib/agentRegistry.js'
 import { saveSessionTelemetry, saveCooldownTelemetry } from './lib/tokenTelemetry.js'
 import { registerChatRoutes } from './backend/chat/index.js'
 import { registerJobsRoutes } from './backend/jobs/index.js'
@@ -24,6 +33,7 @@ const jobArchiveDir = path.join(runtimeDir, 'job-archives')
 const staleJobArchivePath = path.join(jobArchiveDir, 'stale-test-jobs.json')
 const statePath = path.join(runtimeDir, 'mission-control-state.json')
 const jobsLedgerPath = path.join(runtimeDir, 'jobs.json')
+const agentRegistryPath = path.join(runtimeDir, 'agent-registry.json')
 const IRL_STATE_FILE = path.join(runtimeDir, 'irl-state.json')
 const nettiePromptPath = path.join(root, 'src', 'persona', 'nettie.system.prompt.md')
 const sharedLedgerDir = path.join(root, 'shared-ledger')
@@ -972,6 +982,7 @@ function createDocumentationLockJob(agentName, task, missing, source = 'mission-
 }
 
 let state = readState()
+let agentRegistry = loadAgentRegistry(agentRegistryPath, { nowIso: nowIso(), legacyAgents: state.agents || [] })
 const runningWorkers = new Map()
 
 // ===========================================================
@@ -989,9 +1000,46 @@ if (!Array.isArray(jobsLedger)) jobsLedger = []
 jobsLedger = jobsLedger.map((job) => normalizeLedgerJob(job))
 saveJobsLedger()
 
+function getAgentRegistryView() {
+  const selectedExecutor = selectExecutor()
+  const fallback = getExecutorFallbackSummary(selectedExecutor, null)
+  const executorStatus = {
+    available: selectedExecutor !== 'none',
+    bridgeConnected: true,
+    executorReady: false,
+    executorCoolingDown: false,
+    fallback,
+    selectedExecutor,
+  }
+
+  return buildAgentRegistryView({
+    registry: agentRegistry,
+    jobs: jobStore.deriveLedgerView(),
+    systemState: state.system,
+    executorStatus,
+    nowIso: nowIso(),
+    hermesAvailable,
+    selectedExecutor: AI_EXECUTION_PROVIDER,
+    fallbackExecutor: AI_EXECUTION_FALLBACK,
+  })
+}
+
+function syncAgentRegistryState() {
+  const view = getAgentRegistryView()
+  agentRegistry = view
+  state.agents = buildStateAgentSummaries(view)
+  writeAgentRegistry(agentRegistryPath, view)
+  return view
+}
+
+function getAgentRegistryRecord(id = '') {
+  return findAgentRecord(getAgentRegistryView(), id)
+}
+
 function syncCanonicalJobCaches() {
   jobsLedger = jobStore.deriveLedgerView()
   state.jobs = jobStore.deriveMissionStateJobs()
+  syncAgentRegistryState()
   state.system.updatedAt = nowIso()
   persistState()
 }
@@ -1850,6 +1898,9 @@ function persistState() {
   fs.writeFileSync(statePath, JSON.stringify(state, null, 2))
 }
 
+syncAgentRegistryState()
+persistState()
+
 function log(level, message) {
   const entry = { id: crypto.randomUUID(), ts: nowIso(), level, message }
   state.logs.unshift(entry)
@@ -2032,6 +2083,7 @@ function serializeWorkers() {
 function refreshDerivedState() {
   state.system.updatedAt = nowIso()
   state.workers = serializeWorkers()
+  syncAgentRegistryState()
   persistState()
 }
 
@@ -2085,7 +2137,7 @@ function guessPriority(prompt) {
 
 function detectOfficeFromPrompt(prompt) {
   const lower = prompt.toLowerCase()
-  return state.agents.find((agent) => lower.includes(agent.name.toLowerCase())) || null
+  return getAgentRegistryView().find((agent) => lower.includes(agent.displayName.toLowerCase())) || null
 }
 
 function buildOfficeBriefing(agent) {
@@ -3425,6 +3477,7 @@ function detectIntent(message) {
   if (/\b(assign|work on|build|create|launch|start|have [a-z]+ (work|build|create|do)|tell [a-z]+ to)\b/.test(msg)) return 'assign_task'
 
   // PRIORITY 8: general status
+  if (/who('?s| is)? available|available agents|agent registry|what are they responsible for|responsible for|who handles/.test(msg)) return 'status_query'
   if (/\b(show|list|active work|what.*working|running|jobs|ledger|status|what.*(doing|running|on)|where are we with|company wide)\b/.test(msg)) return 'status_query'
 
   return 'chat'
@@ -3462,8 +3515,8 @@ function extractAgent(message) {
     if (lower.includes(alias)) return agentName
   }
 
-  for (const agent of state.agents) {
-    if (lower.includes(agent.name.toLowerCase())) return agent.name
+  for (const agent of getAgentRegistryView()) {
+    if (lower.includes(agent.displayName.toLowerCase())) return agent.displayName
   }
   return guessOwner(message)
 }
@@ -3618,6 +3671,13 @@ function extractProjectQuery(message = '') {
 }
 
 function handleStatus(message = '') {
+  if (isAgentAvailabilityQuery(message)) {
+    return {
+      replyText: buildAgentAvailabilityBrief(getAgentRegistryView()),
+      replyKind: 'status',
+    }
+  }
+
   const projectQuery = extractProjectQuery(message)
   if (projectQuery) {
     const lookup = queryWorkStatus(projectQuery)
@@ -4250,6 +4310,8 @@ const routeDeps = {
   summarizeState,
   buildPlatformHealth,
   buildControlPlaneSnapshot,
+  getAgentRegistryView,
+  getAgentRegistryRecord,
   attachWorker,
   refreshDerivedState,
   findOpenDuplicateJob,

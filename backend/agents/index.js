@@ -1,5 +1,5 @@
 export function registerAgentsRoutes(app, deps) {
-  const { state, buildControlPlaneSnapshot } = deps
+  const { buildControlPlaneSnapshot, getAgentRegistryView, getAgentRegistryRecord } = deps
 
   app.get('/api/departments', (_, res) => {
     res.json(buildControlPlaneSnapshot().departments)
@@ -11,5 +11,11 @@ export function registerAgentsRoutes(app, deps) {
     res.json(department)
   })
 
-  app.get('/api/agents', (_, res) => res.json(state.agents))
+  app.get('/api/agents', (_, res) => res.json(getAgentRegistryView()))
+
+  app.get('/api/agents/:id', (req, res) => {
+    const agent = getAgentRegistryRecord(req.params.id)
+    if (!agent) return res.status(404).json({ error: 'Agent not found' })
+    res.json(agent)
+  })
 }
