@@ -12,6 +12,8 @@ export function registerJobsRoutes(app, deps) {
     queryWorkStatus,
     buildMasterWorkRegistry,
     buildActiveWorkView,
+    getQueuePrioritiesView,
+    getTopNextActionsView,
     loadRecoveryLedger,
     syncRecoveryLedger,
     updateRecoveryEntry,
@@ -157,6 +159,15 @@ export function registerJobsRoutes(app, deps) {
   app.get('/api/active-work', (_, res) => {
     const registry = buildMasterWorkRegistry()
     res.json(buildActiveWorkView(registry))
+  })
+
+  app.get('/api/queue/priorities', (req, res) => {
+    res.json(getQueuePrioritiesView())
+  })
+
+  app.get('/api/queue/next-actions', (req, res) => {
+    const limit = Math.max(1, Math.min(25, Number(req.query?.limit || 10) || 10))
+    res.json(getTopNextActionsView(limit))
   })
 
   app.patch('/api/jobs/ledger/:id/status', (req, res) => {

@@ -85,6 +85,57 @@ pm2 save
 - The recovery script must run `pm2 resurrect`, restore or restart `mission-control`, restore or restart `mc-api-tunnel` when the tunnel token file exists, validate local health, validate protected executor status, and log results.
 - The recovery script must not print secrets, token values, `.env`, token files, or credential material.
 - `mc-api-tunnel` must stay under PM2 in this environment. Do not move it to `systemd`.
+- Cooldown recovery must be safe, late, and durable.
+- Never blind auto-resume after cooldown clears.
+- Recovery order is mandatory:
+  - cooldown clears
+  - reconcile ledger/runtime truth
+  - classify recoverable jobs
+  - resume only `safe_to_resume`
+  - run missed recurring tasks late
+  - report skipped, blocked, manual-only, and Patrick-review jobs clearly
+- Execution intake must pause when recovery state is unresolved.
+- Registry truth is the merged operational view, not a single bucket like `active` alone.
+- `/api/active-work` and operator summaries must use merged open-work truth, not a single registry bucket.
+- Do not mutate job status just to make dashboards look cleaner.
+- Generated reconciliation reports are runtime artifacts and must remain runtime-only unless Patrick explicitly asks for them in git history.
+- Runtime artifacts, ledgers, and generated recovery reports do not get committed.
+- Route low-risk reporting, triage, summarization, log compression, routine classification, low-risk recurring report generation, and first-pass rollups to local AI whenever stronger reasoning is not required.
+- Local AI must not make final decisions for production code, security, deployment, client-facing final copy, legal or financial conclusions, or high-risk recommendations.
+- Every agent employee output must be reviewed by the department head before final delivery.
+- Required review chain:
+  - agent employee
+  - department head
+  - Perry review if QA, security, risk, deployment, auth, secrets, or client-facing
+  - Nettie final pass/fail/report assembly
+  - Patrick
+- A recurring daily rollup must run at 23:00 local time.
+- The daily rollup must still be delivered during provider cooldown via local-AI first draft, department-head summaries, Perry blocker flags, and Nettie final assembly.
+
+## Recovery Reconciliation Gate Doctrine
+- Auto-resume is forbidden until reconciliation is complete.
+- Reconciliation must compare:
+  - `/api/active-work`
+  - `/api/work/registry`
+  - `/api/jobs/ledger`
+  - runtime state
+  - worker state
+- Each recoverable job must carry reconciliation metadata:
+  - recovery classification
+  - `autoResumeAllowed`
+  - reason when `autoResumeAllowed=false`
+- Approved recovery classifications are:
+  - `safe_to_resume`
+  - `already_running_elsewhere`
+  - `duplicate`
+  - `stale_needs_review`
+  - `blocked_provider`
+  - `blocked_missing_context`
+  - `blocked_needs_patrick`
+  - `cancelled_or_archived`
+  - `manual_only`
+- Only jobs explicitly classified `safe_to_resume` may ever enter auto-resume.
+- `safe_to_resume` is still blocked if the reconciliation gate remains active.
 
 ## Windows Startup Task Requirement
 - Because this runtime depends on WSL and does not use `systemd`, Windows must launch WSL on boot/logon and call the recovery script.

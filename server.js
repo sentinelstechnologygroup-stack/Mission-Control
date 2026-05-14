@@ -38,6 +38,10 @@ import {
   loadRecoveryReconciliationReport,
   buildRecoveryReconciliationMarkdown,
 } from './lib/recoveryReconciliation.js'
+import {
+  buildQueuePriorities,
+  buildTopNextActions,
+} from './lib/queuePrioritization.js'
 import { saveSessionTelemetry, saveCooldownTelemetry } from './lib/tokenTelemetry.js'
 import { registerChatRoutes } from './backend/chat/index.js'
 import { registerJobsRoutes } from './backend/jobs/index.js'
@@ -1097,6 +1101,22 @@ function buildAndPersistRecoveryReconciliationReport() {
     now: nowIso(),
   })
   return persistRecoveryReconciliationReport(report)
+}
+
+function getQueuePrioritiesView() {
+  const registry = buildMasterWorkRegistry()
+  const recoveryReport = getRecoveryReconciliationReport() || buildAndPersistRecoveryReconciliationReport()
+  return buildQueuePriorities({
+    registry,
+    recoveryReport,
+    claudeValidated: Boolean(governanceState?.claude_cli?.reliable),
+    now: nowIso(),
+  })
+}
+
+function getTopNextActionsView(limit = 10) {
+  const queue = getQueuePrioritiesView()
+  return buildTopNextActions(queue.priorities, { limit })
 }
 
 function syncGovernanceStateFromRuntime(cooldown = null) {
@@ -4517,6 +4537,8 @@ const routeDeps = {
   queryWorkStatus,
   buildMasterWorkRegistry,
   buildActiveWorkView,
+  getQueuePrioritiesView,
+  getTopNextActionsView,
   loadRecoveryLedger,
   syncRecoveryLedger,
   updateRecoveryEntry,
