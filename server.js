@@ -8,6 +8,11 @@ import { fileURLToPath } from 'url'
 import * as jobStore from './lib/jobStore.js'
 import { buildMissionControlData } from './lib/controlPlaneData.js'
 import { saveSessionTelemetry, saveCooldownTelemetry } from './lib/tokenTelemetry.js'
+import { registerChatRoutes } from './backend/chat/index.js'
+import { registerJobsRoutes } from './backend/jobs/index.js'
+import { registerRuntimeRoutes } from './backend/runtime/index.js'
+import { registerAgentsRoutes } from './backend/agents/index.js'
+import { registerOpsRoutes } from './backend/ops/index.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -2763,427 +2768,6 @@ app.use((req, res, next) => {
 })
 app.use(express.json({ limit: '1mb' }))
 
-app.get('/api/health', (_, res) => {
-  res.json({
-    ok: true,
-    codexAvailable,
-    codexVersion,
-    hermesAvailable,
-    hermesMode: 'legacy/manual-only',
-    selectedExecutor: AI_EXECUTION_PROVIDER,
-    fallbackExecutor: AI_EXECUTION_FALLBACK,
-    launchedAt: state.system.launchedAt,
-  })
-})
-
-app.get('/api/executor/status', requireBridgeToken, (_, res) => {
-  res.json(buildExecutorBridgeStatus())
-})
-
-app.get('/api/executors/health', async (_, res) => {
-  const health = await getExecutorsHealth()
-  res.json(health)
-})
-
-app.post('/api/executors/test', async (_, res) => {
-  const result = await runCodexSmokeTest(
-    'Reply with exactly: CODEX_EXECUTOR_CONNECTED',
-    '/home/patrick/mission-control',
-  )
-  if (!result.ok) {
-    lastExecutorError = { executor: 'codex', type: result.codexAuthStatus, message: result.error, at: nowIso() }
-  }
-  res.status(result.ok ? 200 : 502).json({
-    ok: result.ok,
-    expected: CODEX_CONNECTED_TEXT,
-    output: result.output,
-    codexAvailable: result.codexAvailable,
-    codexVersion: result.codexVersion,
-    codexAuthStatus: result.codexAuthStatus,
-    error: result.error,
-  })
-})
-
-app.get('/api/system', (_, res) => {
-  const snapshot = summarizeState()
-  res.json({
-    system: snapshot.system,
-    counts: snapshot.counts,
-    agents: snapshot.agents,
-    workers: snapshot.workers,
-    jobs: snapshot.jobs,
-  })
-})
-
-app.get('/api/dashboard', (_, res) => {
-  res.json(summarizeState())
-})
-
-app.get('/api/system/health', (_, res) => {
-  res.json(buildPlatformHealth())
-})
-
-app.get('/api/departments', (_, res) => {
-  res.json(buildControlPlaneSnapshot().departments)
-})
-
-app.get('/api/departments/:id', (req, res) => {
-  const department = buildControlPlaneSnapshot().departments.find((item) => item.id === String(req.params.id || '').toLowerCase())
-  if (!department) return res.status(404).json({ error: 'Department not found' })
-  res.json(department)
-})
-
-app.get('/api/projects', (_, res) => {
-  res.json(buildControlPlaneSnapshot().projects)
-})
-
-app.get('/api/reports', (_, res) => {
-  res.json(buildControlPlaneSnapshot().reports)
-})
-
-app.get('/api/costs', (_, res) => {
-  res.json(buildControlPlaneSnapshot().costs)
-})
-
-app.post('/api/costs/session', (req, res) => {
-  try {
-    const saved = saveSessionTelemetry(runtimeDir, req.body || {})
-    res.status(201).json(saved)
-  } catch (error) {
-    res.status(500).json({ error: error.message || 'Failed to save session telemetry' })
-  }
-})
-
-app.post('/api/costs/cooldowns', (req, res) => {
-  try {
-    const saved = saveCooldownTelemetry(runtimeDir, req.body || {})
-    res.status(201).json(saved)
-  } catch (error) {
-    res.status(500).json({ error: error.message || 'Failed to save cooldown telemetry' })
-  }
-})
-
-app.get('/api/qa', (_, res) => {
-  res.json(buildControlPlaneSnapshot().qa)
-})
-
-app.get('/api/security/review', (_, res) => {
-  res.json(buildControlPlaneSnapshot().security)
-})
-
-app.get('/api/decisions', (_, res) => {
-  res.json(buildControlPlaneSnapshot().decisions)
-})
-
-app.get('/api/integrations', (_, res) => {
-  res.json(buildControlPlaneSnapshot().integrations)
-})
-
-app.get('/api/jobs', (_, res) => res.json(state.jobs.map(attachWorker)))
-app.get('/api/jobs/:id', (req, res) => {
-  if (req.params.id === 'ledger') return res.json(jobStore.deriveLedgerView())
-  const job = jobStore.getJobById(req.params.id)
-  if (!job) return res.status(404).json({ error: 'Job not found' })
-  res.json(job)
-})
-
-app.post('/api/jobs', (req, res) => {
-  const { title, owner = 'Nettie', priority = 'P1', description = '' } = req.body || {}
-  if (!title) return res.status(400).json({ error: 'title is required' })
-
-  const duplicate = findOpenDuplicateJob(owner, title)
-  if (duplicate) {
-    const existing = state.jobs.find((entry) => entry.id === duplicate.id)
-    if (existing) {
-      existing.updatedAt = nowIso()
-      refreshDerivedState()
-      return res.status(200).json({ ...attachWorker(existing), deduped: true })
-    }
-  }
-
-  const job = {
-    id: `job_${crypto.randomUUID().slice(0, 8)}`,
-    title,
-    owner,
-    priority,
-    stage: 'SCOPED',
-    status: 'queued',
-    description,
-    workerId: null,
-    updatedAt: nowIso(),
-  }
-  const created = saveJob({
-    id: job.id,
-    task: job.title,
-    title: job.title,
-    agent: job.owner,
-    owner: job.owner,
-    department: job.owner,
-    status: job.status,
-    routeStatus: 'queued',
-    source: 'api.jobs.create',
-    sourceType: 'mission-control',
-    createdAt: job.updatedAt,
-    updatedAt: job.updatedAt,
-  })
-  log('info', `Created job ${job.id}: ${job.title}`)
-  syncCanonicalJobCaches()
-  res.status(201).json(attachWorker(jobStore.toMissionStateJob(created || created.job || job)))
-})
-
-app.post('/api/jobs/:id/assign', (req, res) => {
-  const job = jobStore.getJobById(req.params.id)
-  if (!job) return res.status(404).json({ error: 'Job not found' })
-  const updated = jobStore.updateJob(job.id, { owner: req.body?.owner || job.owner, agent: req.body?.owner || job.agent, department: req.body?.owner || job.department, updatedAt: nowIso() })
-  syncCanonicalJobCaches()
-  log('info', `Job ${job.id} assigned to ${updated?.owner || req.body?.owner || job.owner}`)
-  res.json(updated)
-})
-
-app.post('/api/jobs/:id/transition', (req, res) => {
-  const job = jobStore.getJobById(req.params.id)
-  if (!job) return res.status(404).json({ error: 'Job not found' })
-  const updated = jobStore.updateJob(job.id, { stage: req.body?.stage || job.stage, phase: req.body?.stage || job.phase, updatedAt: nowIso() })
-  syncCanonicalJobCaches()
-  log('info', `Job ${job.id} transitioned to ${updated?.stage || req.body?.stage || job.stage}`)
-  res.json(updated)
-})
-
-app.post('/api/jobs/:id/run', (req, res) => {
-  const job = jobStore.getJobById(req.params.id)
-  if (!job) return res.status(404).json({ error: 'Job not found' })
-
-  const inputPayload = {
-    ...(job.inputPayload && typeof job.inputPayload === 'object' ? job.inputPayload : {}),
-    ...(req.body?.inputPayload && typeof req.body.inputPayload === 'object' ? req.body.inputPayload : {}),
-    task: req.body?.inputPayload?.task || job.title,
-    text: req.body?.inputPayload?.text || job.description || job.title,
-    assignedDepartmentHead: req.body?.inputPayload?.assignedDepartmentHead || job.owner,
-  }
-  const validation = validateHermesExecutionRequest(inputPayload, job.owner)
-
-  if (!validation.ok) {
-    const result = makeRunbookViolationResult(validation)
-    saveJob({
-      id: job.id,
-      task: job.title,
-      agent: job.owner,
-      status: 'failed',
-      routeStatus: 'blocked-runbook-violation',
-      source: 'api.jobs.run',
-      inputPayload,
-      outputPayload: result,
-      updatedAt: nowIso(),
-      executionTrace: [{
-        step: 'execution_rejected',
-        at: nowIso(),
-        level: 'error',
-        message: RUNBOOK_VIOLATION_REASON,
-        data: result,
-      }],
-    })
-    return res.status(422).json(result)
-  }
-
-  try {
-    job.inputPayload = inputPayload
-    const worker = launchSelectedWorker(job, req.body?.prompt || '', req.body?.executor || req.body?.provider || '')
-    res.status(202).json({ worker, job: attachWorker(job) })
-  } catch (error) {
-    res.status(500).json({ error: error.message })
-  }
-})
-
-app.post('/api/hermes/execute', (req, res) => {
-  const source = normalizeHermesSource(req.body?.source || 'system')
-  const type = normalizeHermesJobType(req.body?.type, req.body?.inputPayload)
-  const inputPayload = req.body?.inputPayload ?? null
-  const executeNow = req.body?.executeNow !== false
-  const hermesContext = buildHermesContext()
-  const receivedAt = nowIso()
-  const steps = decomposeTask(inputPayload?.task || '')
-  const executionAssignments = assignAgentsToSteps(steps, inputPayload?.task || '')
-
-  if (!HERMES_ALLOWED_SOURCES.has(source)) {
-    const job = createHermesExecutionJob({
-      jobId: req.body?.jobId || null,
-      source,
-      type,
-      inputPayload,
-      context: hermesContext,
-      decision: 'new',
-      receivedAt,
-      executionPlan: steps,
-      executionAssignments,
-    })
-    const failedAt = nowIso()
-    const result = { error: 'source_not_allowed' }
-    const failedJob = updateJobStatus(job.id, 'failed', {
-      updatedAt: failedAt,
-      completedAt: failedAt,
-      context: hermesContext,
-      outputPayload: result,
-      executionTrace: [{ step: 'source_rejected', at: failedAt, level: 'error', message: 'failed', data: { source } }],
-    })
-    return res.status(403).json(makeHermesResponse(failedJob, result, makeHermesLogs(failedJob, failedJob.executionTrace)))
-  }
-
-  const validation = validateHermesExecutionRequest(inputPayload, req.body?.assignedDepartmentHead || '')
-  if (!validation.ok) {
-    const job = createHermesExecutionJob({
-      jobId: req.body?.jobId || null,
-      source,
-      type,
-      inputPayload: {
-        ...(inputPayload && typeof inputPayload === 'object' ? inputPayload : {}),
-        assignedDepartmentHead: validation.assignedDepartmentHead,
-        governingRunbook: validation.governingRunbook,
-      },
-      context: hermesContext,
-      decision: 'new',
-      receivedAt,
-      executionPlan: steps,
-      executionAssignments,
-    })
-    const failedAt = nowIso()
-    const result = makeRunbookViolationResult(validation)
-    const failedJob = updateJobStatus(job.id, 'failed', {
-      updatedAt: failedAt,
-      completedAt: failedAt,
-      routeStatus: 'blocked-runbook-violation',
-      context: hermesContext,
-      outputPayload: result,
-      executionTrace: [{ step: 'execution_rejected', at: failedAt, level: 'error', message: RUNBOOK_VIOLATION_REASON, data: result }],
-    })
-    return res.status(422).json(makeHermesResponse(failedJob, result, makeHermesLogs(failedJob, failedJob.executionTrace), { reused: false }))
-  }
-
-  const normTask = normalizeTaskKey(inputPayload?.task || '')
-  const existing = normTask
-    ? jobsLedger.find(j =>
-        normalizeTaskKey(j.inputPayload?.task || '') === normTask &&
-        !['completed', 'complete', 'cancelled', 'failed'].includes(j.status)
-      )
-    : null
-
-  if (existing) {
-    const reusedJob = updateJobStatus(existing.id, existing.status, {
-      updatedAt: receivedAt,
-      context: hermesContext,
-      executionPlan: existing.executionPlan?.length ? existing.executionPlan : steps,
-      executionAssignments: existing.executionAssignments?.length ? existing.executionAssignments : executionAssignments,
-      executionTrace: [{
-        step: 'execution_received',
-        at: receivedAt,
-        level: 'info',
-        message: 'reused',
-        data: {
-          receivedAt,
-          contextSnapshot: hermesContext,
-          decision: 'reused',
-        },
-      }],
-    })
-    const statusCode = normalizeHermesStatus(reusedJob.status) === 'queued' ? 202 : 200
-    return res.status(statusCode).json(
-      makeHermesResponse(
-        reusedJob,
-        reusedJob.outputPayload ?? null,
-        makeHermesLogs(reusedJob, reusedJob.executionTrace),
-        { reused: true },
-      )
-    )
-  }
-
-  const job = createHermesExecutionJob({
-    jobId: req.body?.jobId || null,
-    source,
-    type,
-    inputPayload: {
-      ...(inputPayload && typeof inputPayload === 'object' ? inputPayload : {}),
-      assignedDepartmentHead: validation.assignedDepartmentHead,
-      governingRunbook: validation.governingRunbook,
-    },
-    context: hermesContext,
-    decision: 'new',
-    receivedAt,
-    executionPlan: steps,
-    executionAssignments,
-  })
-
-  if (!executeNow) {
-    return res.status(202).json(makeHermesResponse(job, null, makeHermesLogs(job, job.executionTrace), { reused: false }))
-  }
-
-  try {
-    const workerJob = {
-      ...job,
-      title: job.title || job.task || 'Execution job',
-      owner: validation.assignedDepartmentHead || job.owner || job.agent || 'Van',
-      priority: job.priority || 'P1',
-      stage: job.stage || 'SCOPED',
-      description: job.description || inputPayload?.text || inputPayload?.task || '',
-      inputPayload: job.inputPayload || inputPayload,
-      projectPath: inputPayload?.projectPath || inputPayload?.project_path || inputPayload?.cwd || root,
-    }
-    const worker = launchSelectedWorker(workerJob, inputPayload?.text || inputPayload?.task || '', req.body?.executor || req.body?.provider || '')
-    const runningJob = jobStore.getJobById(job.id) || workerJob
-    return res.status(202).json({
-      ...makeHermesResponse(runningJob, null, makeHermesLogs(runningJob, runningJob.executionTrace), { reused: false }),
-      selectedExecutor: worker.executor,
-      worker,
-    })
-  } catch (error) {
-    const failedAt = nowIso()
-    const classification = classifyExecutorError({ error, stderr: error.message, code: 1, executor: 'executor' })
-    lastExecutorError = { executor: 'selected', ...classification, at: failedAt }
-    const failedResult = { error: classification.message, classification }
-    const failedJob = updateJobStatus(job.id, 'failed', {
-      updatedAt: failedAt,
-      completedAt: failedAt,
-      outputPayload: failedResult,
-      executionTrace: [{ step: 'executor_launch_failed', at: failedAt, level: 'error', message: classification.message, data: classification }],
-    })
-    return res.status(503).json(makeHermesResponse(failedJob, failedResult, makeHermesLogs(failedJob, failedJob.executionTrace), { reused: false }))
-  }
-})
-
-app.get('/api/agents', (_, res) => res.json(state.agents))
-app.get('/api/workers', (_, res) => res.json(state.workers))
-app.get('/api/workers/:id', (req, res) => {
-  const worker = state.workers.find((entry) => entry.id === req.params.id)
-  if (!worker) return res.status(404).json({ error: 'Worker not found' })
-  res.json(worker)
-})
-
-app.post('/api/workers/:id/stop', (req, res) => {
-  const worker = state.workers.find((entry) => entry.id === req.params.id)
-  if (!worker) return res.status(404).json({ error: 'Worker not found' })
-  const child = runningWorkers.get(worker.id)
-  if (child) {
-    child.kill('SIGTERM')
-    log('warn', `Sent SIGTERM to worker ${worker.id}`)
-  }
-  worker.status = 'stopping'
-  worker.updatedAt = nowIso()
-  refreshDerivedState()
-  res.json(worker)
-})
-
-app.get('/api/logs', (_, res) => res.json(state.logs))
-app.get('/api/chat/history', (_, res) => res.json(state.chat))
-
-// ===========================================================
-// COMMAND ROUTER
-// ===========================================================
-function hasActiveIRLRule(domain, intent) {
-  const rules = instructionRegistry[domain] || []
-  return rules.some(r =>
-    r.status === 'active' &&
-    normalizeTaskKey(r.intent) === normalizeTaskKey(intent)
-  )
-}
-
 function classifyExecutionIntent(message = '') {
   const m = String(message || '').toLowerCase()
 
@@ -3336,6 +2920,11 @@ function saveIRLState() {
   } catch (err) {
     console.warn('Failed to save IRL state:', err.message)
   }
+}
+
+function hasActiveIRLRule(domain, intent) {
+  const normIntent = normalizeTaskKey(intent)
+  return (instructionRegistry[domain] || []).some((rule) => rule.status === 'active' && normalizeTaskKey(rule.intent) === normIntent)
 }
 
 function ensureActiveIRLRule(ruleConfig) {
@@ -4621,521 +4210,104 @@ function handleNettieInbound({ message, sender = 'Patrick', channel = 'mission-c
   }
 }
 
-app.post('/api/nettie/messages', requireBridgeToken, async (req, res) => {
-  const message = String(req.body?.message || '').trim()
-  const sender = req.body?.sender || 'Patrick'
-  const channel = req.body?.channel || 'mission-control-bridge'
+const setLastExecutorError = (value) => {
+  lastExecutorError = value
+}
 
-  if (!message) {
-    return res.status(400).json({ delivered: false, reason: 'message_required', error: 'message is required' })
-  }
+const routeDeps = {
+  fs,
+  path,
+  os,
+  crypto,
+  fetch,
+  root,
+  runtimeDir,
+  state,
+  jobStore,
+  workersDir,
+  runningWorkers,
+  saveSessionTelemetry,
+  saveCooldownTelemetry,
+  codexAvailable,
+  codexVersion,
+  hermesAvailable,
+  AI_EXECUTION_PROVIDER,
+  AI_EXECUTION_FALLBACK,
+  CODEX_CONNECTED_TEXT,
+  MC_RUNTIME_NAME,
+  HERMES_ALLOWED_SOURCES,
+  RUNBOOK_VIOLATION_REASON,
+  PRIORITY_DOMAINS,
+  instructionRegistry,
+  intentAuditLog,
+  telegramApiBase,
+  telegramWebhookSecret,
+  nowIso,
+  requireBridgeToken,
+  buildExecutorBridgeStatus,
+  getExecutorsHealth,
+  runCodexSmokeTest,
+  summarizeState,
+  buildPlatformHealth,
+  buildControlPlaneSnapshot,
+  attachWorker,
+  refreshDerivedState,
+  findOpenDuplicateJob,
+  saveJob,
+  updateJobStatus,
+  queryWorkStatus,
+  buildMasterWorkRegistry,
+  loadRecoveryLedger,
+  syncRecoveryLedger,
+  updateRecoveryEntry,
+  markJobOutage,
+  addChatMessage,
+  isExplicitHermesRequest,
+  selectExecutor,
+  queueBridgeMessageForExecutor,
+  classifyExecutionIntent,
+  shouldRouteChatToExecutor,
+  handleNettieInbound,
+  sendTelegramText,
+  extractTelegramMessage,
+  buildHermesContext,
+  decomposeTask,
+  assignAgentsToSteps,
+  createHermesExecutionJob,
+  makeHermesResponse,
+  makeHermesLogs,
+  validateHermesExecutionRequest,
+  makeRunbookViolationResult,
+  normalizeTaskKey,
+  normalizeHermesStatus,
+  classifyExecutorError,
+  launchSelectedWorker,
+  log,
+  loadCIRegister,
+  ingestIntoCIRegister,
+  upsertCIEntry,
+  scoreCIEntry,
+  saveCIRegister,
+  writeCIRegisterMd,
+  getIRLSnapshot,
+  saveIRLState,
+  canonicalDepartmentHeadName,
+  extractAgent,
+  inferGoverningRunbook,
+  validateExecutionPacket,
+  validateRequiredArtifacts,
+  getDepartmentHeadDir,
+  reconcileInstructions,
+  setLastExecutorError,
+  stateWorkers: () => state.workers,
+  jobsLedger,
+}
 
-  if (!shouldRouteChatToExecutor(message)) {
-    const result = handleNettieInbound({ message, sender, channel })
-    return res.status(result.statusCode).json({
-      delivered: true,
-      liveConversation: true,
-      ...result.payload,
-      executorStatus: buildExecutorBridgeStatus(),
-    })
-  }
-
-  addChatMessage({
-    id: crypto.randomUUID(),
-    from: sender,
-    role: 'Operator',
-    kind: 'command',
-    channel,
-    text: message,
-    ts: nowIso(),
-  })
-
-  const executorStatus = buildExecutorBridgeStatus()
-  if (!executorStatus.available) {
-    const reply = {
-      id: crypto.randomUUID(),
-      from: 'Nettie',
-      role: 'Executive Assistant',
-      kind: 'ack',
-      channel,
-      text: 'Nettie: Executor unavailable. Command not delivered.',
-      ts: nowIso(),
-      jobId: null,
-      workerId: null,
-    }
-    addChatMessage(reply)
-    refreshDerivedState()
-    return res.status(503).json({ delivered: false, reason: 'executor_unavailable', reply, executorStatus })
-  }
-
-  const requestedExecutor = isExplicitHermesRequest(message) ? 'hermes' : selectExecutor()
-  const queued = await queueBridgeMessageForExecutor(message, requestedExecutor)
-
-  if (!queued.ok || !queued.data?.jobId) {
-    const reply = {
-      id: crypto.randomUUID(),
-      from: 'Nettie',
-      role: 'Executive Assistant',
-      kind: 'ack',
-      channel,
-      text: `Nettie: Command not delivered. ${queued.data?.reason || queued.data?.error || 'executor rejected the request.'}`,
-      ts: nowIso(),
-      jobId: queued.data?.jobId || null,
-      workerId: null,
-    }
-    addChatMessage(reply)
-    refreshDerivedState()
-    return res.status(queued.statusCode || 502).json({
-      delivered: false,
-      reason: queued.data?.reason || queued.data?.error || 'executor_rejected',
-      reply,
-      executorStatus,
-    })
-  }
-
-  const reply = {
-    id: crypto.randomUUID(),
-    from: 'Nettie',
-    role: 'Executive Assistant',
-    kind: 'system',
-    channel,
-    text: `Queued\nJob ID: ${queued.data.jobId}\nStatus: ${queued.data.status || 'queued'}`,
-    ts: nowIso(),
-    jobId: queued.data.jobId,
-    workerId: queued.data.worker?.id || null,
-  }
-  addChatMessage(reply)
-  refreshDerivedState()
-
-  return res.status(202).json({
-    delivered: true,
-    jobId: queued.data.jobId,
-    status: queued.data.status || 'queued',
-    reply,
-    executorStatus: buildExecutorBridgeStatus(),
-  })
-})
-
-app.post('/api/chat', async (req, res) => {
-  const startedAt = Date.now()
-  const message = String(req.body?.message || '').trim()
-  const sender = req.body?.sender || 'Patrick'
-  const channel = req.body?.channel || 'mission-control-ui'
-  const intentType = classifyExecutionIntent(message)
-
-  if (shouldRouteChatToExecutor(message)) {
-    const requestedExecutor = isExplicitHermesRequest(message) ? 'hermes' : 'codex'
-    console.log('[IRL ROUTE]', {
-      message,
-      intentType,
-      routed: true,
-      selectedExecutor: requestedExecutor,
-    })
-    addChatMessage({
-      id: crypto.randomUUID(),
-      from: sender,
-      role: 'Operator',
-      kind: 'command',
-      channel,
-      text: message,
-      ts: nowIso(),
-    })
-
-    const hermesRes = await fetch('http://127.0.0.1:4174/api/hermes/execute', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        source: 'Nettie',
-        type: 'execution',
-        inputPayload: {
-          task: message,
-          text: message,
-          issuedAt: new Date().toISOString(),
-          assignedDepartmentHead: 'Dana',
-          executionPacket: {
-            filesCreated: ['none'],
-            filesModified: ['none'],
-            filesDeleted: ['none'],
-            behaviorChanged: 'None; executor route confirmation only.',
-            behaviorUnchanged: 'Mission Control UI and adapter configuration remain unchanged.',
-            commandsExecuted: ['Mission Control chat executor route'],
-            exitCodes: { 'Mission Control chat executor route': 0 },
-            risks: ['none'],
-            nextPhase: 'Report executor route result.',
-          },
-        },
-        executor: requestedExecutor,
-      }),
-    })
-
-    const rawHermesBody = await hermesRes.text()
-    let data = null
-    try {
-      data = rawHermesBody ? JSON.parse(rawHermesBody) : null
-    } catch {
-      data = {
-        error: 'invalid_hermes_response',
-        reason: 'Hermes returned a non-JSON response',
-        rawPreview: rawHermesBody.slice(0, 200),
-      }
-    }
-    const executorName = data.selectedExecutor
-      ? data.selectedExecutor === 'hermes'
-        ? 'Legacy Hermes manual'
-        : `${String(data.selectedExecutor).charAt(0).toUpperCase()}${String(data.selectedExecutor).slice(1)}`
-      : AI_EXECUTION_PROVIDER === 'codex'
-        ? 'Codex'
-        : 'Executor'
-    const replyText = hermesRes.ok
-      ? `${executorName} execution initiated\nJob ID: ${data.jobId}\nStatus: ${data.status}`
-      : `Execution blocked\nJob ID: ${data.jobId || 'n/a'}\nStatus: ${data.status || 'failed'}\nReason: ${data.result?.reason || data.reason || data.error || 'execution rejected'}`
-    const outgoing = {
-      id: crypto.randomUUID(),
-      from: 'Nettie',
-      role: 'Executive Assistant',
-      kind: 'system',
-      channel,
-      text: replyText,
-      ts: nowIso(),
-      jobId: data.jobId || null,
-      workerId: null,
-    }
-
-    addChatMessage(outgoing)
-    refreshDerivedState()
-
-    const durationMs = Date.now() - startedAt
-    res.setHeader('X-MissionControl-LatencyMs', String(durationMs))
-    return res.status(hermesRes.ok ? 201 : hermesRes.status).json({
-      reply: {
-        from: 'Nettie',
-        text: outgoing.text,
-      },
-      job: data,
-      createdJob: false,
-      intentType,
-      routed: true,
-      selectedExecutor: data.selectedExecutor || requestedExecutor,
-    })
-  }
-
-  console.log('[IRL ROUTE]', {
-    message,
-    intentType,
-    routed: false,
-  })
-
-  const result = handleNettieInbound({
-    message: req.body?.message,
-    sender,
-    channel,
-  })
-  const durationMs = Date.now() - startedAt
-  res.setHeader('X-MissionControl-LatencyMs', String(durationMs))
-  return res.status(result.statusCode).json({ ...result.payload, intentType, routed: false })
-})
-
-app.post('/api/telegram/inbound', (req, res) => {
-  const result = handleNettieInbound({
-    message: req.body?.message,
-    sender: req.body?.sender || 'Patrick',
-    channel: 'telegram',
-  })
-  return res.status(result.statusCode).json(result.payload)
-})
-
-app.get('/api/telegram/status', async (_, res) => {
-  if (!telegramApiBase) {
-    return res.json({ configured: false, webhookSecretConfigured: Boolean(telegramWebhookSecret) })
-  }
-  try {
-    const response = await fetch(`${telegramApiBase}/getWebhookInfo`)
-    const data = await response.json()
-    return res.json({
-      configured: true,
-      webhookSecretConfigured: Boolean(telegramWebhookSecret),
-      webhookInfo: data?.result || null,
-    })
-  } catch (error) {
-    return res.status(502).json({ configured: true, error: error.message })
-  }
-})
-
-app.post('/api/telegram/set-webhook', async (req, res) => {
-  if (!telegramApiBase) return res.status(400).json({ error: 'TELEGRAM_BOT_TOKEN is not configured' })
-  const url = String(req.body?.url || '').trim()
-  if (!url) return res.status(400).json({ error: 'url is required' })
-
-  try {
-    const payload = { url, drop_pending_updates: false }
-    if (telegramWebhookSecret) payload.secret_token = telegramWebhookSecret
-    const response = await fetch(`${telegramApiBase}/setWebhook`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    const data = await response.json()
-    if (!response.ok || data?.ok === false) {
-      return res.status(502).json({ error: data?.description || `Telegram webhook set failed (${response.status})` })
-    }
-    return res.json({ ok: true, webhookUrl: url, telegram: data })
-  } catch (error) {
-    return res.status(502).json({ error: error.message })
-  }
-})
-
-app.post('/api/telegram/webhook', async (req, res) => {
-  if (!assertTelegramSecret(req)) return res.status(401).json({ error: 'invalid telegram webhook secret' })
-
-  const extracted = extractTelegramMessage(req.body)
-  if (!extracted) return res.status(200).json({ ok: true, ignored: true })
-
-  const result = handleNettieInbound({
-    message: extracted.text,
-    sender: extracted.sender,
-    channel: 'telegram',
-  })
-
-  try {
-    await sendTelegramText(extracted.chatId, result.payload?.reply?.text || 'Nettie: Acknowledged.', extracted.threadId)
-  } catch (error) {
-    log('error', `Telegram send failed: ${error.message}`)
-  }
-
-  return res.status(200).json({ ok: true, routed: true, result: result.payload })
-})
-
-// Recovery ledger endpoints
-app.get('/api/work/recovery-ledger', (_, res) => {
-  const ledger = loadRecoveryLedger() || syncRecoveryLedger()
-  res.json(ledger)
-})
-
-app.post('/api/work/recovery-ledger/sync', (_, res) => {
-  const result = syncRecoveryLedger()
-  if (!result) return res.status(500).json({ error: 'Sync failed' })
-  res.json({ ok: true, syncedAt: result.syncedAt, totalEntries: result.totalEntries, outageFlags: result.outageFlags })
-})
-
-app.post('/api/work/recovery-ledger/update', (req, res) => {
-  const { jobId, status, providerOutage, lastKnownGoodStep, resumeCommand, recoveryNote, nextAction, outageReason, artifactPath, projectPath } = req.body || {}
-  if (!jobId) return res.status(400).json({ error: 'jobId required' })
-  const patch = {}
-  if (status !== undefined) patch.status = status
-  if (providerOutage !== undefined) patch.providerOutage = providerOutage
-  if (lastKnownGoodStep !== undefined) patch.lastKnownGoodStep = lastKnownGoodStep
-  if (resumeCommand !== undefined) patch.resumeCommand = resumeCommand
-  if (recoveryNote !== undefined) patch.recoveryNote = recoveryNote
-  if (nextAction !== undefined) patch.nextAction = nextAction
-  if (outageReason !== undefined) patch.outageReason = outageReason
-  if (artifactPath !== undefined) patch.artifactPath = artifactPath
-  if (projectPath !== undefined) patch.projectPath = projectPath
-  const result = updateRecoveryEntry(jobId, patch)
-  res.json({ ok: true, jobId, patch, updatedAt: nowIso() })
-})
-
-app.post('/api/work/recovery-ledger/outage', (req, res) => {
-  const { jobId, reason, lastKnownGoodStep, resumeCommand, artifactPath } = req.body || {}
-  if (!jobId) return res.status(400).json({ error: 'jobId required' })
-  const result = markJobOutage(jobId, { reason, lastKnownGoodStep, resumeCommand, artifactPath })
-  res.json({ ok: true, jobId, outageMarked: true })
-})
-
-app.post('/api/perry/qa-gate', (req, res) => {
-  const payload = req.body && typeof req.body === 'object' ? req.body : {}
-  const producingAgent = canonicalDepartmentHeadName(payload.assignedDepartmentHead || payload.producingAgent || payload.owner || extractAgent(payload.task || payload.text || ''))
-  const governingRunbook = inferGoverningRunbook(producingAgent, payload.task || payload.text || '', payload)
-  const packetValidation = validateExecutionPacket(payload)
-  const artifactValidation = validateRequiredArtifacts(producingAgent, governingRunbook, payload.task || payload.text || '', payload)
-  const reasons = []
-
-  if (!governingRunbook) reasons.push('no runbook used')
-  else if (!fs.existsSync(path.join(getDepartmentHeadDir(producingAgent), governingRunbook))) reasons.push('no runbook used')
-  if (artifactValidation.missing.length) reasons.push(`missing artifacts: ${artifactValidation.missing.join(', ')}`)
-  if (packetValidation.missing.includes('behaviorChanged')) reasons.push('unclear behavior change')
-  if (packetValidation.missing.includes('commandsExecuted')) reasons.push('no test evidence')
-  if (packetValidation.missing.includes('exitCodes')) reasons.push('no exit code')
-  if (packetValidation.missing.includes('risks')) reasons.push('no risks listed')
-  if (packetValidation.missing.length && !packetValidation.missing.includes('behaviorChanged') && !packetValidation.missing.includes('commandsExecuted') && !packetValidation.missing.includes('exitCodes') && !packetValidation.missing.includes('risks')) {
-    reasons.push(`execution packet incomplete: ${packetValidation.missing.join(', ')}`)
-  }
-  if (/\b(done|complete|completed|ready|shipped)\b/i.test(String(payload.claim || payload.summary || payload.text || '')) && !packetValidation.ok) {
-    reasons.push('vague completion claim')
-  }
-
-  if (reasons.length) {
-    return res.status(422).json({
-      status: 'FAIL',
-      rejectionReasons: reasons,
-      assignedDepartmentHead: producingAgent || null,
-      governingRunbook: governingRunbook || 'missing',
-    })
-  }
-
-  return res.json({
-    status: 'PASS',
-    assignedDepartmentHead: producingAgent || null,
-    governingRunbook,
-  })
-})
-
-app.get('/api/jobs/ledger', (_, res) => res.json(jobStore.deriveLedgerView()))
-
-app.get('/api/work/registry', (_, res) => {
-  const registry = buildMasterWorkRegistry()
-  res.json(registry)
-})
-
-app.get('/api/work/status', (req, res) => {
-  const project = String(req.query?.project || '').trim()
-  const result = queryWorkStatus(project)
-  res.json({
-    project,
-    matches: result.matches,
-    counts: {
-      active: result.registry.active.length,
-      queued: result.registry.queued.length,
-      running: result.registry.running.length,
-      paused: result.registry.paused.length,
-      blocked: result.registry.blocked.length,
-      completedRecent: result.registry.completedRecent.length,
-    },
-    sources: result.registry.sources,
-  })
-})
-
-app.get('/api/active-work', (_, res) => {
-  const registry = buildMasterWorkRegistry()
-  res.json({
-    count: registry.active.length,
-    jobs: registry.active,
-  })
-})
-app.patch('/api/jobs/ledger/:id/status', (req, res) => {
-  const { status } = req.body || {}
-  if (!status) return res.status(400).json({ error: 'status is required' })
-  const job = updateJobStatus(req.params.id, status)
-  if (!job) return res.status(404).json({ error: 'Job not found in ledger' })
-  log('info', `Ledger: ${job.id} manually set to ${status}`)
-  res.json(job)
-})
-
-// CI Register endpoints
-app.get('/api/ci/register', (_, res) => {
-  const register = loadCIRegister()
-  res.json(register)
-})
-
-app.get('/api/ci/priorities', (_, res) => {
-  const register = loadCIRegister()
-  const top = (register.entries || [])
-    .filter(e => e.status === 'open')
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 10)
-  res.json({ count: top.length, priorities: top })
-})
-
-app.post('/api/ci/register/ingest', (_, res) => {
-  const result = ingestIntoCIRegister()
-  res.json({ ok: true, syncedAt: result.syncedAt, totalEntries: result.totalEntries, openCount: result.openCount })
-})
-
-app.post('/api/ci/register/entry', (req, res) => {
-  const { title, type, description, urgency, impact, proposedFix, linkedJobIds, source } = req.body || {}
-  if (!title) return res.status(400).json({ error: 'title required' })
-  const fingerprint = `manual|${normalizeTaskKey(title).slice(0, 40)}`
-  const register = loadCIRegister()
-  const entry = upsertCIEntry(register, {
-    fingerprint, title, type: type || 'improvement', description, urgency: urgency ?? 3,
-    impact: impact ?? 3, proposedFix, linkedJobIds, source: source || 'manual',
-  })
-  register.syncedAt = nowIso()
-  register.totalEntries = register.entries.length
-  register.openCount = register.entries.filter(e => e.status === 'open').length
-  saveCIRegister(register)
-  writeCIRegisterMd(register)
-  res.status(201).json({ ok: true, entry })
-})
-
-app.patch('/api/ci/register/:id', (req, res) => {
-  const { status, proposedFix, resolvedAt } = req.body || {}
-  const register = loadCIRegister()
-  const entry = register.entries.find(e => e.id === req.params.id)
-  if (!entry) return res.status(404).json({ error: 'CI entry not found' })
-  if (status) entry.status = status
-  if (proposedFix) entry.proposedFix = proposedFix
-  if (status === 'resolved') entry.resolvedAt = resolvedAt || nowIso()
-  entry.score = scoreCIEntry(entry)
-  register.syncedAt = nowIso()
-  register.openCount = register.entries.filter(e => e.status === 'open').length
-  saveCIRegister(register)
-  writeCIRegisterMd(register)
-  res.json({ ok: true, entry })
-})
-
-app.get('/api/intent/audit', (req, res) => {
-  res.json({ count: intentAuditLog.length, latest: intentAuditLog.slice(-25) })
-})
-
-app.get('/api/irl/state', (req, res) => {
-  res.json(getIRLSnapshot())
-})
-
-app.get('/api/irl/rules', (req, res) => {
-  const status = String(req.query.status || 'active')
-  const domainFilter = req.query.domain ? String(req.query.domain) : null
-  const domains = domainFilter ? [domainFilter] : PRIORITY_DOMAINS
-  const rows = []
-  for (const domain of domains) {
-    if (!PRIORITY_DOMAINS.includes(domain)) continue
-    for (const rule of instructionRegistry[domain] || []) {
-      if (status !== 'all' && rule.status !== status) continue
-      rows.push({ domain, status: rule.status, intent: rule.intent, rule: rule.rule, source: rule.source, addedAt: rule.addedAt, deprecatedAt: rule.deprecatedAt || null, behaviorKey: rule.behaviorKey || rule.intent, action: rule.action || null, deprecatedReason: rule.deprecatedReason || null, blockedBy: rule.blockedBy || null, replacedBy: rule.replacedBy || null })
-    }
-  }
-  res.json({ status, domain: domainFilter || 'all', count: rows.length, rules: rows })
-})
-
-app.post('/api/irl/cleanup', (req, res) => {
-  const { mode, domain, intent, confirm } = req.body || {}
-  if (!mode) return res.status(400).json({ error: 'mode is required' })
-  if (!['deprecated', 'intent'].includes(mode)) return res.status(400).json({ error: 'unsupported cleanup mode' })
-  const touchedDomains = domain ? [domain] : PRIORITY_DOMAINS
-  for (const d of touchedDomains) {
-    if (!PRIORITY_DOMAINS.includes(d)) return res.status(400).json({ error: `unknown domain: ${d}` })
-  }
-  let removed = []
-  for (const d of touchedDomains) {
-    const before = instructionRegistry[d] || []
-    if (mode === 'deprecated') {
-      removed = removed.concat(before.filter(r => r.status === 'deprecated').map(r => ({ domain: d, ...r })))
-      instructionRegistry[d] = before.filter(r => r.status !== 'deprecated')
-    }
-    if (mode === 'intent') {
-      if (!intent) return res.status(400).json({ error: 'intent is required for intent cleanup' })
-      if (confirm !== true) return res.status(400).json({ error: 'confirm:true is required for intent cleanup' })
-      const normIntent = normalizeTaskKey(intent)
-      removed = removed.concat(before.filter(r => normalizeTaskKey(r.intent) === normIntent).map(r => ({ domain: d, ...r })))
-      instructionRegistry[d] = before.filter(r => normalizeTaskKey(r.intent) !== normIntent)
-    }
-  }
-  instructionRegistry._changelog = [...(instructionRegistry._changelog || []), {
-    ts: nowIso(), domain: domain || 'all', cleanupMode: mode, intent: intent || null, removedCount: removed.length,
-  }].slice(-200)
-  saveIRLState()
-  res.json({ mode, domain: domain || 'all', intent: intent || null, removedCount: removed.length,
-    removedRules: removed.map(r => ({ domain: r.domain, status: r.status, intent: r.intent, rule: r.rule })),
-    snapshot: getIRLSnapshot() })
-})
-
-app.post('/api/irl/reconcile', (req, res) => {
-  const { domain, rule, intent, source, behaviorKey, action } = req.body || {}
-  if (!domain || !rule || !intent) return res.status(400).json({ error: 'domain, rule, and intent are required' })
-  const result = reconcileInstructions({ domain, rule, intent, source, behaviorKey, action }, instructionRegistry)
-  Object.assign(instructionRegistry, result.canonicalInstructionSet)
-  saveIRLState()
-  res.json(result)
-})
+registerRuntimeRoutes(app, routeDeps)
+registerAgentsRoutes(app, routeDeps)
+registerJobsRoutes(app, routeDeps)
+registerChatRoutes(app, routeDeps)
+registerOpsRoutes(app, routeDeps)
 
 app.use(express.static(distDir))
 app.use((_, res) => {
