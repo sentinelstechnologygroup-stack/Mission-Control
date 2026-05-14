@@ -38,6 +38,8 @@ export function registerRuntimeRoutes(app, deps) {
     governanceState,
     reconcileGovernedRuntimeState,
     evaluateHermesGovernance,
+    getRecoveryReconciliationReport,
+    buildAndPersistRecoveryReconciliationReport,
   } = deps
 
   app.get('/api/health', (_, res) => {
@@ -55,6 +57,82 @@ export function registerRuntimeRoutes(app, deps) {
 
   app.get('/api/executor/status', requireBridgeToken, (_, res) => {
     res.json(buildExecutorBridgeStatus())
+  })
+
+  app.get('/api/executors/status', requireBridgeToken, (_, res) => {
+    res.json(buildExecutorBridgeStatus())
+  })
+
+  app.get('/api/executors', requireBridgeToken, async (_, res) => {
+    const status = buildExecutorBridgeStatus()
+    const health = await getExecutorsHealth()
+    res.json({
+      selectedExecutor: status.selectedExecutor,
+      runtime: status.runtime,
+      executors: [
+        {
+          id: 'gpt_codex',
+          family: 'gpt',
+          available: Boolean(health?.codex?.available || status.executor === 'codex'),
+          selected: status.selectedExecutor === 'codex',
+          coolingDown: Boolean(status.executorCoolingDown && status.selectedExecutor === 'codex'),
+          role: 'technical_execution',
+        },
+        {
+          id: 'claude_cli',
+          family: 'claude',
+          available: Boolean(status.claude_cli?.reliable),
+          selected: status.selectedExecutor === 'claude_cli',
+          coolingDown: false,
+          role: 'long_context_reasoning',
+          mode: status.claude_cli?.mode || 'manual_only',
+        },
+        {
+          id: 'local_ollama',
+          family: 'local',
+          available: false,
+          selected: status.selectedExecutor === 'ollama',
+          coolingDown: false,
+          role: 'draft_triage_only',
+          mode: 'draft_only',
+        },
+        {
+          id: 'hermes',
+          family: 'runtime',
+          available: Boolean(status.fallback?.available),
+          selected: status.selectedExecutor === 'hermes',
+          coolingDown: false,
+          role: 'governed_execution_adapter',
+          mode: status.fallback?.mode || 'manual-only',
+        },
+      ],
+    })
+  })
+
+  app.get('/api/executors/budget', requireBridgeToken, (_, res) => {
+    const status = buildExecutorBridgeStatus()
+    res.json({
+      runtime: status.runtime,
+      selectedExecutor: status.selectedExecutor,
+      providerState: {
+        available: status.available,
+        ready: status.executorReady,
+        coolingDown: status.executorCoolingDown,
+        cooldown: status.cooldown,
+        fallback: status.fallback,
+        lastError: status.lastError,
+      },
+      budget: {
+        burnRateClass: status.executorCoolingDown ? 'blocked' : 'normal',
+        recommendedExecutionWindow: status.executorCoolingDown ? 'wait_for_recovery' : 'operator_window_ok',
+        queueDepth: status.queueDepth,
+      },
+    })
+  })
+
+  app.get('/api/runtime/recovery', requireBridgeToken, (_, res) => {
+    const report = getRecoveryReconciliationReport() || buildAndPersistRecoveryReconciliationReport()
+    res.json(report)
   })
 
   app.get('/api/executors/health', async (_, res) => {
@@ -202,8 +280,33 @@ export function registerRuntimeRoutes(app, deps) {
       return res.status(202).json(makeHermesResponse(job, null, makeHermesLogs(job, job.executionTrace), { reused: false }))
     }
 
-    reconcileGovernedRuntimeState({ providerHealthy: true })
+    const reconciliation = reconcileGovernedRuntimeState({ providerHealthy: true })
     const reconciledJob = jobStore.getJobById(job.id) || job
+    if (reconciliation?.gated) {
+      const gatedAt = nowIso()
+      const gatedJob = updateJobStatus(job.id, 'paused', {
+        updatedAt: gatedAt,
+        routeStatus: 'reconciliation_required',
+        recoveryNote: 'Execution frozen pending recovery reconciliation gate.',
+        nextAction: 'Review /api/runtime/recovery and classify safe_to_resume jobs before resuming.',
+        providerOutage: false,
+        executionTrace: [{
+          step: 'recovery_reconciliation_gate',
+          at: gatedAt,
+          level: 'warn',
+          message: reconciliation.reason || 'Recovery reconciliation gate active.',
+          data: {
+            reconciliationRequired: true,
+            autoResumeEnabled: false,
+          },
+        }],
+      })
+      return res.status(202).json(makeHermesResponse(gatedJob, {
+        paused: true,
+        reason: reconciliation.reason || 'Recovery reconciliation gate active.',
+        classification: 'reconciliation_required',
+      }, makeHermesLogs(gatedJob, gatedJob.executionTrace), { reused: false }))
+    }
     if (String(reconciledJob.routeStatus || '') === 'paused_provider_blocked') {
       return res.status(202).json(makeHermesResponse(reconciledJob, {
         paused: true,

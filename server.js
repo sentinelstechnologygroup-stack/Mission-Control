@@ -31,6 +31,13 @@ import {
   classifyJobTokenCost,
   isLocalOnlyTask,
 } from './lib/runtimeGovernance.js'
+import {
+  buildActiveWorkView,
+  buildRecoveryReconciliationReport,
+  saveRecoveryReconciliationReport,
+  loadRecoveryReconciliationReport,
+  buildRecoveryReconciliationMarkdown,
+} from './lib/recoveryReconciliation.js'
 import { saveSessionTelemetry, saveCooldownTelemetry } from './lib/tokenTelemetry.js'
 import { registerChatRoutes } from './backend/chat/index.js'
 import { registerJobsRoutes } from './backend/jobs/index.js'
@@ -55,6 +62,8 @@ const nettiePromptPath = path.join(root, 'src', 'persona', 'nettie.system.prompt
 const sharedLedgerDir = path.join(root, 'shared-ledger')
 const recoveryLedgerJsonPath = path.join(sharedLedgerDir, 'work-recovery-ledger.json')
 const recoveryLedgerMdPath = path.join(sharedLedgerDir, 'work-recovery-ledger.md')
+const recoveryReconciliationJsonPath = path.join(sharedLedgerDir, 'recovery-reconciliation-report.json')
+const recoveryReconciliationMdPath = path.join(sharedLedgerDir, 'recovery-reconciliation-report.md')
 const ciRegisterJsonPath = path.join(sharedLedgerDir, 'ci-register.json')
 const ciRegisterMdPath = path.join(sharedLedgerDir, 'ci-register.md')
 const agentsRoot = '/home/patrick/agents'
@@ -1008,6 +1017,7 @@ function createDocumentationLockJob(agentName, task, missing, source = 'mission-
 let state = readState()
 let agentRegistry = loadAgentRegistry(agentRegistryPath, { nowIso: nowIso(), legacyAgents: state.agents || [] })
 let governanceState = loadGovernanceState(governanceStatePath, state.system)
+let recoveryReconciliationReport = loadRecoveryReconciliationReport(recoveryReconciliationJsonPath)
 const runningWorkers = new Map()
 
 // ===========================================================
@@ -1065,6 +1075,30 @@ function persistGovernance() {
   saveGovernanceState(governanceStatePath, governanceState)
 }
 
+function getRecoveryReconciliationReport() {
+  return recoveryReconciliationReport || loadRecoveryReconciliationReport(recoveryReconciliationJsonPath)
+}
+
+function persistRecoveryReconciliationReport(report) {
+  recoveryReconciliationReport = report
+  saveRecoveryReconciliationReport(recoveryReconciliationJsonPath, report)
+  fs.writeFileSync(recoveryReconciliationMdPath, buildRecoveryReconciliationMarkdown(report))
+  return report
+}
+
+function buildAndPersistRecoveryReconciliationReport() {
+  const registry = buildMasterWorkRegistry()
+  const report = buildRecoveryReconciliationReport({
+    ledgerJobs: jobStore.deriveLedgerView(),
+    registry,
+    runtimeJobs: state.jobs || [],
+    workers: state.workers || [],
+    governanceState,
+    now: nowIso(),
+  })
+  return persistRecoveryReconciliationReport(report)
+}
+
 function syncGovernanceStateFromRuntime(cooldown = null) {
   governanceState = updateGovernanceHeartbeat(governanceState, state.system)
   governanceState = recordCooldown(governanceState, cooldown, {
@@ -1105,6 +1139,27 @@ function reconcileGovernedRuntimeState({ providerHealthy = true } = {}) {
   const cooldown = getExecutorCooldownSummary()
   syncGovernanceStateFromRuntime(cooldown)
 
+  const report = buildAndPersistRecoveryReconciliationReport()
+  governanceState.recovery = {
+    reconciliationRequired: Boolean(report?.reconciliationRequired),
+    autoResumeEnabled: Boolean(report?.autoResumeEnabled),
+    lastReconciledAt: report?.generatedAt || startedAt,
+    reportPath: recoveryReconciliationJsonPath,
+  }
+  persistGovernance()
+
+  if (report?.reconciliationRequired || !report?.autoResumeEnabled) {
+    governanceState.cooldown.pausedJobIds = governanceState.cooldown.pausedJobIds || []
+    governanceState.cooldown.resumedJobIds = []
+    governanceState.cooldown.missedRecurringJobIds = governanceState.cooldown.missedRecurringJobIds || []
+    persistGovernance()
+    return {
+      gated: true,
+      reason: report?.freezeReason || 'Recovery reconciliation gate active.',
+      report,
+    }
+  }
+
   const before = jobStore.deriveLedgerView()
   const stale = recoverStaleRunningJobs(before, { now: startedAt, timeoutMs: 60 * 60 * 1000 })
   patchGovernedJobs(before, stale.jobs)
@@ -1134,6 +1189,10 @@ function reconcileGovernedRuntimeState({ providerHealthy = true } = {}) {
   governanceState.cooldown.resumedJobIds = resumed.resumedJobIds || []
   governanceState.cooldown.missedRecurringJobIds = recurring.missedJobIds || []
   persistGovernance()
+  return {
+    gated: false,
+    report: buildAndPersistRecoveryReconciliationReport(),
+  }
 }
 
 function getAgentRegistryRecord(id = '') {
@@ -4448,6 +4507,8 @@ const routeDeps = {
   governanceState: () => governanceState,
   reconcileGovernedRuntimeState,
   evaluateHermesGovernance,
+  getRecoveryReconciliationReport,
+  buildAndPersistRecoveryReconciliationReport,
   attachWorker,
   refreshDerivedState,
   findOpenDuplicateJob,
@@ -4455,6 +4516,7 @@ const routeDeps = {
   updateJobStatus,
   queryWorkStatus,
   buildMasterWorkRegistry,
+  buildActiveWorkView,
   loadRecoveryLedger,
   syncRecoveryLedger,
   updateRecoveryEntry,

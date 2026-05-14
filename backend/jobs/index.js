@@ -11,6 +11,7 @@ export function registerJobsRoutes(app, deps) {
     log,
     queryWorkStatus,
     buildMasterWorkRegistry,
+    buildActiveWorkView,
     loadRecoveryLedger,
     syncRecoveryLedger,
     updateRecoveryEntry,
@@ -155,10 +156,7 @@ export function registerJobsRoutes(app, deps) {
 
   app.get('/api/active-work', (_, res) => {
     const registry = buildMasterWorkRegistry()
-    res.json({
-      count: registry.active.length,
-      jobs: registry.active,
-    })
+    res.json(buildActiveWorkView(registry))
   })
 
   app.patch('/api/jobs/ledger/:id/status', (req, res) => {
