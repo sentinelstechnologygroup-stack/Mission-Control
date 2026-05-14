@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 import GlassCard from "../components/mission-control/GlassCard";
 import StatusBadge from "../components/mission-control/StatusBadge";
@@ -10,7 +12,7 @@ import {
   Send, Pin, CheckCircle, AlertTriangle, Target, Zap,
   FileText, RotateCcw, ArrowUpRight, Clock, Paperclip, MoreHorizontal,
   Archive, ChevronRight, XCircle, Flag, Brain, Crown,
-  Filter, Star, Inbox, MessageSquare
+  Filter, Star, Inbox, MessageSquare, Menu, PanelRight, SlidersHorizontal
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -423,9 +425,9 @@ function CommandTraceBar() {
     { label: "Approval", icon: "✅", desc: "Patrick decides" },
   ];
   return (
-    <div className="flex items-center gap-0 bg-white/[0.02] border border-white/[0.05] rounded-xl px-4 py-2 overflow-x-auto mb-4">
+    <div className="mb-4 flex flex-wrap items-center gap-1.5 rounded-xl border border-white/[0.05] bg-white/[0.02] px-3 py-2 md:flex-nowrap">
       {steps.map((s, i) => (
-        <div key={i} className="flex items-center shrink-0">
+        <div key={i} className="flex min-w-0 items-center">
           <div className="flex items-center gap-1.5 px-2 py-1">
             <span className="text-[11px]">{s.icon}</span>
             <div>
@@ -443,11 +445,11 @@ function CommandTraceBar() {
 function ThreadMessage({ msg }) {
   const isNettie = msg.from === "Nettie";
   return (
-    <div className="flex gap-3">
+    <div className="flex max-w-full gap-3 overflow-x-hidden">
       <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5 ${isNettie ? "bg-blue-500/20 text-blue-400" : "bg-white/[0.06] text-white/50"}`}>
         {msg.from[0]}
       </div>
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1 overflow-x-hidden">
         {/* Header */}
         <div className="flex items-center gap-2 mb-1.5">
           <span className="text-[11px] font-semibold text-white/70">{msg.from}</span>
@@ -456,8 +458,8 @@ function ThreadMessage({ msg }) {
         </div>
 
         {/* Body — styled as executive memo, not chat bubble */}
-        <div className="bg-white/[0.02] border border-white/[0.04] rounded-xl px-4 py-3 mb-3">
-          <p className="text-[11px] text-white/55 leading-relaxed whitespace-pre-line font-mono">{msg.body || msg.text || msg.content}</p>
+        <div className="mb-3 overflow-x-hidden rounded-xl border border-white/[0.04] bg-white/[0.02] px-4 py-3">
+          <p className="overflow-x-hidden break-words whitespace-pre-wrap text-[11px] text-white/55 leading-relaxed font-mono">{msg.body || msg.text || msg.content}</p>
         </div>
 
         {/* Linked context chips */}
@@ -493,7 +495,45 @@ function ThreadMessage({ msg }) {
           </div>
         )}
       </div>
+
     </div>
+  );
+}
+
+function MobilePanelButton({ icon: Icon, label, detail, onClick }) {
+  return (
+    <button
+      type="button"
+      data-nettie="mobile-panel-drawer"
+      onClick={onClick}
+      className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-left lg:hidden"
+    >
+      <div className="rounded-xl bg-white/[0.04] p-2">
+        <Icon className="h-4 w-4 text-white/60" />
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-[10px] font-semibold text-white/75">{label}</p>
+        <p className="truncate text-[8px] font-mono text-white/30">{detail}</p>
+      </div>
+    </button>
+  );
+}
+
+function MobileDrawerShell({ open, onOpenChange, side = "left", title, subtitle, children }) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side={side} className="border-white/[0.08] bg-[#090b0e]/98 p-0 text-white shadow-2xl">
+        <div className="flex h-full flex-col">
+          <div className="border-b border-white/[0.06] px-4 py-4">
+            <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-white/35">{subtitle}</p>
+            <h2 className="mt-1 text-sm font-semibold text-white/80">{title}</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3">
+            {children}
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -502,6 +542,7 @@ function ThreadMessage({ msg }) {
 // ===========================================================
 export default function Nettie() {
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [activeThread, setActiveThread] = useState(THREADS[0]);
   const [reply, setReply] = useState("");
   const [filter, setFilter] = useState("all");
@@ -509,6 +550,9 @@ export default function Nettie() {
   const [localMessages, setLocalMessages] = useState([]);
   const [pendingReplyId, setPendingReplyId] = useState(null);
   const [trackedOperatorThread, setTrackedOperatorThread] = useState(() => loadTrackedOperatorThread());
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileStatusOpen, setMobileStatusOpen] = useState(false);
+  const [mobileContextOpen, setMobileContextOpen] = useState(false);
   const inputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -715,11 +759,28 @@ export default function Nettie() {
     return true;
   });
 
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileSidebarOpen(false);
+      setMobileStatusOpen(false);
+      setMobileContextOpen(false);
+    }
+  }, [isMobile]);
+
+  const systemPulseItems = useMemo(() => ([
+    { label: "Executor", value: executorStateView.label, color: "text-emerald-400" },
+    { label: "Queue Depth", value: String(executorStatus?.queueDepth ?? "—"), color: "text-amber-400" },
+    { label: "Runtime", value: executorStatus?.runtime ?? "—", color: "text-white/50" },
+    { label: "Mode", value: executorStatus?.executor ?? "—", color: "text-white/40" },
+  ]), [executorStateView.label, executorStatus?.executor, executorStatus?.queueDepth, executorStatus?.runtime]);
+
+  const mobileStatusLabel = chatLoading ? "Loading" : chatError ? "History offline" : `${executorStateView.label}${executorStatus?.queueDepth > 0 ? ` · Q${executorStatus.queueDepth}` : ""}`;
+
   return (
-    <div className="flex h-[calc(100vh-76px)] gap-3">
+    <div data-nettie="mobile-chat-shell" className="flex h-[calc(100vh-76px)] min-h-0 gap-3 overflow-hidden md:gap-3">
 
       {/* ===== LEFT SIDEBAR ===== */}
-      <div className="w-64 shrink-0 flex flex-col gap-0 border border-white/[0.06] rounded-2xl overflow-hidden" style={{ background: "hsl(225 12% 7%)" }}>
+      <div className="hidden w-64 shrink-0 flex-col gap-0 border border-white/[0.06] rounded-2xl overflow-hidden md:flex" style={{ background: "hsl(225 12% 7%)" }}>
 
         {/* Nettie identity header */}
         <div className="px-4 pt-4 pb-3 border-b border-white/[0.05]">
@@ -784,7 +845,7 @@ export default function Nettie() {
                         {thread.subject}
                       </p>
                       <p className="text-[8px] text-white/20 truncate mb-1.5">{thread.preview}</p>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex shrink-0 items-center gap-1.5">
                         <StatusBadge variant={priorityVariant[thread.priority]} dot={false} className="text-[7px]">{thread.priority}</StatusBadge>
                         <span className="text-[7px] text-white/15 font-mono ml-auto">{thread.age} ago</span>
                       </div>
@@ -810,12 +871,7 @@ export default function Nettie() {
         {/* System pulse */}
         <div className="border-t border-white/[0.05] px-4 py-3">
           <p className="text-[8px] text-white/20 uppercase tracking-wider mb-2">System Pulse</p>
-          {[
-            { label: "Executor", value: executorStateView.label, color: "text-emerald-400" },
-            { label: "Queue Depth", value: String(executorStatus?.queueDepth ?? "—"), color: "text-amber-400" },
-            { label: "Runtime", value: executorStatus?.runtime ?? "—", color: "text-white/50" },
-            { label: "Mode", value: executorStatus?.executor ?? "—", color: "text-white/40" },
-          ].map((item, i) => (
+          {systemPulseItems.map((item, i) => (
             <div key={i} className="flex items-center justify-between mb-0.5">
               <span className="text-[9px] text-white/25">{item.label}</span>
               <span className={`text-[9px] font-bold font-mono ${item.color}`}>{item.value}</span>
@@ -825,11 +881,25 @@ export default function Nettie() {
       </div>
 
       {/* ===== MAIN THREAD PANEL ===== */}
-      <div className="flex-1 flex flex-col border border-white/[0.06] rounded-2xl overflow-hidden" style={{ background: "hsl(228 15% 5%)" }}>
+      <div className="flex min-w-0 flex-1 flex-col border border-white/[0.06] rounded-2xl overflow-hidden" style={{ background: "hsl(228 15% 5%)" }}>
         {currentThread ? (
           <>
             {/* Thread header — executive memo style */}
-            <div className="px-5 py-3 border-b border-white/[0.05]" style={{ background: "hsl(225 12% 7%)" }}>
+            <div className="border-b border-white/[0.05] px-4 py-3 md:px-5" style={{ background: "hsl(225 12% 7%)" }}>
+              <div className="mb-3 flex items-center gap-2 md:hidden">
+                <MobilePanelButton
+                  icon={Menu}
+                  label="Threads"
+                  detail={`${filtered.length} available`}
+                  onClick={() => setMobileSidebarOpen(true)}
+                />
+                <MobilePanelButton
+                  icon={PanelRight}
+                  label="Context"
+                  detail="Queue, routing, links"
+                  onClick={() => setMobileContextOpen(true)}
+                />
+              </div>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -848,6 +918,15 @@ export default function Nettie() {
                   <h2 className="text-[14px] font-bold text-white/80">{currentThread.subject}</h2>
                 </div>
                 <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                  <button
+                    type="button"
+                    data-nettie="mobile-status-pill"
+                    onClick={() => setMobileStatusOpen(true)}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-1 text-[9px] font-mono text-white/55 md:hidden"
+                  >
+                    <SlidersHorizontal className="h-3 w-3" />
+                    {mobileStatusLabel}
+                  </button>
                   <button className="p-1.5 rounded-md hover:bg-white/[0.06] text-white/20 transition-colors" title="Pin"><Pin className="w-3.5 h-3.5" /></button>
                   <button className="p-1.5 rounded-md hover:bg-white/[0.06] text-white/20 transition-colors" title="Archive"><Archive className="w-3.5 h-3.5" /></button>
                   <button className="p-1.5 rounded-md hover:bg-white/[0.06] text-white/20 transition-colors" title="More"><MoreHorizontal className="w-3.5 h-3.5" /></button>
@@ -859,7 +938,8 @@ export default function Nettie() {
             </div>
 
             {/* Messages — live history + optimistic local messages */}
-            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+            <div data-nettie="messages-scroll" className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 md:px-5 md:py-5">
+              <div className="space-y-5 overflow-x-hidden">
               {displayMessages.map((msg, i) => (
                 <div key={`${msg.id ?? 'msg'}-${msg.ts ?? msg.time ?? i}-${i}`}>
                   {i > 0 && <div className="border-t border-white/[0.04] mb-5" />}
@@ -875,11 +955,12 @@ export default function Nettie() {
                 </div>
               ))}
               <div ref={messagesEndRef} />
+              </div>
             </div>
 
             {/* Reply / directive bar */}
-            <div className="px-5 pb-4 pt-3 border-t border-white/[0.05]" style={{ background: "hsl(225 12% 7%)" }}>
-              <div className="flex items-center gap-2 bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2.5 mb-2">
+            <div data-nettie="composer-shell" className="sticky bottom-0 z-10 border-t border-white/[0.05] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 md:px-5 md:pb-4" style={{ background: "hsl(225 12% 7%)" }}>
+              <div className="mb-2 flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5">
                 <Crown className="w-3.5 h-3.5 text-amber-400/50 shrink-0" />
                 <input
                   ref={inputRef}
@@ -888,7 +969,7 @@ export default function Nettie() {
                   onChange={(e) => setReply(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSend()}
                   placeholder="Issue a directive to Nettie..."
-                  className="flex-1 bg-transparent text-[11px] text-white/70 placeholder:text-white/20 focus:outline-none font-mono"
+                  className="min-w-0 flex-1 bg-transparent text-[11px] text-white/70 placeholder:text-white/20 focus:outline-none font-mono"
                 />
                 <div className="flex items-center gap-1.5">
                   <button className="p-1 rounded-md hover:bg-white/[0.06] text-white/20 transition-colors">
@@ -905,7 +986,7 @@ export default function Nettie() {
                 </div>
               </div>
               {/* Quick directive chips */}
-              <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="flex flex-wrap items-center gap-1.5 overflow-x-hidden">
                 <span className="text-[7px] text-white/15 uppercase tracking-wider font-semibold mr-1">Quick:</span>
                 {QUICK_COMMANDS.map((cmd, i) => (
                   <button key={i} onClick={() => setReply(cmd)}
@@ -913,7 +994,7 @@ export default function Nettie() {
                     {cmd}
                   </button>
                 ))}
-                <span className="flex items-center gap-1 ml-auto shrink-0">
+                <span className="flex min-w-0 items-center gap-1 md:ml-auto md:shrink-0">
                   <span className={`w-1 h-1 rounded-full ${chatLoading ? "bg-amber-500" : chatError ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
                   <span className="text-[7px] text-white/15 font-mono">
                     {chatLoading ? "Loading" : chatError ? "History offline" : `Executor ${executorStateView.label}`}
@@ -938,7 +1019,7 @@ export default function Nettie() {
       </div>
 
       {/* ===== RIGHT PANEL — Nettie's active context ===== */}
-      <div className="w-56 shrink-0 hidden xl:flex flex-col gap-2">
+      <div className="hidden w-56 shrink-0 flex-col gap-2 xl:flex">
         {/* Pending actions */}
         <GlassCard className="p-0 border border-white/[0.06]">
           <div className="px-3 pt-3 pb-2 border-b border-white/[0.05]">
@@ -1001,6 +1082,177 @@ export default function Nettie() {
             </Link>
           ))}
         </GlassCard>
+
+      <MobileDrawerShell
+        open={mobileSidebarOpen}
+        onOpenChange={setMobileSidebarOpen}
+        side="left"
+        title="Nettie inbox"
+        subtitle="Threads and history"
+      >
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3">
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="relative">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/15">
+                  <Brain className="h-4 w-4 text-blue-400" />
+                </div>
+                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-background bg-emerald-500" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[12px] font-bold text-white/80">Nettie</p>
+                <p className="truncate text-[8px] font-mono text-white/30">Chief of Staff · {executorStateView.label}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 rounded-lg bg-white/[0.04] p-0.5">
+              <button onClick={() => setView("threads")} className={`flex-1 rounded-md py-1 text-[9px] font-medium transition-colors ${view === "threads" ? "bg-white/[0.08] text-white/70" : "text-white/25 hover:text-white/50"}`}>Threads</button>
+              <button onClick={() => setView("history")} className={`flex-1 rounded-md py-1 text-[9px] font-medium transition-colors ${view === "history" ? "bg-white/[0.08] text-white/70" : "text-white/25 hover:text-white/50"}`}>History</button>
+            </div>
+          </div>
+
+          {view === "threads" ? (
+            <>
+              <div className="flex items-center gap-1 rounded-xl border border-white/[0.06] bg-white/[0.03] p-1">
+                {[["all", "All"], ["unread", "Unread"], ["critical", "Urgent"]].map(([f, l]) => (
+                  <button key={f} onClick={() => setFilter(f)} className={`flex-1 rounded-lg py-2 text-[9px] font-medium uppercase tracking-wider transition-colors ${filter === f ? "bg-white/[0.07] text-white/65" : "text-white/20 hover:text-white/45"}`}>{l}</button>
+                ))}
+              </div>
+              <div className="space-y-2">
+                {filtered.map((thread) => (
+                  <button
+                    key={thread.id}
+                    onClick={() => {
+                      setActiveThread(thread);
+                      setMobileSidebarOpen(false);
+                    }}
+                    className={`w-full rounded-2xl border p-3 text-left transition-all ${activeThread?.id === thread.id ? "border-white/[0.10] bg-white/[0.07]" : "border-white/[0.05] bg-white/[0.02] hover:border-white/[0.08] hover:bg-white/[0.04]"}`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${thread.unread ? "bg-blue-400" : "bg-transparent"}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className={`mb-1 text-[10px] font-medium leading-snug ${thread.unread ? "text-white/75" : "text-white/40"}`}>{thread.subject}</p>
+                        <p className="mb-1.5 truncate text-[8px] text-white/20">{thread.preview}</p>
+                        <div className="flex items-center gap-1.5">
+                          <StatusBadge variant={priorityVariant[thread.priority]} dot={false} className="text-[7px]">{thread.priority}</StatusBadge>
+                          <span className="ml-auto text-[7px] font-mono text-white/15">{thread.age} ago</span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="space-y-2">
+              {COMMAND_HISTORY.map((h, i) => (
+                <div key={i} className="rounded-2xl border border-white/[0.05] bg-white/[0.02] p-3">
+                  <p className="mb-1 text-[10px] leading-snug text-white/55 font-mono">"{h.cmd}"</p>
+                  <p className="text-[8px] text-emerald-400/60">{h.result}</p>
+                  <p className="mt-0.5 text-[7px] font-mono text-white/15">{h.time}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </MobileDrawerShell>
+
+      <MobileDrawerShell
+        open={mobileContextOpen}
+        onOpenChange={setMobileContextOpen}
+        side="right"
+        title="Active context"
+        subtitle="Queue and routing"
+      >
+        <div className="space-y-3">
+          <GlassCard className="border border-white/[0.06] p-0">
+            <div className="border-b border-white/[0.05] px-3 pb-2 pt-3">
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-white/25">Patrick's Queue</p>
+            </div>
+            <div className="space-y-1 p-2">
+              {[
+                { label: "Demo.ai Deploy", type: "approval", urgent: true },
+                { label: "Q2 Budget", type: "approval", urgent: true },
+                { label: "MeeshgCat Copy", type: "review", urgent: false },
+              ].map((item, i) => (
+                <div key={i} className={`flex items-center gap-2 rounded-lg px-2 py-2 ${item.urgent ? "border border-amber-500/10 bg-amber-500/5" : "bg-white/[0.02]"}`}>
+                  <span className="text-[10px]">{linkedTypeIcon[item.type]}</span>
+                  <p className="flex-1 truncate text-[9px] text-white/45">{item.label}</p>
+                  {item.urgent && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400" />}
+                </div>
+              ))}
+            </div>
+          </GlassCard>
+
+          <GlassCard className="border border-white/[0.06] p-0">
+            <div className="border-b border-white/[0.05] px-3 pb-2 pt-3">
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-white/25">Active Routing</p>
+            </div>
+            <div className="space-y-1 p-2">
+              {[
+                { from: "Patrick", to: "Van", label: "Landing page build" },
+                { from: "Funboy", to: "Torina", label: "Competitor GTM response" },
+                { from: "Perry", to: "Nettie", label: "Rate limit escalation" },
+              ].map((r, i) => (
+                <div key={i} className="rounded-lg bg-white/[0.02] px-2 py-2">
+                  <div className="mb-0.5 flex items-center gap-1">
+                    <span className="text-[8px] text-white/30">{r.from}</span>
+                    <ChevronRight className="h-2.5 w-2.5 text-white/15" />
+                    <span className="text-[8px] text-blue-400/60">Nettie</span>
+                    <ChevronRight className="h-2.5 w-2.5 text-white/15" />
+                    <span className="text-[8px] text-white/35">{r.to}</span>
+                  </div>
+                  <p className="truncate text-[8px] text-white/20">{r.label}</p>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
+
+          <GlassCard className="p-3">
+            <p className="mb-2 text-[9px] uppercase tracking-wider text-white/20">Navigate</p>
+            {[
+              { label: "Approvals", path: "/approvals", icon: "✅" },
+              { label: "Operations", path: "/operations", icon: "⚡" },
+              { label: "Missions", path: "/missions", icon: "🎯" },
+              { label: "System", path: "/system", icon: "⚙️" },
+            ].map((l, i) => (
+              <Link key={i} to={l.path} className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/[0.04]">
+                <span className="text-[11px]">{l.icon}</span>
+                <span className="text-[10px] text-white/35 hover:text-white/60">{l.label}</span>
+                <ArrowUpRight className="ml-auto h-2.5 w-2.5 text-white/10" />
+              </Link>
+            ))}
+          </GlassCard>
+        </div>
+      </MobileDrawerShell>
+
+      <MobileDrawerShell
+        open={mobileStatusOpen}
+        onOpenChange={setMobileStatusOpen}
+        side="bottom"
+        title="Runtime status"
+        subtitle="Conversation health"
+      >
+        <div className="space-y-3 pb-4">
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-white/30">Executor</p>
+                <p className="mt-1 text-sm font-semibold text-white/80">{executorStateView.label}</p>
+                <p className="mt-1 text-[10px] text-white/35">{executorStateView.detail}</p>
+              </div>
+              <StatusBadge variant={executorStateView.variant} dot={true}>{executorStateView.label}</StatusBadge>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {systemPulseItems.map((item) => (
+              <div key={item.label} className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3">
+                <p className="text-[9px] text-white/25">{item.label}</p>
+                <p className={`mt-1 truncate text-sm font-semibold font-mono ${item.color}`}>{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </MobileDrawerShell>
       </div>
     </div>
   );

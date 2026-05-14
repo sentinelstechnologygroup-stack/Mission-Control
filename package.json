@@ -12,7 +12,8 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview",
-    "test:integration": "node tests/integration/phase-a-routes.mjs"
+    "test:integration": "node tests/integration/phase-a-routes.mjs",
+    "test:ui-hardening": "node tests/integration/nettie-ui-hardening.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",
