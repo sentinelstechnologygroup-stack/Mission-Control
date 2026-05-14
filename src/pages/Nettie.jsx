@@ -425,7 +425,7 @@ function CommandTraceBar() {
     { label: "Approval", icon: "✅", desc: "Patrick decides" },
   ];
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-1.5 rounded-xl border border-white/[0.05] bg-white/[0.02] px-3 py-2 md:flex-nowrap">
+    <div className="mb-4 hidden flex-wrap items-center gap-1.5 rounded-xl border border-white/[0.05] bg-white/[0.02] px-3 py-2 md:flex md:flex-nowrap">
       {steps.map((s, i) => (
         <div key={i} className="flex min-w-0 items-center">
           <div className="flex items-center gap-1.5 px-2 py-1">
@@ -443,6 +443,7 @@ function CommandTraceBar() {
 }
 
 function ThreadMessage({ msg }) {
+  const isMobile = useIsMobile();
   const isNettie = msg.from === "Nettie";
   return (
     <div className="flex max-w-full gap-3 overflow-x-hidden">
@@ -458,12 +459,12 @@ function ThreadMessage({ msg }) {
         </div>
 
         {/* Body — styled as executive memo, not chat bubble */}
-        <div className="mb-3 overflow-x-hidden rounded-xl border border-white/[0.04] bg-white/[0.02] px-4 py-3">
+        <div className="mb-3 overflow-x-hidden rounded-xl border border-white/[0.04] bg-white/[0.02] px-3 py-2.5 md:px-4 md:py-3">
           <p className="overflow-x-hidden break-words whitespace-pre-wrap text-[11px] text-white/55 leading-relaxed font-mono">{msg.body || msg.text || msg.content}</p>
         </div>
 
         {/* Linked context chips */}
-        {msg.linked?.length > 0 && (
+        {msg.linked?.length > 0 && !isMobile && (
           <div className="flex items-center gap-1.5 flex-wrap mb-3">
             <span className="text-[8px] text-white/15 uppercase tracking-wider">Linked:</span>
             {msg.linked.map((l, i) => (
@@ -477,7 +478,7 @@ function ThreadMessage({ msg }) {
         )}
 
         {/* Action chips */}
-        {msg.chips?.length > 0 && (
+        {msg.chips?.length > 0 && !isMobile && (
           <div className="flex items-center gap-1.5 flex-wrap">
             {msg.chips.map((chip, i) => (
               <button key={i} className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all border ${
@@ -884,29 +885,49 @@ export default function Nettie() {
       <div className="flex min-w-0 flex-1 flex-col border border-white/[0.06] rounded-2xl overflow-hidden" style={{ background: "hsl(228 15% 5%)" }}>
         {currentThread ? (
           <>
-            {/* Thread header — executive memo style */}
-            <div className="border-b border-white/[0.05] px-4 py-3 md:px-5" style={{ background: "hsl(225 12% 7%)" }}>
-              <div className="mb-3 flex items-center gap-2 md:hidden">
-                <MobilePanelButton
-                  icon={Menu}
-                  label="Threads"
-                  detail={`${filtered.length} available`}
+            {/* Mobile compact toolbar */}
+            <div className="border-b border-white/[0.05] px-4 py-2 md:hidden" style={{ background: "hsl(225 12% 7%)" }}>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
                   onClick={() => setMobileSidebarOpen(true)}
-                />
-                <MobilePanelButton
-                  icon={PanelRight}
-                  label="Context"
-                  detail="Queue, routing, links"
+                  className="inline-flex items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] p-1.5 text-white/55"
+                  aria-label="Open threads drawer"
+                >
+                  <Menu className="h-3.5 w-3.5" />
+                </button>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12px] font-semibold text-white/78">{currentThread.subject}</p>
+                </div>
+                <button
+                  type="button"
                   onClick={() => setMobileContextOpen(true)}
-                />
+                  className="inline-flex items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] p-1.5 text-white/55"
+                  aria-label="Open context drawer"
+                >
+                  <PanelRight className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  data-nettie="mobile-status-pill"
+                  onClick={() => setMobileStatusOpen(true)}
+                  className="inline-flex items-center gap-1 rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-1 text-[9px] font-mono text-white/55"
+                >
+                  <SlidersHorizontal className="h-3 w-3" />
+                  {mobileStatusLabel}
+                </button>
               </div>
+            </div>
+
+            {/* Thread header — executive memo style */}
+            <div className="hidden border-b border-white/[0.05] px-4 py-3 md:block md:px-5" style={{ background: "hsl(225 12% 7%)" }}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <StatusBadge variant={priorityVariant[currentThread.priority]} dot={true}>
                       {currentThread.priority}
                     </StatusBadge>
-                    {currentThread.linked && (
+                    {currentThread.linked && !isMobile && (
                       <span className="flex items-center gap-1 text-[9px] text-white/25">
                         <span>{linkedTypeIcon[currentThread.linked.type]}</span>
                         {currentThread.linked.label}
@@ -915,21 +936,12 @@ export default function Nettie() {
                     )}
                     <span className="text-[8px] text-white/15 font-mono ml-auto">{currentThread.time}</span>
                   </div>
-                  <h2 className="text-[14px] font-bold text-white/80">{currentThread.subject}</h2>
+                  <h2 className="text-[13px] font-bold text-white/80 md:text-[14px]">{currentThread.subject}</h2>
                 </div>
                 <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                  <button
-                    type="button"
-                    data-nettie="mobile-status-pill"
-                    onClick={() => setMobileStatusOpen(true)}
-                    className="inline-flex items-center gap-1 rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-1 text-[9px] font-mono text-white/55 md:hidden"
-                  >
-                    <SlidersHorizontal className="h-3 w-3" />
-                    {mobileStatusLabel}
-                  </button>
-                  <button className="p-1.5 rounded-md hover:bg-white/[0.06] text-white/20 transition-colors" title="Pin"><Pin className="w-3.5 h-3.5" /></button>
-                  <button className="p-1.5 rounded-md hover:bg-white/[0.06] text-white/20 transition-colors" title="Archive"><Archive className="w-3.5 h-3.5" /></button>
-                  <button className="p-1.5 rounded-md hover:bg-white/[0.06] text-white/20 transition-colors" title="More"><MoreHorizontal className="w-3.5 h-3.5" /></button>
+                  <button className="hidden p-1.5 rounded-md hover:bg-white/[0.06] text-white/20 transition-colors md:inline-flex" title="Pin"><Pin className="w-3.5 h-3.5" /></button>
+                  <button className="hidden p-1.5 rounded-md hover:bg-white/[0.06] text-white/20 transition-colors md:inline-flex" title="Archive"><Archive className="w-3.5 h-3.5" /></button>
+                  <button className="hidden p-1.5 rounded-md hover:bg-white/[0.06] text-white/20 transition-colors md:inline-flex" title="More"><MoreHorizontal className="w-3.5 h-3.5" /></button>
                 </div>
               </div>
 
@@ -938,7 +950,7 @@ export default function Nettie() {
             </div>
 
             {/* Messages — live history + optimistic local messages */}
-            <div data-nettie="messages-scroll" className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 md:px-5 md:py-5">
+            <div data-nettie="messages-scroll" className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 md:px-5 md:py-5">
               <div className="space-y-5 overflow-x-hidden">
               {displayMessages.map((msg, i) => (
                 <div key={`${msg.id ?? 'msg'}-${msg.ts ?? msg.time ?? i}-${i}`}>
@@ -986,7 +998,7 @@ export default function Nettie() {
                 </div>
               </div>
               {/* Quick directive chips */}
-              <div className="flex flex-wrap items-center gap-1.5 overflow-x-hidden">
+              <div className="hidden flex-wrap items-center gap-1.5 overflow-x-hidden md:flex">
                 <span className="text-[7px] text-white/15 uppercase tracking-wider font-semibold mr-1">Quick:</span>
                 {QUICK_COMMANDS.map((cmd, i) => (
                   <button key={i} onClick={() => setReply(cmd)}

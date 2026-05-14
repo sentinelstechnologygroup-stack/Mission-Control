@@ -182,8 +182,8 @@ function TaskDetail({ task, onClose }) {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
       transition={{ type: "spring", damping: 25, stiffness: 300 }}
-      className="fixed inset-y-0 right-0 w-full sm:w-96 z-50 glass-card border-l border-white/[0.06] overflow-y-auto"
-      style={{ top: "44px" }}
+      className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto border-l border-white/[0.08] bg-[#090b0e]/98 backdrop-blur-xl sm:w-96"
+      style={{ top: "52px" }}
     >
       <div className="p-5">
         <div className="flex items-center justify-between mb-4">

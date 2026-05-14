@@ -74,8 +74,8 @@ function MissionDrawer({ mission, onClose }) {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 30 }}
       transition={{ type: "spring", damping: 25, stiffness: 300 }}
-      className="fixed inset-y-0 right-0 w-full sm:w-[440px] z-50 glass-card border-l border-white/[0.06] overflow-y-auto"
-      style={{ top: "48px" }}
+      className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto border-l border-white/[0.08] bg-[#090b0e]/98 backdrop-blur-xl sm:w-[440px]"
+      style={{ top: "52px" }}
     >
       <div className="p-5">
         <div className="flex items-center justify-between mb-3">

@@ -12,8 +12,7 @@ export default function AppShell() {
       <RightInspectionPanel />
       <BottomStatusStrip />
 
-      <main className="px-3 pb-[52px] pt-[64px] sm:px-4 lg:ml-[76px] xl:mr-[320px]">
-        <div className="mx-auto max-w-[1600px]">
+      <main className="overflow-x-hidden px-3 pb-[96px] pt-[60px] sm:px-4 md:pb-[80px] lg:ml-[76px] lg:pb-[52px] xl:mr-[320px]">        <div className="mx-auto max-w-[1600px]">
           <Outlet />
         </div>
       </main>

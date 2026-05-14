@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Activity, Bot, ChevronUp, HardDriveDownload, Shield, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -10,8 +11,13 @@ const statusItems = [
 ];
 
 export default function BottomStatusStrip() {
+  const location = useLocation();
   const isMobile = useIsMobile();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  if (isMobile && location.pathname === "/nettie") {
+    return null;
+  }
 
   if (isMobile) {
     return (
@@ -74,7 +80,7 @@ export default function BottomStatusStrip() {
 
   return (
     <footer
-      className="fixed bottom-0 left-0 right-0 z-50 h-[34px] border-t bg-[#090b0e]/98 backdrop-blur-sm lg:left-[76px] xl:right-[320px]"
+      className="fixed bottom-0 left-0 right-0 z-50 h-[34px] border-t bg-[#090b0e] backdrop-blur-sm lg:left-[76px] xl:right-[320px]"
       style={{ borderColor: "rgba(32,200,120,0.10)" }}
     >
       <div className="flex h-full items-center gap-3 overflow-x-auto px-3 sm:px-4">
