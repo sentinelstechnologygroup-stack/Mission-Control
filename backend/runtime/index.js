@@ -40,6 +40,7 @@ export function registerRuntimeRoutes(app, deps) {
     evaluateHermesGovernance,
     getRecoveryReconciliationReport,
     buildAndPersistRecoveryReconciliationReport,
+    getJobDependencyDetail,
   } = deps
 
   app.get('/api/health', (_, res) => {
@@ -313,6 +314,31 @@ export function registerRuntimeRoutes(app, deps) {
         reason: reconciledJob.outageReason || 'provider cooldown active',
         classification: 'blocked_by_provider',
       }, makeHermesLogs(reconciledJob, reconciledJob.executionTrace), { reused: false }))
+    }
+
+    const dependencyDetail = getJobDependencyDetail(job.id)
+    if (dependencyDetail?.dependencyStatus === 'blocked_by_dependency') {
+      const blockedAt = nowIso()
+      const blockedJob = updateJobStatus(job.id, 'blocked', {
+        updatedAt: blockedAt,
+        routeStatus: 'dependency_blocked',
+        blockedBy: dependencyDetail.blockedBy,
+        dependencyStatus: dependencyDetail.dependencyStatus,
+        dependencyReason: dependencyDetail.dependencyReason,
+        nextAction: dependencyDetail.dependencyReason || 'Wait for prerequisite jobs to complete.',
+        executionTrace: [{
+          step: 'dependency_blocked',
+          at: blockedAt,
+          level: 'warn',
+          message: dependencyDetail.dependencyReason || 'Job blocked by dependency chain.',
+          data: dependencyDetail,
+        }],
+      })
+      return res.status(202).json(makeHermesResponse(blockedJob, {
+        paused: true,
+        reason: dependencyDetail.dependencyReason || 'Job is dependency-blocked.',
+        classification: 'dependency_blocked',
+      }, makeHermesLogs(blockedJob, blockedJob.executionTrace), { reused: false }))
     }
 
     if ((req.body?.executor || req.body?.provider || '').toLowerCase() === 'hermes') {

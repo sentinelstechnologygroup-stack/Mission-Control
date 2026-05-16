@@ -42,6 +42,11 @@ import {
   buildQueuePriorities,
   buildTopNextActions,
 } from './lib/queuePrioritization.js'
+import {
+  buildDependencyGraph,
+  getJobDependencyView,
+  buildCooldownBlockedListArtifact,
+} from './lib/jobDependencies.js'
 import { saveSessionTelemetry, saveCooldownTelemetry } from './lib/tokenTelemetry.js'
 import { registerChatRoutes } from './backend/chat/index.js'
 import { registerJobsRoutes } from './backend/jobs/index.js'
@@ -230,9 +235,14 @@ function buildExecutorBridgeStatus() {
   }
   const executorCoolingDown = Boolean(cooldown)
   const executorReady = selectedExecutor !== 'none' && !executorCoolingDown
+  const queueView = getQueuePrioritiesView()
+  const localAIAvailable = true
+  const localWorkActive = Boolean(queueView.counts?.localAIDraftEligible)
+  const deepWorkPaused = executorCoolingDown
   const baseStatus = {
     available: selectedExecutor !== 'none',
     bridgeConnected: true,
+    bridgeOnline: true,
     runtime: MC_RUNTIME_NAME,
     executor: selectedExecutor === 'none' ? 'unavailable' : selectedExecutor,
     executorReady,
@@ -243,6 +253,15 @@ function buildExecutorBridgeStatus() {
     fallback,
     selectedExecutor,
     lastError: lastExecutorError,
+    localAIAvailable,
+    deepWorkPaused,
+    localWorkActive,
+    nettieLocalFallback: {
+      designed: true,
+      conversationalContinuityTarget: true,
+      currentMode: executorReady ? 'premium_or_runtime' : 'local_ai_design_path',
+      note: 'Local-AI Nettie continuity must answer status, blockers, next actions, and reports without pretending to be deep GPT reasoning.',
+    },
   }
   return buildGovernedExecutorStatus(baseStatus, governanceState, { mcRuntimeOnline: true })
 }
@@ -1106,9 +1125,11 @@ function buildAndPersistRecoveryReconciliationReport() {
 function getQueuePrioritiesView() {
   const registry = buildMasterWorkRegistry()
   const recoveryReport = getRecoveryReconciliationReport() || buildAndPersistRecoveryReconciliationReport()
+  const dependencyGraph = getDependencyGraphView()
   return buildQueuePriorities({
     registry,
     recoveryReport,
+    dependencyGraph,
     claudeValidated: Boolean(governanceState?.claude_cli?.reliable),
     now: nowIso(),
   })
@@ -1117,6 +1138,29 @@ function getQueuePrioritiesView() {
 function getTopNextActionsView(limit = 10) {
   const queue = getQueuePrioritiesView()
   return buildTopNextActions(queue.priorities, { limit })
+}
+
+function getDependencyGraphView() {
+  return buildDependencyGraph({
+    jobs: jobStore.deriveLedgerView(),
+    now: nowIso(),
+  })
+}
+
+function getJobDependencyDetail(jobId = '') {
+  return getJobDependencyView(getDependencyGraphView(), jobId)
+}
+
+function getCooldownBlockedListArtifactView() {
+  const queue = getQueuePrioritiesView()
+  const dependencyGraph = getDependencyGraphView()
+  const recoveryReport = getRecoveryReconciliationReport() || buildAndPersistRecoveryReconciliationReport()
+  return buildCooldownBlockedListArtifact({
+    queuePriorities: queue,
+    dependencyGraph,
+    recoveryReport,
+    now: nowIso(),
+  })
 }
 
 function syncGovernanceStateFromRuntime(cooldown = null) {
@@ -4539,6 +4583,9 @@ const routeDeps = {
   buildActiveWorkView,
   getQueuePrioritiesView,
   getTopNextActionsView,
+  getDependencyGraphView,
+  getJobDependencyDetail,
+  getCooldownBlockedListArtifactView,
   loadRecoveryLedger,
   syncRecoveryLedger,
   updateRecoveryEntry,

@@ -14,6 +14,9 @@ export function registerJobsRoutes(app, deps) {
     buildActiveWorkView,
     getQueuePrioritiesView,
     getTopNextActionsView,
+    getDependencyGraphView,
+    getJobDependencyDetail,
+    getCooldownBlockedListArtifactView,
     loadRecoveryLedger,
     syncRecoveryLedger,
     updateRecoveryEntry,
@@ -31,7 +34,7 @@ export function registerJobsRoutes(app, deps) {
   })
 
   app.post('/api/jobs', (req, res) => {
-    const { title, owner = 'Nettie', priority = 'P1', description = '' } = req.body || {}
+    const { title, owner = 'Nettie', priority = 'P1', description = '', dependsOn = [] } = req.body || {}
     if (!title) return res.status(400).json({ error: 'title is required' })
 
     const duplicate = findOpenDuplicateJob(owner, title)
@@ -68,6 +71,7 @@ export function registerJobsRoutes(app, deps) {
       sourceType: 'mission-control',
       createdAt: job.updatedAt,
       updatedAt: job.updatedAt,
+      dependsOn: Array.isArray(dependsOn) ? dependsOn : [],
     })
     log('info', `Created job ${job.id}: ${job.title}`)
     res.status(201).json(attachWorker(jobStore.toMissionStateJob(created || created.job || job)))
@@ -91,7 +95,21 @@ export function registerJobsRoutes(app, deps) {
   app.post('/api/jobs/:id/run', (req, res) => {
     const job = jobStore.getJobById(req.params.id)
     if (!job) return res.status(404).json({ error: 'Job not found' })
-    const updated = updateJobStatus(job.id, 'queued', { routeStatus: 'queued', updatedAt: nowIso() })
+    const dependency = getJobDependencyDetail(job.id)
+    if (dependency?.dependencyStatus === 'blocked_by_dependency') {
+      return res.status(409).json({
+        error: 'dependency_blocked',
+        jobId: job.id,
+        blockedBy: dependency.blockedBy,
+        dependencyReason: dependency.dependencyReason,
+      })
+    }
+    const updated = updateJobStatus(job.id, 'queued', {
+      routeStatus: dependency?.dependencyStatus === 'unblock_ready' ? 'unblock_ready' : 'queued',
+      dependencyStatus: dependency?.dependencyStatus || null,
+      blockedBy: dependency?.blockedBy || [],
+      updatedAt: nowIso(),
+    })
     refreshDerivedState()
     res.json({ ok: true, job: updated })
   })
@@ -168,6 +186,31 @@ export function registerJobsRoutes(app, deps) {
   app.get('/api/queue/next-actions', (req, res) => {
     const limit = Math.max(1, Math.min(25, Number(req.query?.limit || 10) || 10))
     res.json(getTopNextActionsView(limit))
+  })
+
+  app.get('/api/jobs/:id/dependencies', (req, res) => {
+    const detail = getJobDependencyDetail(req.params.id)
+    if (!detail) return res.status(404).json({ error: 'Job dependency view not found' })
+    res.json(detail)
+  })
+
+  app.get('/api/dependencies/blocked', (_, res) => {
+    const graph = getDependencyGraphView()
+    res.json({ generatedAt: graph.generatedAt, blocked: graph.blocked })
+  })
+
+  app.get('/api/dependencies/unblock-ready', (_, res) => {
+    const graph = getDependencyGraphView()
+    res.json({ generatedAt: graph.generatedAt, unblockReady: graph.unblockReady })
+  })
+
+  app.get('/api/dependencies/topology', (_, res) => {
+    const graph = getDependencyGraphView()
+    res.json(graph)
+  })
+
+  app.get('/api/recovery/mission-control-ledger-queue-blocked-list', (_, res) => {
+    res.json(getCooldownBlockedListArtifactView())
   })
 
   app.patch('/api/jobs/ledger/:id/status', (req, res) => {
