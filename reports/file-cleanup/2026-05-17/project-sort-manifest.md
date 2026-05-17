@@ -41,3 +41,12 @@ Generated: 2026-05-17T17:21:50.299511Z
 - /home/patrick/projects/internal-tools
 - /home/patrick/projects/experiments
 - /home/patrick/projects/archive-review
+## Additional top-level cleanup
+- Archived top-level Hermes conversation JSONs to `/home/patrick/archive/hermes-conversations/2026-05-17`.
+- Moved `patrick-file-tree.zip` to `/home/patrick/archive/imports/2026-05-17`.
+- Moved top-level temp/image pools to `/home/patrick/archive/home-temp/2026-05-17`.
+- Moved `dana_formatted_report_templates` and two loose rebuild scripts into `/home/patrick/projects/internal-tools`.
+- Moved loose tree text manifests into `/home/patrick/projects/archive-review`.
+
+## Archived ZIP artifacts
+- Archived 11 old ZIP artifacts from active project trees into `/home/patrick/archive/imports/2026-05-17` for cold storage/import review.

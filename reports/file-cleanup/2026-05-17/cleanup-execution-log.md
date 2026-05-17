@@ -2544,3 +2544,22 @@ Started: 2026-05-17T17:21:50.300171Z
 - 2026-05-17T19:42:20.998090Z agent-path-correction moved `/home/patrick/agents/Mission-Control/SIS` -> `/home/patrick/mission-control/.agents/SIS`
 - 2026-05-17T19:42:20.998095Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Prism` -> `/home/patrick/mission-control/.agents/Prism`
 - 2026-05-17T19:44:38.130689Z corrected canonical agent path to `/home/patrick/mission-control/.agents`; old `/home/patrick/agents/Mission-Control` replaced with compatibility symlink after validation.
+- 2026-05-17T20:16:47.469312+00:00 archived 11 Hermes conversation JSONs to /home/patrick/archive/hermes-conversations/2026-05-17
+- 2026-05-17T20:16:47.469312+00:00 moved 1 loose ZIPs to /home/patrick/archive/imports/2026-05-17
+- 2026-05-17T20:16:47.469312+00:00 moved 6 home tmp/image folders to /home/patrick/archive/home-temp/2026-05-17
+- 2026-05-17T20:17:23.819970+00:00 moved /home/patrick/dana_formatted_report_templates -> /home/patrick/projects/internal-tools/dana_formatted_report_templates
+- 2026-05-17T20:17:23.819970+00:00 moved /home/patrick/generate_sdl_wp_rebuild_assets.py -> /home/patrick/projects/internal-tools/generate_sdl_wp_rebuild_assets.py
+- 2026-05-17T20:17:23.819970+00:00 moved /home/patrick/generate_wp_rebuild_real_visuals.py -> /home/patrick/projects/internal-tools/generate_wp_rebuild_real_visuals.py
+- 2026-05-17T20:17:23.819970+00:00 moved /home/patrick/patrick-file-tree.txt -> /home/patrick/projects/archive-review/patrick-file-tree.txt
+- 2026-05-17T20:17:23.819970+00:00 moved /home/patrick/tree.txt -> /home/patrick/projects/archive-review/tree.txt
+- 2026-05-17T20:20:15.150107+00:00 archived project ZIP /home/patrick/projects/websites/link-international/link-international/src.zip -> /home/patrick/archive/imports/2026-05-17/src.zip
+- 2026-05-17T20:20:15.150107+00:00 archived project ZIP /home/patrick/projects/websites/link-international/link-international.zip -> /home/patrick/archive/imports/2026-05-17/link-international.zip
+- 2026-05-17T20:20:15.150107+00:00 archived project ZIP /home/patrick/projects/websites/GCBA.zip -> /home/patrick/archive/imports/2026-05-17/GCBA.zip
+- 2026-05-17T20:20:15.150107+00:00 archived project ZIP /home/patrick/projects/websites/mdx-fuel/mdx-fuel.zip -> /home/patrick/archive/imports/2026-05-17/mdx-fuel.zip
+- 2026-05-17T20:20:15.150107+00:00 archived project ZIP /home/patrick/projects/saas/FuelRouteOS/FuelRouteOS Driver.zip -> /home/patrick/archive/imports/2026-05-17/FuelRouteOS Driver.zip
+- 2026-05-17T20:20:15.150107+00:00 archived project ZIP /home/patrick/projects/sentinels-design-lab/src/pages/About (2).zip -> /home/patrick/archive/imports/2026-05-17/About (2).zip
+- 2026-05-17T20:20:15.150107+00:00 archived project ZIP /home/patrick/projects/sentinels-design-lab/src/pages/About.zip -> /home/patrick/archive/imports/2026-05-17/About.zip
+- 2026-05-17T20:20:15.150107+00:00 archived project ZIP /home/patrick/projects/websites/sentinels-design-lab.zip -> /home/patrick/archive/imports/2026-05-17/sentinels-design-lab.zip
+- 2026-05-17T20:20:15.150107+00:00 archived project ZIP /home/patrick/apps/gulf-coast-prosthetics-redesign-1/gulf-coast-prosthetics-redesign-1.zip -> /home/patrick/archive/imports/2026-05-17/gulf-coast-prosthetics-redesign-1.zip
+- 2026-05-17T20:20:15.150107+00:00 archived project ZIP /home/patrick/projects/dana-finance-report-pack (2).zip -> /home/patrick/archive/imports/2026-05-17/dana-finance-report-pack (2).zip
+- 2026-05-17T20:20:15.150107+00:00 archived project ZIP /home/patrick/projects/dana-finance-report-pack.zip -> /home/patrick/archive/imports/2026-05-17/dana-finance-report-pack.zip
