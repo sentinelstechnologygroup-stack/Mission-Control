@@ -5,8 +5,10 @@ export function registerAgentsRoutes(app, deps) {
     res.json(buildControlPlaneSnapshot().departments)
   })
 
-  app.get('/api/departments/:id', (req, res) => {
-    const department = buildControlPlaneSnapshot().departments.find((item) => item.id === String(req.params.id || '').toLowerCase())
+  app.get('/api/departments/:id', (req, res, next) => {
+    const id = String(req.params.id || '').toLowerCase()
+    if (id === 'workflows') return next()
+    const department = buildControlPlaneSnapshot().departments.find((item) => item.id === id)
     if (!department) return res.status(404).json({ error: 'Department not found' })
     res.json(department)
   })

@@ -42,6 +42,7 @@ import {
   buildQueuePriorities,
   buildTopNextActions,
   buildReconciliationDebtView,
+  buildReviewChain,
 } from './lib/queuePrioritization.js'
 import {
   buildDependencyGraph,
@@ -61,6 +62,8 @@ import {
   buildArchiveCompactionDryRun,
   buildQueueTopologyView,
 } from './lib/operationalViews.js'
+import { buildDepartmentWorkflowRegistry, buildDepartmentWorkflow } from './lib/departmentWorkflows.js'
+import { buildTokenTrackingOverview } from './lib/tokenTrackingViews.js'
 import {
   getRuntimeContinuityPaths,
   loadRuntimeCheckpoint,
@@ -336,6 +339,8 @@ function buildBridgeExecutionPacket(message = '') {
 async function queueBridgeMessageForExecutor(message, requestedExecutor = '') {
   const executor = requestedExecutor || selectExecutor()
   const runtimeBaseUrl = `http://127.0.0.1:${Number(process.env.PORT || 4174)}`
+  const assignedDepartmentHead = extractAgent(message) || 'Nettie'
+  const task = extractTask(message)
   const response = await fetch(`${runtimeBaseUrl}/api/hermes/execute`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -345,10 +350,11 @@ async function queueBridgeMessageForExecutor(message, requestedExecutor = '') {
       executeNow: false,
       executor,
       inputPayload: {
-        task: message,
+        task,
         text: message,
         issuedAt: nowIso(),
-        assignedDepartmentHead: 'Dana',
+        assignedDepartmentHead,
+        workflow: buildDepartmentWorkflow(assignedDepartmentHead, task, buildReviewChain({ owner: assignedDepartmentHead, task, description: message })),
         executionPacket: buildBridgeExecutionPacket(message),
       },
     }),
@@ -1273,6 +1279,18 @@ function getQueueTopologyView() {
   return buildQueueTopologyView({
     dependencyGraph: getDependencyGraphView(),
     queuePriorities: getQueuePrioritiesView(),
+    now: nowIso(),
+  })
+}
+
+function getDepartmentWorkflowRegistryView() {
+  return buildDepartmentWorkflowRegistry()
+}
+
+function getTokenTrackingOverviewView() {
+  return buildTokenTrackingOverview({
+    runtimeDir,
+    jobs: jobStore.deriveLedgerView().filter((job) => !['completed', 'cancelled'].includes(String(job.status || '').toLowerCase())),
     now: nowIso(),
   })
 }
@@ -3976,7 +3994,10 @@ function detectIntent(message) {
   if (/^(route to \w+:|convert to execution task:|this is a system change:|create a job:)/i.test(message.trim())
     || /\bfix\s+(the\s+)?(operational|system|ledger|routing|detection|brief|ci|nettie|hermes|intent|dedupe|outage)/i.test(message)) return 'execution_command'
 
-  // PRIORITY 3: CI queries
+  // PRIORITY 3: explicit assignment language
+  if (/\b(?:have|assign|route|send|ask)\s+(?:van|perry|torina|scribe|dana|ivy|funboy|rab|nettie|bea)\b/i.test(message)) return 'assign_task'
+
+  // PRIORITY 4: CI queries
   if (/\b(ci register|continuous improvement|show improvements|what improved|improvement items|ci priorities)\b/.test(msg)) return 'ci_query'
 
   // PRIORITY 4: operational brief — guarded: only fires when NO job ID present (already handled above)
@@ -4039,6 +4060,12 @@ function extractAgent(message) {
     nettie: 'Nettie',
     bea: 'Bea',
   }
+
+  const explicit = lower.match(/\b(?:have|assign|route|send|ask)\s+(van|perry|torina|scribe|dana|ivy|funboy|rab|nettie|bea)\b/)
+  if (explicit && aliases[explicit[1]]) return aliases[explicit[1]]
+
+  const headed = lower.match(/\b(van|perry|torina|scribe|dana|ivy|funboy|rab|nettie|bea)\s*[—:-]/)
+  if (headed && aliases[headed[1]]) return aliases[headed[1]]
 
   for (const [alias, agentName] of Object.entries(aliases)) {
     if (lower.includes(alias)) return agentName
@@ -4104,6 +4131,7 @@ function handleAssignment(message, source = 'mission-control') {
   const directCallable = isAgentDirectCallable(canonicalAgent)
   const routeStatus = directCallable ? 'ready' : `awaiting-${canonicalAgent.toLowerCase()}-route`
   const status = 'queued'
+  const workflowTemplate = buildDepartmentWorkflow(canonicalAgent, task, [])
 
   const duplicate = findOpenDuplicateJob(canonicalAgent, task)
   if (duplicate) {
@@ -4121,14 +4149,18 @@ function handleAssignment(message, source = 'mission-control') {
       routeStatus,
       priority: guessPriority(message),
     })
+    const reviewChain = buildReviewChain(duplicate)
+    duplicate.workflow = buildDepartmentWorkflow(canonicalAgent, task, reviewChain)
+    saveJob(duplicate)
     missionJob.updatedAt = nowIso()
 
     log('info', `Ledger dedupe: ${duplicate.id} reused for "${task}" → ${canonicalAgent}`)
     return {
-      replyText: `Nettie: Existing open job found for ${canonicalAgent}. Reusing ${duplicate.id} for "${task}". Status: ${duplicate.status}${duplicate.routeStatus ? ` (${duplicate.routeStatus})` : ''}.`,
+      replyText: `Nettie: Existing open job found for ${canonicalAgent}. Reusing ${duplicate.id} for "${task}". Status: ${duplicate.status}${duplicate.routeStatus ? ` (${duplicate.routeStatus})` : ''}. Next action: ${duplicate.workflow?.nextAction || workflowTemplate.nextAction}.`,
       replyKind: 'system',
       job: duplicate,
       missionJob,
+      workflow: duplicate.workflow,
       directCallable,
       deduped: true,
     }
@@ -4141,6 +4173,7 @@ function handleAssignment(message, source = 'mission-control') {
     status,
     routeStatus,
     source,
+    workflow: buildDepartmentWorkflow(canonicalAgent, task, buildReviewChain({ owner: canonicalAgent, task, description: message })),
     inputPayload: {
       assignedDepartmentHead: canonicalAgent,
       governingRunbook: readiness.governingRunbook,
@@ -4181,6 +4214,7 @@ function handleAssignment(message, source = 'mission-control') {
     replyKind: 'system',
     job: ledgerJob,
     missionJob,
+    workflow: ledgerJob.workflow,
     directCallable,
     deduped: false,
   }
@@ -4853,6 +4887,8 @@ const routeDeps = {
   getArchiveCandidatesView,
   getArchiveCompactionDryRunView,
   getQueueTopologyView,
+  getDepartmentWorkflowRegistryView,
+  getTokenTrackingOverviewView,
   getRuntimeCheckpointView,
   persistRuntimeCheckpoint,
   getRuntimeSnapshotExportView,
@@ -4890,6 +4926,11 @@ const routeDeps = {
   classifyExecutionIntent,
   shouldRouteChatToExecutor,
   handleNettieInbound,
+  buildDepartmentWorkflow,
+  buildReviewChain,
+  extractAgent,
+  extractTask,
+  jobStore,
   sendTelegramText,
   extractTelegramMessage,
   buildHermesContext,

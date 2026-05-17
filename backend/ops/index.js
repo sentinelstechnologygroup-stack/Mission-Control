@@ -30,6 +30,8 @@ export function registerOpsRoutes(app, deps) {
     getArchiveCandidatesView,
     getArchiveCompactionDryRunView,
     getQueueTopologyView,
+    getDepartmentWorkflowRegistryView,
+    getTokenTrackingOverviewView,
     getRuntimeCheckpointView,
     persistRuntimeCheckpoint,
     getRuntimeSnapshotExportView,
@@ -91,6 +93,14 @@ export function registerOpsRoutes(app, deps) {
 
   app.get('/api/queue/topology', (_, res) => {
     res.json(getQueueTopologyView())
+  })
+
+  app.get('/api/departments/workflows', (_, res) => {
+    res.json(getDepartmentWorkflowRegistryView())
+  })
+
+  app.get('/api/tokens/overview', (_, res) => {
+    res.json(getTokenTrackingOverviewView())
   })
 
   app.get('/api/runtime/checkpoint', (_, res) => {

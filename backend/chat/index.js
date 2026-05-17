@@ -18,6 +18,11 @@ export function registerChatRoutes(app, deps) {
     classifyExecutionIntent,
     sendTelegramText,
     extractTelegramMessage,
+    jobStore,
+    buildDepartmentWorkflow,
+    buildReviewChain,
+    extractAgent,
+    extractTask,
     log,
     telegramWebhookSecret,
   } = deps
@@ -144,6 +149,8 @@ export function registerChatRoutes(app, deps) {
         ts: nowIso(),
       })
 
+      const assignedDepartmentHead = extractAgent(message) || 'Nettie'
+      const inferredTask = extractTask(message)
       const hermesRes = await fetch('http://127.0.0.1:4174/api/hermes/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -151,10 +158,11 @@ export function registerChatRoutes(app, deps) {
           source: 'Nettie',
           type: 'execution',
           inputPayload: {
-            task: message,
+            task: inferredTask,
             text: message,
             issuedAt: new Date().toISOString(),
-            assignedDepartmentHead: 'Dana',
+            assignedDepartmentHead,
+            workflow: buildDepartmentWorkflow(assignedDepartmentHead, inferredTask, buildReviewChain({ owner: assignedDepartmentHead, task: inferredTask, description: message })),
             executionPacket: {
               filesCreated: ['none'],
               filesModified: ['none'],
@@ -209,13 +217,17 @@ export function registerChatRoutes(app, deps) {
 
       const durationMs = Date.now() - startedAt
       res.setHeader('X-MissionControl-LatencyMs', String(durationMs))
+      const createdJob = data.jobId ? jobStore.getJobById(data.jobId) : null
+      const routedOwner = createdJob?.inputPayload?.assignedDepartmentHead || createdJob?.owner || createdJob?.agent || 'Nettie'
+      const workflow = createdJob?.workflow || (createdJob ? buildDepartmentWorkflow(routedOwner, createdJob.task || createdJob.title || message, buildReviewChain({ ...createdJob, owner: routedOwner })) : null)
+      const createdJobView = createdJob ? { ...createdJob, owner: routedOwner, agent: routedOwner, workflow } : null
       return res.status(hermesRes.ok ? 201 : hermesRes.status).json({
         reply: {
           from: 'Nettie',
           text: outgoing.text,
         },
         job: data,
-        createdJob: false,
+        createdJob: createdJobView,
         intentType,
         routed: true,
         selectedExecutor: data.selectedExecutor || requestedExecutor,
