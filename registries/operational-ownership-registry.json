@@ -1,0 +1,154 @@
+{
+  "generatedAt": "2026-05-17T00:00:00Z",
+  "registryVersion": 1,
+  "entries": [
+    {
+      "subsystem": "coordination-and-final-review",
+      "ownerAgent": "Nettie",
+      "supportingAgent": "Hermes",
+      "canonicalPaths": [
+        "/home/patrick/mission-control/runtime",
+        "/home/patrick/mission-control/shared-ledger"
+      ],
+      "generatedPaths": [
+        "/home/patrick/mission-control/runtime/snapshots",
+        "/home/patrick/mission-control/reports/file-governance"
+      ],
+      "disposableArtifacts": [
+        "temporary QA screenshots",
+        "dry-run reports after archival review"
+      ],
+      "protectedArtifacts": [
+        "runtime-checkpoint.json",
+        "runtime-summaries.json",
+        "reconciliation-snapshots.json",
+        "runtime-events.jsonl",
+        "runtime-journal.jsonl"
+      ],
+      "recoveryProcedure": "Rebuild from checkpoint + replayRuntimeLedger + reconciliation snapshot chain.",
+      "escalationTrigger": "Continuity drift, reconciliation gate deadlock, or final delivery ambiguity."
+    },
+    {
+      "subsystem": "technical-runtime-builds-ci",
+      "ownerAgent": "Van",
+      "supportingAgent": "Hermes",
+      "canonicalPaths": [
+        "/home/patrick/projects",
+        "/home/patrick/mission-control"
+      ],
+      "generatedPaths": [
+        "/home/patrick/mission-control/test-results",
+        "/home/patrick/mission-control/tmp"
+      ],
+      "disposableArtifacts": [
+        "tmp viewport captures",
+        "intermediate build outputs when reproducible"
+      ],
+      "protectedArtifacts": [
+        "active git repos",
+        "runtime build plans",
+        "governed job ledgers"
+      ],
+      "recoveryProcedure": "Verify git roots, runtime state, and queue status before restarting technical execution.",
+      "escalationTrigger": "Build/runtime outage, dependency graph corruption, or unsafe deployment path."
+    },
+    {
+      "subsystem": "security-secrets-and-destructive-review",
+      "ownerAgent": "Perry",
+      "supportingAgent": "Nettie",
+      "canonicalPaths": [
+        "/home/patrick/.ssh",
+        "/home/patrick/mission-control/.env"
+      ],
+      "generatedPaths": [],
+      "disposableArtifacts": [],
+      "protectedArtifacts": [
+        "secrets",
+        "auth configuration",
+        "destructive-action approvals"
+      ],
+      "recoveryProcedure": "Pause execution, preserve evidence, review permissions and auth posture before resume.",
+      "escalationTrigger": "Secrets exposure, auth drift, destructive cleanup request, or production-risk action."
+    },
+    {
+      "subsystem": "financial-and-evaluation-reports",
+      "ownerAgent": "Dana",
+      "supportingAgent": "Nettie",
+      "canonicalPaths": [
+        "/home/patrick/projects/dana-finance-report-pack",
+        "/home/patrick/mission-control/runtime/dana"
+      ],
+      "generatedPaths": [
+        "/home/patrick/mission-control/runtime/dana/runs"
+      ],
+      "disposableArtifacts": [
+        "superseded intermediate ingest batches after review"
+      ],
+      "protectedArtifacts": [
+        "final evaluation reports",
+        "decision-support datasets still in active use"
+      ],
+      "recoveryProcedure": "Resume from latest verified run manifest and preserve prior research artifacts for audit.",
+      "escalationTrigger": "Financial conclusion publication or investment-grade decision output."
+    },
+    {
+      "subsystem": "media-and-content",
+      "ownerAgent": "Torina",
+      "supportingAgent": "Nettie",
+      "canonicalPaths": [
+        "/home/patrick/projects/sentinels-design-lab"
+      ],
+      "generatedPaths": [
+        "/home/patrick/mission-control/runtime/content"
+      ],
+      "disposableArtifacts": [
+        "draft copy variants after final review"
+      ],
+      "protectedArtifacts": [
+        "client-facing approved copy",
+        "publication-ready media assets"
+      ],
+      "recoveryProcedure": "Retain drafts, require review chain, rehydrate latest approved package from runtime summary + source repo.",
+      "escalationTrigger": "Client-facing publish, brand-sensitive change, or ambiguous final copy ownership."
+    },
+    {
+      "subsystem": "opportunity-intelligence",
+      "ownerAgent": "Funboy",
+      "supportingAgent": "Nettie",
+      "canonicalPaths": [
+        "/home/patrick/mission-control/runtime"
+      ],
+      "generatedPaths": [
+        "/home/patrick/mission-control/runtime/intelligence"
+      ],
+      "disposableArtifacts": [
+        "superseded low-confidence scans after rollup review"
+      ],
+      "protectedArtifacts": [
+        "ranked opportunities still in active pipeline"
+      ],
+      "recoveryProcedure": "Resume from latest scheduled scan summary and preserved queue state.",
+      "escalationTrigger": "High-value opportunity recommendation requiring strategic decision."
+    },
+    {
+      "subsystem": "rd-and-model-experiments",
+      "ownerAgent": "Rab",
+      "supportingAgent": "Van",
+      "canonicalPaths": [
+        "/home/patrick/projects",
+        "/home/patrick/mission-control/runtime"
+      ],
+      "generatedPaths": [
+        "/home/patrick/quarantine"
+      ],
+      "disposableArtifacts": [
+        "obsolete experiment outputs after review"
+      ],
+      "protectedArtifacts": [
+        "validated prototypes referenced by active projects"
+      ],
+      "recoveryProcedure": "Isolate experiments from production runtime and preserve lineage before promoting any result.",
+      "escalationTrigger": "Experiment influences production routing, safety, or model authority."
+    }
+  ]
+}

@@ -12,7 +12,7 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview",
-    "test:integration": "node tests/integration/phase-a-routes.mjs && node tests/integration/phase-b-agent-registry.mjs && node tests/integration/phase-c-governed-runtime.mjs && node tests/integration/phase-d-recovery-reconciliation.mjs && node tests/integration/factory-queue-prioritization.mjs && node tests/integration/factory-dependency-graph.mjs && node tests/integration/phase-2-execution-scoring.mjs && node tests/integration/runtime-continuity-memory.mjs",
+    "test:integration": "node tests/integration/phase-a-routes.mjs && node tests/integration/phase-b-agent-registry.mjs && node tests/integration/phase-c-governed-runtime.mjs && node tests/integration/phase-d-recovery-reconciliation.mjs && node tests/integration/factory-queue-prioritization.mjs && node tests/integration/factory-dependency-graph.mjs && node tests/integration/phase-2-execution-scoring.mjs && node tests/integration/runtime-continuity-memory.mjs && node tests/integration/runtime-summary-drift-protection.mjs",
     "test:ui-hardening": "node tests/integration/nettie-ui-hardening.mjs"
   },
   "dependencies": {

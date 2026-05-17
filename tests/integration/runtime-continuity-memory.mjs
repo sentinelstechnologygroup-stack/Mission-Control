@@ -1,9 +1,12 @@
 import assert from 'assert/strict'
+import fs from 'fs'
+import path from 'path'
 
 const BASE = 'http://127.0.0.1:4174'
+const RUNTIME = '/home/patrick/mission-control/runtime'
 
-async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, options)
+async function request(pathname, options = {}) {
+  const res = await fetch(`${BASE}${pathname}`, options)
   const text = await res.text()
   let data
   try {
@@ -14,11 +17,15 @@ async function request(path, options = {}) {
   return { res, data }
 }
 
+function readJson(file) {
+  return JSON.parse(fs.readFileSync(file, 'utf8'))
+}
+
 async function main() {
   const checkpoint = await request('/api/runtime/checkpoint')
   assert.equal(checkpoint.res.status, 200)
   assert.ok(checkpoint.data.restartEpoch >= 1)
-  assert.ok(checkpoint.data.activeJobs)
+  assert.ok(Array.isArray(checkpoint.data.activeJobs))
   assert.ok(checkpoint.data.reconciliationQueueSummary)
   assert.ok(checkpoint.data.executorForecast)
 
@@ -34,6 +41,7 @@ async function main() {
   assert.ok(exported.data.recoveryState)
   assert.ok(exported.data.budgetState)
   assert.ok(exported.data.reconciliationDebt)
+  assert.ok(exported.data.checkpoint)
 
   const beforeChain = await request('/api/runtime/summaries/chain')
   assert.equal(beforeChain.res.status, 200)
@@ -56,15 +64,21 @@ async function main() {
   assert.equal(compressed2.res.status, 201)
   assert.ok(compressed2.data.previousSummaryId)
   assert.ok(compressed2.data.deltaEventCount >= 0)
+  assert.ok(Array.isArray(compressed2.data.unresolvedItems))
 
   const latest = await request('/api/runtime/summaries/latest')
   assert.equal(latest.res.status, 200)
   assert.equal(latest.data.summaryId, compressed2.data.summaryId)
+  assert.ok(latest.data.sourceTrace)
+  assert.ok(latest.data.sourceTrace.eventCount >= 0)
+  assert.ok(Array.isArray(latest.data.unresolvedItems))
+  assert.ok(typeof latest.data.unresolvedItemsPreserved === 'number')
 
   const chain = await request('/api/runtime/summaries/chain')
   assert.equal(chain.res.status, 200)
   assert.ok(Array.isArray(chain.data.summaries))
-  assert.ok(chain.data.summaries.length >= 2)
+  assert.ok(chain.data.summaries.length >= beforeCount)
+  assert.ok(chain.data.summaries.some((item) => item.summaryId === compressed2.data.previousSummaryId))
 
   const byId = await request(`/api/runtime/summaries/${compressed2.data.summaryId}`)
   assert.equal(byId.res.status, 200)
@@ -94,10 +108,40 @@ async function main() {
   assert.ok(reconSnap1.data.snapshotId)
   assert.ok(reconSnap1.data.debtScore >= 0)
 
+  const reconSnap2 = await request('/api/reconciliation/snapshots', { method: 'POST' })
+  assert.equal(reconSnap2.res.status, 201)
+  assert.ok(reconSnap2.data.previousSnapshotId)
+  assert.ok(reconSnap2.data.comparison)
+
   const reconSnapList = await request('/api/reconciliation/snapshots')
   assert.equal(reconSnapList.res.status, 200)
   assert.ok(Array.isArray(reconSnapList.data.snapshots))
-  assert.ok(reconSnapList.data.snapshots.length >= 1)
+  assert.ok(reconSnapList.data.snapshots.length >= 2)
+
+  const checkpointFile = path.join(RUNTIME, 'runtime-checkpoint.json')
+  const summariesFile = path.join(RUNTIME, 'runtime-summaries.json')
+  const reconFile = path.join(RUNTIME, 'reconciliation-snapshots.json')
+  const eventsFile = path.join(RUNTIME, 'runtime-events.jsonl')
+  const journalFile = path.join(RUNTIME, 'runtime-journal.jsonl')
+  const snapshotsDir = path.join(RUNTIME, 'snapshots')
+
+  for (const file of [checkpointFile, summariesFile, reconFile, eventsFile, journalFile]) {
+    assert.ok(fs.existsSync(file), `expected runtime continuity file ${file}`)
+  }
+  assert.ok(fs.existsSync(snapshotsDir), 'expected versioned snapshot directory')
+  assert.ok(fs.readdirSync(snapshotsDir).some((name) => name.endsWith('.json')), 'expected versioned snapshots to exist')
+
+  const checkpointJson = readJson(checkpointFile)
+  const summariesJson = readJson(summariesFile)
+  const reconJson = readJson(reconFile)
+  assert.ok(checkpointJson.checkpointId)
+  assert.ok(Array.isArray(summariesJson.summaries))
+  assert.ok(Array.isArray(reconJson.snapshots))
+
+  const eventLines = fs.readFileSync(eventsFile, 'utf8').trim().split('\n').filter(Boolean)
+  const journalLines = fs.readFileSync(journalFile, 'utf8').trim().split('\n').filter(Boolean)
+  assert.ok(eventLines.length >= 3, 'expected event ledger entries to be appended')
+  assert.ok(journalLines.length >= 3, 'expected journal entries to be appended')
 
   console.log('Runtime continuity memory tests passed')
 }

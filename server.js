@@ -76,6 +76,11 @@ import {
   loadReconciliationSnapshots,
   saveReconciliationSnapshots,
   buildReconciliationSnapshot,
+  loadRuntimeEvents,
+  loadRuntimeJournal,
+  replayRuntimeLedger,
+  verifySummaryContinuity,
+  buildSummaryDriftReport,
 } from './lib/runtimeContinuity.js'
 import { saveSessionTelemetry, saveCooldownTelemetry } from './lib/tokenTelemetry.js'
 import { registerChatRoutes } from './backend/chat/index.js'
@@ -103,7 +108,8 @@ const recoveryLedgerJsonPath = path.join(sharedLedgerDir, 'work-recovery-ledger.
 const recoveryLedgerMdPath = path.join(sharedLedgerDir, 'work-recovery-ledger.md')
 const recoveryReconciliationJsonPath = path.join(sharedLedgerDir, 'recovery-reconciliation-report.json')
 const recoveryReconciliationMdPath = path.join(sharedLedgerDir, 'recovery-reconciliation-report.md')
-const { checkpoint: runtimeCheckpointPath, summaries: runtimeSummariesPath, reconciliationSnapshots: reconciliationSnapshotsPath } = getRuntimeContinuityPaths(runtimeDir)
+const runtimeContinuityPaths = getRuntimeContinuityPaths(runtimeDir)
+const { checkpoint: runtimeCheckpointPath, summaries: runtimeSummariesPath, reconciliationSnapshots: reconciliationSnapshotsPath } = runtimeContinuityPaths
 const ciRegisterJsonPath = path.join(sharedLedgerDir, 'ci-register.json')
 const ciRegisterMdPath = path.join(sharedLedgerDir, 'ci-register.md')
 const agentsRoot = '/home/patrick/agents'
@@ -1336,6 +1342,8 @@ function getRuntimeSnapshotExportView() {
 
 function buildRuntimeSummaryPayload(type = 'manual') {
   const inputs = getRuntimeSnapshotInputs()
+  const replay = replayRuntimeLedger(runtimeContinuityPaths)
+  const drift = buildSummaryDriftReport({ summariesStore: runtimeSummaries })
   const snapshot = {
     queuePriorities: inputs.queuePriorities,
     reconciliationQueues: inputs.reconciliationQueues,
@@ -1348,6 +1356,7 @@ function buildRuntimeSummaryPayload(type = 'manual') {
       inputs.observability.executorState?.coolingDown ? 'premium executor cooling down' : null,
       inputs.reconciliationDebt.reconciliationDebtScore > 0 ? 'reconciliation debt remains unresolved' : null,
       inputs.queueTopology.orphanChains?.length ? 'orphan dependency chains detected' : null,
+      drift.driftRiskScore > 0 ? 'summary drift risk elevated' : null,
     ].filter(Boolean),
     decisions: [],
     confidence: inputs.observability.bridgeOnline ? 'operational' : 'degraded',
@@ -1355,7 +1364,7 @@ function buildRuntimeSummaryPayload(type = 'manual') {
   return buildRuntimeSummary({
     type,
     previous: runtimeSummaries.summaries?.slice(-1)[0] || null,
-    sourceEventCount: (state.logs?.length || 0) + (state.chat?.length || 0) + (state.workers?.length || 0),
+    sourceEventCount: replay.eventCount,
     generatedBy: buildExecutorBridgeStatus().localAIAvailable ? 'mission-control-local-ai' : 'mission-control',
     now: nowIso(),
     snapshot,

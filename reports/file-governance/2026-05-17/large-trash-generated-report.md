@@ -1,0 +1,228 @@
+# Large / Trash / Generated Report
+
+## Generated directories
+- `/home/patrick/.cache` — 3.4 GB — 2026-04-30T22:40:37.522394+00:00
+- `/home/patrick/.hermes/node/lib/node_modules` — 914.3 MB — 2026-05-12T23:23:36.515827+00:00
+- `/home/patrick/.codex/tmp` — 834.3 MB — 2026-05-09T18:14:28.497542+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232054/node/lib/node_modules` — 712.2 MB — 2026-05-02T04:21:03.119012+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/node/lib/node_modules` — 712.2 MB — 2026-05-02T04:21:20.528949+00:00
+- `/home/patrick/.hermes_backup_1777696186/node/lib/node_modules` — 712.2 MB — 2026-05-02T04:29:52.979167+00:00
+- `/home/patrick/projects/websites/sentinels-design-lab/node_modules` — 687.5 MB — 2026-05-05T03:21:19.963587+00:00
+- `/home/patrick/projects/websites/trade-bridge/source-next/node_modules` — 453.5 MB — 2026-04-29T03:40:39.484003+00:00
+- `/home/patrick/apps/shared-groceries-app/workspace/source/node_modules` — 438.1 MB — 2026-04-27T02:07:42.563390+00:00
+- `/home/patrick/projects/saas-opportunity-lab/actionrelay-web/node_modules` — 404.5 MB — 2026-04-18T14:38:20.076936+00:00
+- `/home/patrick/projects/gulfcoastprosthetics-redesign-run/node_modules` — 404.5 MB — 2026-04-18T05:16:17.505389+00:00
+- `/home/patrick/projects/gulfcoastprosthetics-redesign/node_modules` — 393.1 MB — 2026-04-18T05:00:07.183439+00:00
+- `/home/patrick/apps/gulf-coast-prosthetics-redesign-1/workspace/source/node_modules` — 364.4 MB — 2026-04-26T23:57:09.671405+00:00
+- `/home/patrick/projects/websites/sentinels-design-lab/.next` — 301.1 MB — 2026-05-06T20:34:04.543866+00:00
+- `/home/patrick/mission-control/node_modules` — 299.4 MB — 2026-05-09T19:01:04.372533+00:00
+- `/home/patrick/projects/saas/FuelRouteOS/FuelRouteOS_driver_clean/node_modules` — 294.2 MB — 2026-05-06T22:13:57.976568+00:00
+- `/home/patrick/projects/websites/trade-bridge/node_modules` — 292.8 MB — 2026-04-29T03:20:57.646751+00:00
+- `/home/patrick/projects/websites/link-international/link-international/node_modules` — 292.5 MB — 2026-05-12T03:56:48.941946+00:00
+- `/home/patrick/projects/sys005-home-1777675896/mission-control/node_modules` — 291.8 MB — 2026-04-20T05:54:01.605382+00:00
+- `/home/patrick/projects/sys007-home-1777691132/mission-control/node_modules` — 291.8 MB — 2026-04-20T05:54:01.605382+00:00
+- `/home/patrick/projects/mission-control-sys005-test-1777675271/node_modules` — 291.8 MB — 2026-04-20T05:54:01.605382+00:00
+- `/home/patrick/projects/sys007-home/mission-control/node_modules` — 291.8 MB — 2026-04-20T05:54:01.605382+00:00
+- `/home/patrick/projects/sys006-home-1777678484/mission-control/node_modules` — 291.8 MB — 2026-04-20T05:54:01.605382+00:00
+- `/home/patrick/projects/sys005-home-1777675336/mission-control/node_modules` — 291.8 MB — 2026-04-20T05:54:01.605382+00:00
+- `/home/patrick/projects/sys005-home-1777675647/mission-control/node_modules` — 291.8 MB — 2026-04-20T05:54:01.605382+00:00
+- `/home/patrick/projects/websites/mdx-fuel-website/node_modules` — 289.1 MB — 2026-05-06T21:23:32.195949+00:00
+- `/home/patrick/projects/websites/gulf-coast-business-alliance/node_modules` — 287.6 MB — 2026-05-11T22:36:12.666435+00:00
+- `/home/patrick/projects/saas-opportunity-lab/focusfence-mobile-app/node_modules` — 255.4 MB — 2026-04-18T20:02:42.905395+00:00
+- `/home/patrick/apps/gulf-coast-prosthetics-redesign-1/workspace/source/.next` — 252.8 MB — 2026-04-27T00:04:38.173916+00:00
+- `/home/patrick/projects/gulfcoastprosthetics-redesign-run/.next` — 223.2 MB — 2026-04-18T05:44:15.043852+00:00
+- `/home/patrick/projects/websites/trade-bridge/source-next/.next` — 218.4 MB — 2026-04-30T16:18:03.196735+00:00
+- `/home/patrick/.hermes/hermes-agent/ui-tui/node_modules` — 190.6 MB — 2026-04-19T22:43:15.741413+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/ui-tui/node_modules` — 190.6 MB — 2026-05-02T04:21:24.611637+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/ui-tui/node_modules` — 190.6 MB — 2026-05-02T04:29:58.238271+00:00
+- `/home/patrick/.hermes/hermes-agent/web/node_modules` — 181.3 MB — 2026-04-19T22:43:16.081411+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/web/node_modules` — 181.3 MB — 2026-05-02T04:21:27.022639+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/web/node_modules` — 181.3 MB — 2026-05-02T04:30:00.509112+00:00
+- `/home/patrick/.npm/_npx/69f9afb961c37556/node_modules` — 174.7 MB — 2026-04-30T22:40:37.078397+00:00
+- `/home/patrick/.hermes/hermes-agent/node_modules` — 136.3 MB — 2026-04-19T22:43:15.349415+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/node_modules` — 136.3 MB — 2026-05-02T04:21:43.002401+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/node_modules` — 136.3 MB — 2026-05-02T04:30:15.437392+00:00
+- `/home/patrick/projects/saas-opportunity-lab/actionrelay-web/.next` — 89.6 MB — 2026-04-18T15:59:50.028478+00:00
+- `/home/patrick/projects/healthcare-teams-zoho-middleware/node_modules` — 81.8 MB — 2026-04-23T21:32:06.608589+00:00
+- `/home/patrick/.hermes/hermes-agent/scripts/whatsapp-bridge/node_modules` — 58.7 MB — 2026-04-18T02:02:38.680626+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232054/hermes-agent/scripts/whatsapp-bridge/node_modules` — 58.7 MB — 2026-05-02T04:21:04.893505+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/scripts/whatsapp-bridge/node_modules` — 58.7 MB — 2026-05-02T04:21:21.132200+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/scripts/whatsapp-bridge/node_modules` — 58.7 MB — 2026-05-02T04:29:54.586658+00:00
+- `/home/patrick/.hermes/hermes-agent/ui-tui/packages/hermes-ink/node_modules` — 30.3 MB — 2026-04-18T01:59:55.101912+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232054/hermes-agent/ui-tui/packages/hermes-ink/node_modules` — 30.3 MB — 2026-05-02T04:21:05.309153+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/ui-tui/packages/hermes-ink/node_modules` — 30.3 MB — 2026-05-02T04:21:21.207667+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/ui-tui/packages/hermes-ink/node_modules` — 30.3 MB — 2026-05-02T04:29:54.966549+00:00
+- `/home/patrick/projects/websites/mdx-fuel-website/dist` — 18.9 MB — 2026-05-06T21:59:31.683813+00:00
+- `/home/patrick/.npm/_npx/e41f203b7505f1fb/node_modules` — 16.6 MB — 2026-05-14T03:34:32.915298+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232054/hermes-agent/ui-tui/node_modules` — 9.5 MB — 2026-05-02T04:21:05.572930+00:00
+- `/home/patrick/mission-control/tmp` — 7.3 MB — 2026-05-14T04:12:45.197739+00:00
+- `/home/patrick/projects/sys007-home/mission-control/tmp` — 6.7 MB — 2026-05-02T03:11:31.978856+00:00
+- `/home/patrick/projects/sys005-home-1777675896/mission-control/tmp` — 6.7 MB — 2026-05-01T22:55:09.131970+00:00
+- `/home/patrick/projects/sys005-home-1777675647/mission-control/tmp` — 6.7 MB — 2026-05-01T22:49:51.049661+00:00
+- `/home/patrick/projects/sys007-home-1777691132/mission-control/tmp` — 6.7 MB — 2026-05-02T03:06:16.369781+00:00
+- `/home/patrick/projects/sys006-home-1777678484/mission-control/tmp` — 6.7 MB — 2026-05-01T23:36:20.833722+00:00
+- `/home/patrick/projects/sys005-home-1777675336/mission-control/tmp` — 6.7 MB — 2026-05-01T22:45:19.211107+00:00
+- `/home/patrick/projects/mission-control-sys005-test-1777675271/tmp` — 6.7 MB — 2026-05-01T18:30:53.466203+00:00
+- `/home/patrick/projects/websites/link-international/link-international/dist` — 5.1 MB — 2026-05-12T04:00:36.360845+00:00
+- `/home/patrick/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/__pycache__` — 3.5 MB — 2026-04-19T19:33:44.915238+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/lark_oapi/api/hire/v1/model/__pycache__` — 3.1 MB — 2026-04-19T18:59:18.747681+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/lark_oapi/api/hire/v1/model/__pycache__` — 3.1 MB — 2026-05-02T04:21:33.840344+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/lark_oapi/api/hire/v1/model/__pycache__` — 3.1 MB — 2026-05-02T04:30:06.525573+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/lark_oapi/api/corehr/v2/model/__pycache__` — 3.0 MB — 2026-04-18T20:54:06.083668+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/lark_oapi/api/corehr/v2/model/__pycache__` — 3.0 MB — 2026-05-02T04:21:33.491144+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/lark_oapi/api/corehr/v2/model/__pycache__` — 3.0 MB — 2026-05-02T04:30:06.153687+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/discord/__pycache__` — 2.3 MB — 2026-04-19T22:12:21.393558+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/discord/__pycache__` — 2.3 MB — 2026-05-02T04:21:37.401795+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/discord/__pycache__` — 2.3 MB — 2026-05-02T04:30:09.829334+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/pandas/core/__pycache__` — 2.0 MB — 2026-04-20T00:20:05.497444+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/pandas/core/__pycache__` — 2.0 MB — 2026-05-02T04:21:38.630805+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/pandas/core/__pycache__` — 2.0 MB — 2026-05-02T04:30:11.363348+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/telegram/__pycache__` — 1.7 MB — 2026-04-18T04:32:33.031919+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/telegram/__pycache__` — 1.7 MB — 2026-05-02T04:21:28.606495+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/telegram/__pycache__` — 1.7 MB — 2026-05-02T04:30:02.005289+00:00
+- `/home/patrick/.hermes/hermes-agent/hermes_cli/__pycache__` — 1.7 MB — 2026-05-02T04:18:34.493171+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232054/hermes-agent/hermes_cli/__pycache__` — 1.7 MB — 2026-05-02T04:21:04.010254+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/hermes_cli/__pycache__` — 1.7 MB — 2026-05-02T04:21:20.989223+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/hermes_cli/__pycache__` — 1.7 MB — 2026-05-02T04:29:53.758908+00:00
+- `/home/patrick/.hermes/hermes-agent/tools/__pycache__` — 1.6 MB — 2026-05-12T04:52:16.486040+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232054/hermes-agent/tools/__pycache__` — 1.6 MB — 2026-05-02T04:21:05.197248+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/tools/__pycache__` — 1.6 MB — 2026-05-02T04:21:21.183835+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/tools/__pycache__` — 1.6 MB — 2026-05-02T04:29:54.858580+00:00
+- `/home/patrick/.npm/_npx/cc2145a2fe1558fa/node_modules` — 1.5 MB — 2026-04-18T04:52:07.765900+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/pandas/tests/frame/methods/__pycache__` — 1.5 MB — 2026-04-20T00:20:05.913442+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/pandas/tests/frame/methods/__pycache__` — 1.5 MB — 2026-05-02T04:21:38.831634+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/pandas/tests/frame/methods/__pycache__` — 1.5 MB — 2026-05-02T04:30:11.567083+00:00
+- `/home/patrick/.npm/_npx/956a30255ff895e3/node_modules` — 1.4 MB — 2026-04-18T19:57:44.272108+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/lark_oapi/api/corehr/v1/model/__pycache__` — 1.4 MB — 2026-04-18T20:54:05.555671+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/lark_oapi/api/corehr/v1/model/__pycache__` — 1.4 MB — 2026-05-02T04:21:33.282885+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/lark_oapi/api/corehr/v1/model/__pycache__` — 1.4 MB — 2026-05-02T04:30:05.949670+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/PIL/__pycache__` — 1.4 MB — 2026-04-24T16:17:14.467102+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/PIL/__pycache__` — 1.4 MB — 2026-05-02T04:21:37.538345+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/PIL/__pycache__` — 1.4 MB — 2026-05-02T04:30:09.961164+00:00
+- `/home/patrick/projects/websites/trade-bridge/dist` — 1.3 MB — 2026-04-30T21:55:09.728722+00:00
+- `/home/patrick/.venvs/sdl-assets/lib/python3.12/site-packages/PIL/__pycache__` — 1.3 MB — 2026-04-30T23:49:56.359015+00:00
+- `/home/patrick/.venvs/sdl-images/lib/python3.12/site-packages/PIL/__pycache__` — 1.3 MB — 2026-05-01T03:45:23.758928+00:00
+- `/home/patrick/.venvs/imgtools/lib/python3.12/site-packages/PIL/__pycache__` — 1.3 MB — 2026-05-01T04:16:48.493498+00:00
+- `/home/patrick/.venvs/sdl-img/lib/python3.12/site-packages/PIL/__pycache__` — 1.3 MB — 2026-05-01T03:45:01.163692+00:00
+- `/home/patrick/.venvs/sdlimg/lib/python3.12/site-packages/PIL/__pycache__` — 1.3 MB — 2026-05-01T03:45:55.445869+00:00
+- `/home/patrick/.local/lib/python3.12/site-packages/PIL/__pycache__` — 1.3 MB — 2026-05-04T06:03:30.911454+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/botocore/__pycache__` — 1.3 MB — 2026-04-18T04:16:00.885062+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/botocore/__pycache__` — 1.3 MB — 2026-05-02T04:21:35.831640+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/botocore/__pycache__` — 1.3 MB — 2026-05-02T04:30:08.383197+00:00
+- `/home/patrick/.hermes/hermes-agent/__pycache__` — 1.2 MB — 2026-04-19T22:51:44.045659+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/__pycache__` — 1.2 MB — 2026-05-02T04:21:43.034971+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/__pycache__` — 1.2 MB — 2026-05-02T04:30:15.465338+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/pip/_vendor/rich/__pycache__` — 1.2 MB — 2026-04-18T18:10:58.158738+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/pip/_vendor/rich/__pycache__` — 1.2 MB — 2026-05-02T04:21:37.775298+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/pip/_vendor/rich/__pycache__` — 1.2 MB — 2026-05-02T04:30:10.176885+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/_pytest/__pycache__` — 1.2 MB — 2026-04-18T22:22:50.509835+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/_pytest/__pycache__` — 1.2 MB — 2026-05-02T04:21:29.308939+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/_pytest/__pycache__` — 1.2 MB — 2026-05-02T04:30:02.601352+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/modal/__pycache__` — 1.1 MB — 2026-04-19T19:33:57.183180+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/modal/__pycache__` — 1.1 MB — 2026-05-02T04:21:27.816442+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/modal/__pycache__` — 1.1 MB — 2026-05-02T04:30:01.261203+00:00
+- `/home/patrick/projects/sys005-home-1777675896/mission-control/.venv-docx/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/projects/sys005-home-1777675896/mission-control/.venv-docx/lib64/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/projects/sys007-home-1777691132/mission-control/.venv-docx/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/projects/sys007-home-1777691132/mission-control/.venv-docx/lib64/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/projects/mission-control-sys005-test-1777675271/.venv-docx/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/projects/mission-control-sys005-test-1777675271/.venv-docx/lib64/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/projects/sys007-home/mission-control/.venv-docx/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/projects/sys007-home/mission-control/.venv-docx/lib64/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/projects/sys006-home-1777678484/mission-control/.venv-docx/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/projects/sys006-home-1777678484/mission-control/.venv-docx/lib64/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/projects/sys005-home-1777675336/mission-control/.venv-docx/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/projects/sys005-home-1777675336/mission-control/.venv-docx/lib64/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/projects/sys005-home-1777675647/mission-control/.venv-docx/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/projects/sys005-home-1777675647/mission-control/.venv-docx/lib64/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/mission-control/.venv-docx/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:11:15.452602+00:00
+- `/home/patrick/projects/sys005-home-1777675896/mission-control/.venv/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/projects/sys005-home-1777675896/mission-control/.venv/lib64/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/projects/sys007-home-1777691132/mission-control/.venv/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/projects/sys007-home-1777691132/mission-control/.venv/lib64/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/projects/mission-control-sys005-test-1777675271/.venv/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/projects/mission-control-sys005-test-1777675271/.venv/lib64/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/projects/sys007-home/mission-control/.venv/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/projects/sys007-home/mission-control/.venv/lib64/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/projects/sys006-home-1777678484/mission-control/.venv/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/projects/sys006-home-1777678484/mission-control/.venv/lib64/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/projects/sys005-home-1777675336/mission-control/.venv/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/projects/sys005-home-1777675336/mission-control/.venv/lib64/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/projects/sys005-home-1777675647/mission-control/.venv/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/projects/sys005-home-1777675647/mission-control/.venv/lib64/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/mission-control/.venv/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-19T05:02:45.386649+00:00
+- `/home/patrick/.venvs/sdl-assets/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-04-30T23:49:48.995045+00:00
+- `/home/patrick/.venvs/sdl-images/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-05-01T03:45:21.475004+00:00
+- `/home/patrick/.venvs/imgtools/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-05-01T04:16:45.665548+00:00
+- `/home/patrick/.venvs/sdl-img/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-05-01T03:44:58.891768+00:00
+- `/home/patrick/.venvs/sdlimg/lib/python3.12/site-packages/pip/_vendor/rich/__pycache__` — 1.1 MB — 2026-05-01T03:45:32.558634+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/aiohttp/__pycache__` — 1.1 MB — 2026-04-19T18:59:15.803710+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/aiohttp/__pycache__` — 1.1 MB — 2026-05-02T04:21:28.686306+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/aiohttp/__pycache__` — 1.1 MB — 2026-05-02T04:30:02.073296+00:00
+- `/home/patrick/apps/shared-groceries-app/workspace/source/dist` — 1.1 MB — 2026-04-29T02:46:23.867322+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/__pycache__` — 1.1 MB — 2026-04-20T00:20:05.009446+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/__pycache__` — 1.1 MB — 2026-05-02T04:21:37.441957+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/__pycache__` — 1.1 MB — 2026-05-02T04:30:09.869283+00:00
+- `/home/patrick/projects/sys005-home-1777675896/mission-control/dist` — 1.0 MB — 2026-04-27T18:26:52.439549+00:00
+- `/home/patrick/projects/sys007-home-1777691132/mission-control/dist` — 1.0 MB — 2026-04-27T18:26:52.439549+00:00
+- `/home/patrick/projects/mission-control-sys005-test-1777675271/dist` — 1.0 MB — 2026-04-27T18:26:52.439549+00:00
+- `/home/patrick/projects/sys007-home/mission-control/dist` — 1.0 MB — 2026-04-27T18:26:52.439549+00:00
+- `/home/patrick/projects/sys006-home-1777678484/mission-control/dist` — 1.0 MB — 2026-04-27T18:26:52.439549+00:00
+- `/home/patrick/projects/sys005-home-1777675336/mission-control/dist` — 1.0 MB — 2026-04-27T18:26:52.439549+00:00
+- `/home/patrick/projects/sys005-home-1777675647/mission-control/dist` — 1.0 MB — 2026-04-27T18:26:52.439549+00:00
+- `/home/patrick/.hermes/hermes-agent/agent/__pycache__` — 1.0 MB — 2026-05-02T04:18:35.342326+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232054/hermes-agent/agent/__pycache__` — 1.0 MB — 2026-05-02T04:21:03.922329+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/agent/__pycache__` — 1.0 MB — 2026-05-02T04:21:20.973352+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/agent/__pycache__` — 1.0 MB — 2026-05-02T04:29:53.682933+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/pandas/tests/frame/__pycache__` — 971.5 KB — 2026-04-20T00:20:05.961442+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/pandas/tests/frame/__pycache__` — 971.5 KB — 2026-05-02T04:21:38.839667+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/pandas/tests/frame/__pycache__` — 971.5 KB — 2026-05-02T04:30:11.575073+00:00
+- `/home/patrick/.hermes/hermes-agent/venv/lib/python3.11/site-packages/rich/__pycache__` — 959.5 KB — 2026-04-19T19:34:12.763112+00:00
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/hermes-agent/venv/lib/python3.11/site-packages/rich/__pycache__` — 959.5 KB — 2026-05-02T04:21:27.198153+00:00
+- `/home/patrick/.hermes_backup_1777696186/hermes-agent/venv/lib/python3.11/site-packages/rich/__pycache__` — 959.5 KB — 2026-05-02T04:30:00.649130+00:00
+- `/home/patrick/projects/sys005-home-1777675896/mission-control/.venv-docx/lib/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/projects/sys005-home-1777675896/mission-control/.venv-docx/lib64/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/projects/sys007-home-1777691132/mission-control/.venv-docx/lib/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/projects/sys007-home-1777691132/mission-control/.venv-docx/lib64/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/projects/mission-control-sys005-test-1777675271/.venv-docx/lib/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/projects/mission-control-sys005-test-1777675271/.venv-docx/lib64/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/projects/sys007-home/mission-control/.venv-docx/lib/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/projects/sys007-home/mission-control/.venv-docx/lib64/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/projects/sys006-home-1777678484/mission-control/.venv-docx/lib/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/projects/sys006-home-1777678484/mission-control/.venv-docx/lib64/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/projects/sys005-home-1777675336/mission-control/.venv-docx/lib/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/projects/sys005-home-1777675336/mission-control/.venv-docx/lib64/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/projects/sys005-home-1777675647/mission-control/.venv-docx/lib/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/projects/sys005-home-1777675647/mission-control/.venv-docx/lib64/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/mission-control/.venv-docx/lib/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.4 KB — 2026-04-19T05:11:15.204622+00:00
+- `/home/patrick/projects/sys005-home-1777675896/mission-control/.venv/lib/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.1 KB — 2026-04-19T05:02:45.122650+00:00
+- `/home/patrick/projects/sys005-home-1777675896/mission-control/.venv/lib64/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.1 KB — 2026-04-19T05:02:45.122650+00:00
+- `/home/patrick/projects/sys007-home-1777691132/mission-control/.venv/lib/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.1 KB — 2026-04-19T05:02:45.122650+00:00
+- `/home/patrick/projects/sys007-home-1777691132/mission-control/.venv/lib64/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.1 KB — 2026-04-19T05:02:45.122650+00:00
+- `/home/patrick/projects/mission-control-sys005-test-1777675271/.venv/lib/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.1 KB — 2026-04-19T05:02:45.122650+00:00
+- `/home/patrick/projects/mission-control-sys005-test-1777675271/.venv/lib64/python3.12/site-packages/pip/_vendor/chardet/__pycache__` — 956.1 KB — 2026-04-19T05:02:45.122650+00:00
+
+## Large files (>=100MB)
+- `/home/patrick/.ollama/models/blobs/sha256-ac9bc7a69dab38da1c790838955f1293420b55ab555ef6b4615efa1c1507b1ed` — 8.4 GB
+- `/home/patrick/.ollama/models/blobs/sha256-f5074b1221da0f5a2910d33b642efa5b9eb58cfdddca1c79e16d7ad28aa2b31f` — 4.1 GB
+- `/home/patrick/.ollama/models/blobs/sha256-59bb50d8116b6a1f9bfbb940d6bb946a05554e591e30c8c2429ed6c854867ecb` — 3.6 GB
+- `/home/patrick/projects/websites/sentinels-design-lab.zip` — 624.7 MB
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232054/node/bin/claude` — 236.6 MB
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/node/bin/claude` — 236.6 MB
+- `/home/patrick/.hermes_backup_1777696186/node/bin/claude` — 236.6 MB
+- `/home/patrick/.hermes/node/bin/claude` — 222.3 MB
+- `/home/patrick/.codex/tmp/arg0/codex-arg0RPYNPp/codex-execve-wrapper` — 208.6 MB
+- `/home/patrick/.codex/tmp/arg0/codex-arg0RPYNPp/codex-linux-sandbox` — 208.6 MB
+- `/home/patrick/.codex/tmp/arg0/codex-arg0RPYNPp/applypatch` — 208.6 MB
+- `/home/patrick/.codex/tmp/arg0/codex-arg0RPYNPp/apply_patch` — 208.6 MB
+- `/home/patrick/apps/gulf-coast-prosthetics-redesign-1/gulf-coast-prosthetics-redesign-1.zip` — 155.9 MB
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/state.db` — 124.3 MB
+- `/home/patrick/.hermes/node/bin/node` — 118.9 MB
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232054/node/bin/node` — 118.9 MB
+- `/home/patrick/hermes-config-backups/hermes-backup-20260501_232119/node/bin/node` — 118.9 MB
+- `/home/patrick/.local/bin/node` — 118.9 MB
+- `/home/patrick/.hermes_backup_1777696186/node/bin/node` — 118.9 MB
+- `/home/patrick/.vscode-remote-containers/bin/10c8e557c8b9f9ed0a87f61f1c9a44bde731c409/node` — 118.9 MB
+- `/home/patrick/.vscode-remote-containers/bin/10c8e557c8b9f9ed0a87f61f1c9a44bde731c409/vscode-server-linux-x64/node` — 118.9 MB
+- `/home/patrick/.vscode-remote-containers/bin/560a9dba96f961efea7b1612916f89e5d5d4d679/node` — 118.9 MB
+- `/home/patrick/.vscode-remote-containers/bin/034f571df509819cc10b0c8129f66ef77a542f0e/node` — 118.9 MB
