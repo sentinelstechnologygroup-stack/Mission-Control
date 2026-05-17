@@ -30,6 +30,17 @@ export function registerOpsRoutes(app, deps) {
     getArchiveCandidatesView,
     getArchiveCompactionDryRunView,
     getQueueTopologyView,
+    getRuntimeCheckpointView,
+    persistRuntimeCheckpoint,
+    getRuntimeSnapshotExportView,
+    createRuntimeSummary,
+    listRuntimeSummaries,
+    getLatestRuntimeSummary,
+    getRuntimeSummaryById,
+    getCompactContextView,
+    getContextEvictionCandidatesView,
+    listReconciliationSnapshots,
+    createReconciliationSnapshot,
     fs,
     path,
     getDepartmentHeadDir,
@@ -80,6 +91,68 @@ export function registerOpsRoutes(app, deps) {
 
   app.get('/api/queue/topology', (_, res) => {
     res.json(getQueueTopologyView())
+  })
+
+  app.get('/api/runtime/checkpoint', (_, res) => {
+    res.json(getRuntimeCheckpointView())
+  })
+
+  app.post('/api/runtime/checkpoint', (_, res) => {
+    const checkpoint = persistRuntimeCheckpoint()
+    res.json({ saved: true, ...checkpoint })
+  })
+
+  app.get('/api/runtime/snapshot/export', (_, res) => {
+    res.json(getRuntimeSnapshotExportView())
+  })
+
+  app.get('/api/runtime/summaries', (_, res) => {
+    res.json({ summaries: listRuntimeSummaries() })
+  })
+
+  app.get('/api/runtime/summaries/latest', (_, res) => {
+    const summary = getLatestRuntimeSummary()
+    if (!summary) return res.status(404).json({ error: 'No runtime summaries available' })
+    res.json(summary)
+  })
+
+  app.post('/api/runtime/summaries/rollup', (req, res) => {
+    const type = String(req.body?.type || 'manual')
+    const summary = createRuntimeSummary(type)
+    res.status(201).json(summary)
+  })
+
+  app.post('/api/runtime/summaries/compress', (req, res) => {
+    const type = String(req.body?.type || 'manual')
+    const summary = createRuntimeSummary(type)
+    res.status(201).json(summary)
+  })
+
+  app.get('/api/runtime/summaries/chain', (_, res) => {
+    res.json({ summaries: listRuntimeSummaries() })
+  })
+
+  app.get('/api/runtime/summaries/:id', (req, res) => {
+    const summary = getRuntimeSummaryById(String(req.params.id || ''))
+    if (!summary) return res.status(404).json({ error: 'Runtime summary not found' })
+    res.json(summary)
+  })
+
+  app.get('/api/context/compact/:agent', (req, res) => {
+    res.json(getCompactContextView(String(req.params.agent || 'nettie')))
+  })
+
+  app.get('/api/context/eviction-candidates', (_, res) => {
+    res.json(getContextEvictionCandidatesView())
+  })
+
+  app.get('/api/reconciliation/snapshots', (_, res) => {
+    res.json({ snapshots: listReconciliationSnapshots() })
+  })
+
+  app.post('/api/reconciliation/snapshots', (_, res) => {
+    const snapshot = createReconciliationSnapshot()
+    res.status(201).json(snapshot)
   })
 
   app.get('/api/logs', (_, res) => res.json(state.logs))

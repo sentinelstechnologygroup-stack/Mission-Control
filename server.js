@@ -61,6 +61,22 @@ import {
   buildArchiveCompactionDryRun,
   buildQueueTopologyView,
 } from './lib/operationalViews.js'
+import {
+  getRuntimeContinuityPaths,
+  loadRuntimeCheckpoint,
+  saveRuntimeCheckpoint,
+  buildRuntimeCheckpoint,
+  buildSnapshotExport,
+  loadRuntimeSummaries,
+  saveRuntimeSummaries,
+  buildRuntimeSummary,
+  applyIncrementalSummary,
+  buildCompactContext,
+  buildContextEvictionCandidates,
+  loadReconciliationSnapshots,
+  saveReconciliationSnapshots,
+  buildReconciliationSnapshot,
+} from './lib/runtimeContinuity.js'
 import { saveSessionTelemetry, saveCooldownTelemetry } from './lib/tokenTelemetry.js'
 import { registerChatRoutes } from './backend/chat/index.js'
 import { registerJobsRoutes } from './backend/jobs/index.js'
@@ -87,6 +103,7 @@ const recoveryLedgerJsonPath = path.join(sharedLedgerDir, 'work-recovery-ledger.
 const recoveryLedgerMdPath = path.join(sharedLedgerDir, 'work-recovery-ledger.md')
 const recoveryReconciliationJsonPath = path.join(sharedLedgerDir, 'recovery-reconciliation-report.json')
 const recoveryReconciliationMdPath = path.join(sharedLedgerDir, 'recovery-reconciliation-report.md')
+const { checkpoint: runtimeCheckpointPath, summaries: runtimeSummariesPath, reconciliationSnapshots: reconciliationSnapshotsPath } = getRuntimeContinuityPaths(runtimeDir)
 const ciRegisterJsonPath = path.join(sharedLedgerDir, 'ci-register.json')
 const ciRegisterMdPath = path.join(sharedLedgerDir, 'ci-register.md')
 const agentsRoot = '/home/patrick/agents'
@@ -1064,6 +1081,9 @@ state.system = {
 let agentRegistry = loadAgentRegistry(agentRegistryPath, { nowIso: nowIso(), legacyAgents: state.agents || [] })
 let governanceState = loadGovernanceState(governanceStatePath, state.system)
 let recoveryReconciliationReport = loadRecoveryReconciliationReport(recoveryReconciliationJsonPath)
+let runtimeCheckpoint = loadRuntimeCheckpoint(runtimeCheckpointPath)
+let runtimeSummaries = loadRuntimeSummaries(runtimeSummariesPath)
+let reconciliationSnapshots = loadReconciliationSnapshots(reconciliationSnapshotsPath)
 const runningWorkers = new Map()
 
 // ===========================================================
@@ -1249,6 +1269,161 @@ function getQueueTopologyView() {
     queuePriorities: getQueuePrioritiesView(),
     now: nowIso(),
   })
+}
+
+function getRuntimeSnapshotInputs() {
+  const queuePriorities = getQueuePrioritiesView()
+  const dependencyGraph = getDependencyGraphView()
+  const reconciliationQueues = getReconciliationQueuesView()
+  const executorForecast = getExecutorForecastView()
+  const observability = getObservabilityView()
+  const nextActions = getTopNextActionsView()
+  const reconciliationDebt = getReconciliationDebtView()
+  const queueTopology = getQueueTopologyView()
+  const archiveCandidates = getArchiveCandidatesView()
+  const restartState = getRestartStateView()
+  return {
+    queuePriorities,
+    dependencyGraph,
+    reconciliationQueues,
+    executorForecast,
+    observability,
+    nextActions,
+    reconciliationDebt,
+    queueTopology,
+    archiveCandidates,
+    restartState,
+  }
+}
+
+function getRuntimeCheckpointView() {
+  return buildRuntimeCheckpoint({
+    state,
+    ...getRuntimeSnapshotInputs(),
+    now: nowIso(),
+  })
+}
+
+function persistRuntimeCheckpoint() {
+  runtimeCheckpoint = saveRuntimeCheckpoint(runtimeCheckpointPath, getRuntimeCheckpointView())
+  return runtimeCheckpoint
+}
+
+function getRuntimeSnapshotExportView() {
+  const inputs = getRuntimeSnapshotInputs()
+  const checkpoint = runtimeCheckpoint || getRuntimeCheckpointView()
+  return buildSnapshotExport({
+    observability: inputs.observability,
+    queueTopology: inputs.queueTopology,
+    recoveryState: {
+      reconciliationQueues: inputs.reconciliationQueues,
+      debt: inputs.reconciliationDebt,
+      cooldownBlockedList: getCooldownBlockedListArtifactView(),
+    },
+    budgetState: inputs.executorForecast,
+    executorState: buildExecutorBridgeStatus(),
+    reconciliationDebt: inputs.reconciliationDebt,
+    archiveCandidates: inputs.archiveCandidates,
+    factoryPipelineState: {
+      phase: 'runtime_foundation',
+      intakeAvailable: false,
+      pipelineCount: 0,
+    },
+    checkpoint,
+    now: nowIso(),
+  })
+}
+
+function buildRuntimeSummaryPayload(type = 'manual') {
+  const inputs = getRuntimeSnapshotInputs()
+  const snapshot = {
+    queuePriorities: inputs.queuePriorities,
+    reconciliationQueues: inputs.reconciliationQueues,
+    nextActions: inputs.nextActions,
+    dependencySummary: inputs.queueTopology,
+    blocked: (inputs.reconciliationDebt.topBlockers || []).map((item) => item.title || item.jobId),
+    failures: (inputs.queuePriorities.priorities || []).filter((job) => String(job.currentStatus || '').toLowerCase() === 'failed').slice(0, 10).map((job) => job.title),
+    shippedWork: [],
+    risks: [
+      inputs.observability.executorState?.coolingDown ? 'premium executor cooling down' : null,
+      inputs.reconciliationDebt.reconciliationDebtScore > 0 ? 'reconciliation debt remains unresolved' : null,
+      inputs.queueTopology.orphanChains?.length ? 'orphan dependency chains detected' : null,
+    ].filter(Boolean),
+    decisions: [],
+    confidence: inputs.observability.bridgeOnline ? 'operational' : 'degraded',
+  }
+  return buildRuntimeSummary({
+    type,
+    previous: runtimeSummaries.summaries?.slice(-1)[0] || null,
+    sourceEventCount: (state.logs?.length || 0) + (state.chat?.length || 0) + (state.workers?.length || 0),
+    generatedBy: buildExecutorBridgeStatus().localAIAvailable ? 'mission-control-local-ai' : 'mission-control',
+    now: nowIso(),
+    snapshot,
+  })
+}
+
+function createRuntimeSummary(type = 'manual') {
+  const summary = buildRuntimeSummaryPayload(type)
+  runtimeSummaries = applyIncrementalSummary({ store: runtimeSummaries, summary })
+  saveRuntimeSummaries(runtimeSummariesPath, runtimeSummaries)
+  return summary
+}
+
+function listRuntimeSummaries() {
+  return runtimeSummaries.summaries || []
+}
+
+function getLatestRuntimeSummary() {
+  const summaries = listRuntimeSummaries()
+  return summaries.length ? summaries[summaries.length - 1] : null
+}
+
+function getRuntimeSummaryById(summaryId = '') {
+  return listRuntimeSummaries().find((item) => item.summaryId === summaryId) || null
+}
+
+function getCompactContextView(agent = 'nettie') {
+  return buildCompactContext({
+    agent,
+    latestSummary: getLatestRuntimeSummary(),
+    queuePriorities: getQueuePrioritiesView(),
+    dependencyGraph: getDependencyGraphView(),
+    reconciliationQueues: getReconciliationQueuesView(),
+    now: nowIso(),
+  })
+}
+
+function getContextEvictionCandidatesView() {
+  return buildContextEvictionCandidates({
+    summariesStore: runtimeSummaries,
+    chat: state.chat || [],
+    logs: state.logs || [],
+    jobs: jobStore.deriveLedgerView(),
+    now: nowIso(),
+  })
+}
+
+function createReconciliationSnapshot() {
+  const snapshot = buildReconciliationSnapshot({
+    reconciliationDebt: getReconciliationDebtView(),
+    reconciliationQueues: getReconciliationQueuesView(),
+    dependencyGraph: getDependencyGraphView(),
+    previous: reconciliationSnapshots.snapshots?.slice(-1)[0] || null,
+    now: nowIso(),
+  })
+  reconciliationSnapshots = { snapshots: [...(reconciliationSnapshots.snapshots || []), snapshot] }
+  saveReconciliationSnapshots(reconciliationSnapshotsPath, reconciliationSnapshots)
+  return snapshot
+}
+
+function listReconciliationSnapshots() {
+  return reconciliationSnapshots.snapshots || []
+}
+
+function bootstrapRuntimeContinuity() {
+  runtimeCheckpoint = persistRuntimeCheckpoint()
+  if (!getLatestRuntimeSummary()) createRuntimeSummary('bootstrap')
+  if (!(reconciliationSnapshots.snapshots || []).length) createReconciliationSnapshot()
 }
 
 function syncGovernanceStateFromRuntime(cooldown = null) {
@@ -1989,6 +2164,7 @@ function markJobOutage(jobId, { reason = 'Provider outage', lastKnownGoodStep = 
 // Sync on startup
 const startupStaleSweep = sweepStaleQueuedTestJobs()
 syncRecoveryLedger()
+bootstrapRuntimeContinuity()
 if (startupStaleSweep.archived > 0) {
   console.log(`[STALE_SWEEP] Archived ${startupStaleSweep.archived} stale queued test job(s)`)
 }
@@ -4668,6 +4844,17 @@ const routeDeps = {
   getArchiveCandidatesView,
   getArchiveCompactionDryRunView,
   getQueueTopologyView,
+  getRuntimeCheckpointView,
+  persistRuntimeCheckpoint,
+  getRuntimeSnapshotExportView,
+  createRuntimeSummary,
+  listRuntimeSummaries,
+  getLatestRuntimeSummary,
+  getRuntimeSummaryById,
+  getCompactContextView,
+  getContextEvictionCandidatesView,
+  listReconciliationSnapshots,
+  createReconciliationSnapshot,
   attachWorker,
   refreshDerivedState,
   findOpenDuplicateJob,
