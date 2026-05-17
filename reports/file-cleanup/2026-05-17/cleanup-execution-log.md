@@ -2498,3 +2498,49 @@ Started: 2026-05-17T17:21:50.300171Z
 - Moved /home/patrick/Downloads/actionrelay-base44-prompt.md -> /home/patrick/intake/pending/actionrelay-base44-prompt.md — intake file moved to pending
 - Moved /home/patrick/Downloads/actionrelay-summary.md -> /home/patrick/intake/pending/actionrelay-summary.md — intake file moved to pending
 - Moved /home/patrick/Downloads/dana-cfo-investment-charter.md -> /home/patrick/intake/pending/dana-cfo-investment-charter.md — intake file moved to pending
+
+- 2026-05-17T19:42:20.997696Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Blueprint` -> `/home/patrick/mission-control/.agents/Blueprint`
+- 2026-05-17T19:42:20.997765Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Torina` -> `/home/patrick/mission-control/.agents/Torina`
+- 2026-05-17T19:42:20.997775Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Drift` -> `/home/patrick/mission-control/.agents/Drift`
+- 2026-05-17T19:42:20.997783Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Pulse` -> `/home/patrick/mission-control/.agents/Pulse`
+- 2026-05-17T19:42:20.997790Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Ledger` -> `/home/patrick/mission-control/.agents/Ledger`
+- 2026-05-17T19:42:20.997797Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Vault` -> `/home/patrick/mission-control/.agents/Vault`
+- 2026-05-17T19:42:20.997804Z agent-path-correction moved `/home/patrick/agents/Mission-Control/SignalDoc` -> `/home/patrick/mission-control/.agents/SignalDoc`
+- 2026-05-17T19:42:20.997812Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Clerk` -> `/home/patrick/mission-control/.agents/Clerk`
+- 2026-05-17T19:42:20.997819Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Table` -> `/home/patrick/mission-control/.agents/Table`
+- 2026-05-17T19:42:20.997825Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Signal` -> `/home/patrick/mission-control/.agents/Signal`
+- 2026-05-17T19:42:20.997832Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Frame` -> `/home/patrick/mission-control/.agents/Frame`
+- 2026-05-17T19:42:20.997838Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Heatmap` -> `/home/patrick/mission-control/.agents/Heatmap`
+- 2026-05-17T19:42:20.997844Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Lab` -> `/home/patrick/mission-control/.agents/Lab`
+- 2026-05-17T19:42:20.997850Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Funboy` -> `/home/patrick/mission-control/.agents/Funboy`
+- 2026-05-17T19:42:20.997857Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Case` -> `/home/patrick/mission-control/.agents/Case`
+- 2026-05-17T19:42:20.997863Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Orderly` -> `/home/patrick/mission-control/.agents/Orderly`
+- 2026-05-17T19:42:20.997869Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Forge` -> `/home/patrick/mission-control/.agents/Forge`
+- 2026-05-17T19:42:20.997876Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Quill` -> `/home/patrick/mission-control/.agents/Quill`
+- 2026-05-17T19:42:20.997882Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Calamity` -> `/home/patrick/mission-control/.agents/Calamity`
+- 2026-05-17T19:42:20.997887Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Vector` -> `/home/patrick/mission-control/.agents/Vector`
+- 2026-05-17T19:42:20.997893Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Perry` -> `/home/patrick/mission-control/.agents/Perry`
+- 2026-05-17T19:42:20.997974Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Anchor` -> `/home/patrick/mission-control/.agents/Anchor`
+- 2026-05-17T19:42:20.997983Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Warden` -> `/home/patrick/mission-control/.agents/Warden`
+- 2026-05-17T19:42:20.997991Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Anvil` -> `/home/patrick/mission-control/.agents/Anvil`
+- 2026-05-17T19:42:20.997997Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Model` -> `/home/patrick/mission-control/.agents/Model`
+- 2026-05-17T19:42:20.998003Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Portfolio` -> `/home/patrick/mission-control/.agents/Portfolio`
+- 2026-05-17T19:42:20.998008Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Rab` -> `/home/patrick/mission-control/.agents/Rab`
+- 2026-05-17T19:42:20.998014Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Pilot` -> `/home/patrick/mission-control/.agents/Pilot`
+- 2026-05-17T19:42:20.998019Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Van` -> `/home/patrick/mission-control/.agents/Van`
+- 2026-05-17T19:42:20.998024Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Reserve` -> `/home/patrick/mission-control/.agents/Reserve`
+- 2026-05-17T19:42:20.998029Z agent-path-correction moved `/home/patrick/agents/Mission-Control/sessions` -> `/home/patrick/mission-control/.agents/sessions`
+- 2026-05-17T19:42:20.998034Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Sentry` -> `/home/patrick/mission-control/.agents/Sentry`
+- 2026-05-17T19:42:20.998039Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Polish` -> `/home/patrick/mission-control/.agents/Polish`
+- 2026-05-17T19:42:20.998044Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Rollup` -> `/home/patrick/mission-control/.agents/Rollup`
+- 2026-05-17T19:42:20.998049Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Scout` -> `/home/patrick/mission-control/.agents/Scout`
+- 2026-05-17T19:42:20.998054Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Rank` -> `/home/patrick/mission-control/.agents/Rank`
+- 2026-05-17T19:42:20.998059Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Lock` -> `/home/patrick/mission-control/.agents/Lock`
+- 2026-05-17T19:42:20.998065Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Dana` -> `/home/patrick/mission-control/.agents/Dana`
+- 2026-05-17T19:42:20.998071Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Scribe` -> `/home/patrick/mission-control/.agents/Scribe`
+- 2026-05-17T19:42:20.998075Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Icky` -> `/home/patrick/mission-control/.agents/Icky`
+- 2026-05-17T19:42:20.998080Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Nettie` -> `/home/patrick/mission-control/.agents/Nettie`
+- 2026-05-17T19:42:20.998085Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Bea` -> `/home/patrick/mission-control/.agents/Bea`
+- 2026-05-17T19:42:20.998090Z agent-path-correction moved `/home/patrick/agents/Mission-Control/SIS` -> `/home/patrick/mission-control/.agents/SIS`
+- 2026-05-17T19:42:20.998095Z agent-path-correction moved `/home/patrick/agents/Mission-Control/Prism` -> `/home/patrick/mission-control/.agents/Prism`
+- 2026-05-17T19:44:38.130689Z corrected canonical agent path to `/home/patrick/mission-control/.agents`; old `/home/patrick/agents/Mission-Control` replaced with compatibility symlink after validation.
