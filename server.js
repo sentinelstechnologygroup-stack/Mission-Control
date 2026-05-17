@@ -41,12 +41,19 @@ import {
 import {
   buildQueuePriorities,
   buildTopNextActions,
+  buildReconciliationDebtView,
 } from './lib/queuePrioritization.js'
 import {
   buildDependencyGraph,
   getJobDependencyView,
   buildCooldownBlockedListArtifact,
 } from './lib/jobDependencies.js'
+import {
+  paginateItems,
+  buildMemoryPressureView,
+  buildExecutorForecast,
+  buildRestartStateView,
+} from './lib/runtimeRiskControls.js'
 import { saveSessionTelemetry, saveCooldownTelemetry } from './lib/tokenTelemetry.js'
 import { registerChatRoutes } from './backend/chat/index.js'
 import { registerJobsRoutes } from './backend/jobs/index.js'
@@ -441,6 +448,8 @@ const defaultState = {
     host: os.hostname(),
     pid: process.pid,
     launchedAt: nowIso(),
+    sessionId: crypto.randomUUID(),
+    restartEpoch: 1,
     hermesAvailable,
     codexAvailable,
     codexVersion,
@@ -1038,6 +1047,13 @@ function createDocumentationLockJob(agentName, task, missing, source = 'mission-
 }
 
 let state = readState()
+state.system = {
+  ...state.system,
+  pid: process.pid,
+  launchedAt: nowIso(),
+  sessionId: crypto.randomUUID(),
+  restartEpoch: Number(state.system?.restartEpoch || 0) + 1,
+}
 let agentRegistry = loadAgentRegistry(agentRegistryPath, { nowIso: nowIso(), legacyAgents: state.agents || [] })
 let governanceState = loadGovernanceState(governanceStatePath, state.system)
 let recoveryReconciliationReport = loadRecoveryReconciliationReport(recoveryReconciliationJsonPath)
@@ -1159,6 +1175,26 @@ function getCooldownBlockedListArtifactView() {
     queuePriorities: queue,
     dependencyGraph,
     recoveryReport,
+    now: nowIso(),
+  })
+}
+
+function getReconciliationDebtView() {
+  const recoveryReport = getRecoveryReconciliationReport() || buildAndPersistRecoveryReconciliationReport()
+  const queue = getQueuePrioritiesView()
+  return buildReconciliationDebtView({ recoveryReport, queuePriorities: queue, now: nowIso() })
+}
+
+function getExecutorForecastView() {
+  return buildExecutorForecast({ runtimeDir, bridgeStatus: buildExecutorBridgeStatus(), now: nowIso() })
+}
+
+function getRestartStateView() {
+  return buildRestartStateView({
+    state,
+    jobs: jobStore.deriveLedgerView(),
+    workers: state.workers || [],
+    archivedJobs: loadStaleJobArchive().length,
     now: nowIso(),
   })
 }
@@ -4573,6 +4609,8 @@ const routeDeps = {
   evaluateHermesGovernance,
   getRecoveryReconciliationReport,
   buildAndPersistRecoveryReconciliationReport,
+  getExecutorForecastView,
+  getRestartStateView,
   attachWorker,
   refreshDerivedState,
   findOpenDuplicateJob,
@@ -4586,6 +4624,8 @@ const routeDeps = {
   getDependencyGraphView,
   getJobDependencyDetail,
   getCooldownBlockedListArtifactView,
+  getReconciliationDebtView,
+  paginateItems,
   loadRecoveryLedger,
   syncRecoveryLedger,
   updateRecoveryEntry,

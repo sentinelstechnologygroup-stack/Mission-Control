@@ -39,9 +39,11 @@ export function registerRuntimeRoutes(app, deps) {
     reconcileGovernedRuntimeState,
     evaluateHermesGovernance,
     getRecoveryReconciliationReport,
-    buildAndPersistRecoveryReconciliationReport,
-    getJobDependencyDetail,
-  } = deps
+  buildAndPersistRecoveryReconciliationReport,
+  getJobDependencyDetail,
+  getExecutorForecastView,
+  getRestartStateView,
+} = deps
 
   app.get('/api/health', (_, res) => {
     res.json({
@@ -129,6 +131,14 @@ export function registerRuntimeRoutes(app, deps) {
         queueDepth: status.queueDepth,
       },
     })
+  })
+
+  app.get('/api/executors/forecast', requireBridgeToken, (_, res) => {
+    res.json(getExecutorForecastView())
+  })
+
+  app.get('/api/runtime/restart-state', (_, res) => {
+    res.json(getRestartStateView())
   })
 
   app.get('/api/runtime/recovery', requireBridgeToken, (_, res) => {

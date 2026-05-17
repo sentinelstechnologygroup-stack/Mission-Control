@@ -17,6 +17,8 @@ export function registerJobsRoutes(app, deps) {
     getDependencyGraphView,
     getJobDependencyDetail,
     getCooldownBlockedListArtifactView,
+    getReconciliationDebtView,
+    paginateItems,
     loadRecoveryLedger,
     syncRecoveryLedger,
     updateRecoveryEntry,
@@ -27,7 +29,31 @@ export function registerJobsRoutes(app, deps) {
 
   app.get('/api/jobs', (_, res) => res.json(state.jobs.map(attachWorker)))
   app.get('/api/jobs/:id', (req, res) => {
-    if (req.params.id === 'ledger') return res.json(jobStore.deriveLedgerView())
+    if (req.params.id === 'ledger') {
+      const ledger = jobStore.deriveLedgerView()
+      const summary = req.query?.summary === 'true'
+      if (summary) {
+        return res.json({
+          count: ledger.length,
+          page: 1,
+          limit: Math.min(ledger.length, 25),
+          total: ledger.length,
+          items: ledger.slice(0, 25).map((job) => ({
+            id: job.id,
+            task: job.task || job.title,
+            status: job.status,
+            routeStatus: job.routeStatus || null,
+            updatedAt: job.updatedAt,
+          })),
+        })
+      }
+      const page = Number(req.query?.page || 1)
+      const limit = Number(req.query?.limit || ledger.length || 50)
+      if (req.query?.page || req.query?.limit) {
+        return res.json(paginateItems(ledger, { page, limit }))
+      }
+      return res.json(ledger)
+    }
     const job = jobStore.getJobById(req.params.id)
     if (!job) return res.status(404).json({ error: 'Job not found' })
     res.json(job)
@@ -95,10 +121,22 @@ export function registerJobsRoutes(app, deps) {
   app.post('/api/jobs/:id/run', (req, res) => {
     const job = jobStore.getJobById(req.params.id)
     if (!job) return res.status(404).json({ error: 'Job not found' })
-    const dependency = getJobDependencyDetail(job.id)
-    if (dependency?.dependencyStatus === 'blocked_by_dependency') {
+    const sessionId = String(req.headers['x-mc-session-id'] || req.body?.lockSession || '').trim() || null
+    const lockActive = job.lockSession && job.lockExpiresAt && Date.parse(job.lockExpiresAt) > Date.now()
+    if (lockActive && sessionId !== job.lockSession) {
       return res.status(409).json({
-        error: 'dependency_blocked',
+        error: 'job_locked',
+        jobId: job.id,
+        lockOwner: job.lockOwner,
+        lockSession: job.lockSession,
+        lockExpiresAt: job.lockExpiresAt,
+        lockReason: job.lockReason,
+      })
+    }
+    const dependency = getJobDependencyDetail(job.id)
+    if (dependency?.dependencyStatus === 'blocked_by_dependency' || dependency?.dependencyStatus === 'orphan_dependency') {
+      return res.status(409).json({
+        error: dependency.dependencyStatus === 'orphan_dependency' ? 'orphan_dependency' : 'dependency_blocked',
         jobId: job.id,
         blockedBy: dependency.blockedBy,
         dependencyReason: dependency.dependencyReason,
@@ -149,10 +187,47 @@ export function registerJobsRoutes(app, deps) {
     res.json({ ok: true, jobId, outageMarked: true })
   })
 
-  app.get('/api/jobs/ledger', (_, res) => res.json(jobStore.deriveLedgerView()))
+  app.get('/api/jobs/ledger', (req, res) => {
+    const ledger = jobStore.deriveLedgerView()
+    const summary = req.query?.summary === 'true'
+    if (summary) {
+      return res.json({
+        count: ledger.length,
+        page: 1,
+        limit: Math.min(ledger.length, 25),
+        total: ledger.length,
+        items: ledger.slice(0, 25).map((job) => ({
+          id: job.id,
+          task: job.task || job.title,
+          status: job.status,
+          routeStatus: job.routeStatus || null,
+          updatedAt: job.updatedAt,
+        })),
+      })
+    }
+    const page = Number(req.query?.page || 1)
+    const limit = Number(req.query?.limit || ledger.length || 50)
+    if (req.query?.page || req.query?.limit) {
+      return res.json(paginateItems(ledger, { page, limit }))
+    }
+    return res.json(ledger)
+  })
 
-  app.get('/api/work/registry', (_, res) => {
+  app.get('/api/work/registry', (req, res) => {
     const registry = buildMasterWorkRegistry()
+    if (req.query?.summary === 'true') {
+      return res.json({
+        counts: {
+          active: registry.active.length,
+          queued: registry.queued.length,
+          running: registry.running.length,
+          paused: registry.paused.length,
+          blocked: registry.blocked.length,
+          completedRecent: registry.completedRecent.length,
+        },
+        sources: registry.sources,
+      })
+    }
     res.json(registry)
   })
 
@@ -211,6 +286,29 @@ export function registerJobsRoutes(app, deps) {
 
   app.get('/api/recovery/mission-control-ledger-queue-blocked-list', (_, res) => {
     res.json(getCooldownBlockedListArtifactView())
+  })
+
+  app.get('/api/recovery/debt', (_, res) => {
+    res.json(getReconciliationDebtView())
+  })
+
+  app.post('/api/jobs/:id/lock', (req, res) => {
+    const job = jobStore.getJobById(req.params.id)
+    if (!job) return res.status(404).json({ error: 'Job not found' })
+    const ttlSeconds = Math.max(30, Math.min(86400, Number(req.body?.ttlSeconds || 300) || 300))
+    const lockSession = String(req.body?.lockSession || req.headers['x-mc-session-id'] || '').trim() || null
+    const lockOwner = String(req.body?.lockOwner || job.owner || 'unknown').trim()
+    const lockReason = String(req.body?.lockReason || 'manual execution').trim()
+    const updated = saveJob({
+      id: job.id,
+      lockOwner,
+      lockSession,
+      lockExpiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+      lockReason,
+      updatedAt: nowIso(),
+    })
+    refreshDerivedState()
+    res.json({ ok: true, job: updated })
   })
 
   app.patch('/api/jobs/ledger/:id/status', (req, res) => {
