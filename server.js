@@ -112,7 +112,7 @@ const runtimeContinuityPaths = getRuntimeContinuityPaths(runtimeDir)
 const { checkpoint: runtimeCheckpointPath, summaries: runtimeSummariesPath, reconciliationSnapshots: reconciliationSnapshotsPath } = runtimeContinuityPaths
 const ciRegisterJsonPath = path.join(sharedLedgerDir, 'ci-register.json')
 const ciRegisterMdPath = path.join(sharedLedgerDir, 'ci-register.md')
-const agentsRoot = '/home/patrick/agents'
+const agentsRoot = '/home/patrick/agents/Mission-Control'
 
 fs.mkdirSync(runtimeDir, { recursive: true })
 fs.mkdirSync(workersDir, { recursive: true })
