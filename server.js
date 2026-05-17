@@ -54,6 +54,13 @@ import {
   buildExecutorForecast,
   buildRestartStateView,
 } from './lib/runtimeRiskControls.js'
+import {
+  buildObservabilityView,
+  buildReconciliationQueuesView,
+  buildArchiveCandidatesView,
+  buildArchiveCompactionDryRun,
+  buildQueueTopologyView,
+} from './lib/operationalViews.js'
 import { saveSessionTelemetry, saveCooldownTelemetry } from './lib/tokenTelemetry.js'
 import { registerChatRoutes } from './backend/chat/index.js'
 import { registerJobsRoutes } from './backend/jobs/index.js'
@@ -1195,6 +1202,51 @@ function getRestartStateView() {
     jobs: jobStore.deriveLedgerView(),
     workers: state.workers || [],
     archivedJobs: loadStaleJobArchive().length,
+    now: nowIso(),
+  })
+}
+
+function getObservabilityView() {
+  return buildObservabilityView({
+    platformHealth: buildPlatformHealth(),
+    executorStatus: buildExecutorBridgeStatus(),
+    queuePriorities: getQueuePrioritiesView(),
+    reconciliationDebt: getReconciliationDebtView(),
+    dependencyGraph: getDependencyGraphView(),
+    restartState: getRestartStateView(),
+    workers: state.workers || [],
+    now: nowIso(),
+  })
+}
+
+function getReconciliationQueuesView() {
+  return buildReconciliationQueuesView({
+    queuePriorities: getQueuePrioritiesView(),
+    reconciliationDebt: getReconciliationDebtView(),
+    now: nowIso(),
+  })
+}
+
+function getArchiveCandidatesView() {
+  return buildArchiveCandidatesView({
+    ledgerJobs: jobStore.deriveLedgerView(),
+    staleArchive: loadStaleJobArchive(),
+    now: nowIso(),
+  })
+}
+
+function getArchiveCompactionDryRunView() {
+  return buildArchiveCompactionDryRun({
+    ledgerJobs: jobStore.deriveLedgerView(),
+    staleArchive: loadStaleJobArchive(),
+    now: nowIso(),
+  })
+}
+
+function getQueueTopologyView() {
+  return buildQueueTopologyView({
+    dependencyGraph: getDependencyGraphView(),
+    queuePriorities: getQueuePrioritiesView(),
     now: nowIso(),
   })
 }
@@ -4611,6 +4663,11 @@ const routeDeps = {
   buildAndPersistRecoveryReconciliationReport,
   getExecutorForecastView,
   getRestartStateView,
+  getObservabilityView,
+  getReconciliationQueuesView,
+  getArchiveCandidatesView,
+  getArchiveCompactionDryRunView,
+  getQueueTopologyView,
   attachWorker,
   refreshDerivedState,
   findOpenDuplicateJob,

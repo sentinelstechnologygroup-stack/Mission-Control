@@ -25,6 +25,11 @@ export function registerOpsRoutes(app, deps) {
     inferGoverningRunbook,
     validateExecutionPacket,
     validateRequiredArtifacts,
+    getObservabilityView,
+    getReconciliationQueuesView,
+    getArchiveCandidatesView,
+    getArchiveCompactionDryRunView,
+    getQueueTopologyView,
     fs,
     path,
     getDepartmentHeadDir,
@@ -47,6 +52,34 @@ export function registerOpsRoutes(app, deps) {
 
   app.get('/api/system/health', (_, res) => {
     res.json(buildPlatformHealth())
+  })
+
+  app.get('/api/ops/observability', (_, res) => {
+    res.json(getObservabilityView())
+  })
+
+  app.get('/api/reconciliation/queues', (_, res) => {
+    res.json(getReconciliationQueuesView())
+  })
+
+  app.get('/api/reconciliation/queues/:type', (req, res) => {
+    const view = getReconciliationQueuesView()
+    const type = String(req.params.type || '')
+    const queue = view.queues?.[type]
+    if (!queue) return res.status(404).json({ error: 'Reconciliation queue not found' })
+    res.json({ type, reconciliationDebtScore: view.reconciliationDebtScore, ...queue })
+  })
+
+  app.get('/api/archive/candidates', (_, res) => {
+    res.json(getArchiveCandidatesView())
+  })
+
+  app.post('/api/archive/compact-dry-run', (_, res) => {
+    res.json(getArchiveCompactionDryRunView())
+  })
+
+  app.get('/api/queue/topology', (_, res) => {
+    res.json(getQueueTopologyView())
   })
 
   app.get('/api/logs', (_, res) => res.json(state.logs))
