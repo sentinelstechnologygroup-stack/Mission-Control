@@ -2563,3 +2563,11 @@ Started: 2026-05-17T17:21:50.300171Z
 - 2026-05-17T20:20:15.150107+00:00 archived project ZIP /home/patrick/apps/gulf-coast-prosthetics-redesign-1/gulf-coast-prosthetics-redesign-1.zip -> /home/patrick/archive/imports/2026-05-17/gulf-coast-prosthetics-redesign-1.zip
 - 2026-05-17T20:20:15.150107+00:00 archived project ZIP /home/patrick/projects/dana-finance-report-pack (2).zip -> /home/patrick/archive/imports/2026-05-17/dana-finance-report-pack (2).zip
 - 2026-05-17T20:20:15.150107+00:00 archived project ZIP /home/patrick/projects/dana-finance-report-pack.zip -> /home/patrick/archive/imports/2026-05-17/dana-finance-report-pack.zip
+- 2026-05-17T21:03:57.983662+00:00 moved admin-review item /home/patrick/hermes-config-backups -> /home/patrick/archive/admin-review/2026-05-17/hermes-config-backups
+- 2026-05-17T21:03:57.983662+00:00 moved admin-review item /home/patrick/hermes-codex-auth-reset-20260509-131146 -> /home/patrick/archive/admin-review/2026-05-17/hermes-codex-auth-reset-20260509-131146
+- 2026-05-17T21:03:57.983662+00:00 moved admin-review item /home/patrick/runtime -> /home/patrick/archive/admin-review/2026-05-17/runtime
+- 2026-05-17T21:04:43.091379+00:00 archived repo artifact /home/patrick/mission-control/reports/file-audit -> /home/patrick/archive/mission-control-artifacts/2026-05-17/file-audit
+- 2026-05-17T21:04:43.091379+00:00 archived repo artifact /home/patrick/mission-control/test-results -> /home/patrick/archive/mission-control-artifacts/2026-05-17/test-results
+- 2026-05-17T21:04:43.091379+00:00 archived repo artifact /home/patrick/mission-control/tmp -> /home/patrick/archive/mission-control-artifacts/2026-05-17/tmp
+- 2026-05-17T21:04:43.091379+00:00 archived repo artifact /home/patrick/mission-control/tests/integration/nettie-mobile-probe.spec.js -> /home/patrick/archive/mission-control-artifacts/2026-05-17/nettie-mobile-probe.spec.js
+- 2026-05-17T21:04:43.091379+00:00 archived repo artifact /home/patrick/mission-control/tests/integration/nettie-viewport-check.mjs -> /home/patrick/archive/mission-control-artifacts/2026-05-17/nettie-viewport-check.mjs

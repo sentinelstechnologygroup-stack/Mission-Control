@@ -50,3 +50,9 @@ Generated: 2026-05-17T17:21:50.299511Z
 
 ## Archived ZIP artifacts
 - Archived 11 old ZIP artifacts from active project trees into `/home/patrick/archive/imports/2026-05-17` for cold storage/import review.
+
+## Additional admin-review cleanup
+- Moved `/home/patrick/hermes-config-backups` to `/home/patrick/archive/admin-review/2026-05-17/hermes-config-backups`.
+- Moved `/home/patrick/hermes-codex-auth-reset-20260509-131146` to `/home/patrick/archive/admin-review/2026-05-17/hermes-codex-auth-reset-20260509-131146`.
+- Moved loose external `/home/patrick/runtime` to `/home/patrick/archive/admin-review/2026-05-17/runtime` because active canonical runtime is `/home/patrick/mission-control/runtime`.
+- Archived stale repo-local probe/temp/report artifacts under `/home/patrick/archive/mission-control-artifacts/2026-05-17`.
