@@ -38,6 +38,7 @@ export function registerOpsRoutes(app, deps) {
     buildRecentActivityView,
     buildRuntimeAlertsView,
     buildGovernanceSummaryView,
+    buildHomeSummaryView,
     getRuntimeCheckpointView,
     persistRuntimeCheckpoint,
     getRuntimeSnapshotExportView,
@@ -67,6 +68,10 @@ export function registerOpsRoutes(app, deps) {
 
   app.get('/api/dashboard', (_, res) => {
     res.json(summarizeState())
+  })
+
+  app.get('/api/home/summary', (_, res) => {
+    res.json(buildHomeSummaryView())
   })
 
   app.get('/api/system/health', (_, res) => {

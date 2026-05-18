@@ -75,6 +75,7 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  homeSummary: () => request('/api/home/summary'),
   dashboard: () => request('/api/dashboard'),
   system: () => request('/api/system'),
   systemHealth: () => request('/api/system/health'),

@@ -1413,6 +1413,34 @@ function buildGovernanceSummaryView() {
   }
 }
 
+function buildHomeSummaryView() {
+  const queue = buildQueueSummaryView()
+  const recentJobs = buildRecentJobsView(8)
+  const blocked = buildBlockedJobsView(6)
+  const reports = buildReportsStatusView()
+  const runtimeHealth = buildRuntimeHealthView()
+  const alerts = buildRuntimeAlertsView()
+  const activity = buildRecentActivityView(8)
+  const governance = buildGovernanceSummaryView()
+  const tokens = getTokenTrackingOverviewView()
+  const agents = getAgentRegistryView()
+  const liveInbox = []
+  for (const item of blocked.slice(0, 3)) liveInbox.push({ id: item.id, type: 'blocked', title: item.title || item.task, from: item.owner || item.agent || 'Unknown', time: item.updatedAt || item.createdAt || null, priority: 'high', stage: item.status || 'BLOCKED', truthStatus: item.truthStatus || 'LIVE' })
+  for (const item of alerts.slice(0, 3)) liveInbox.push({ id: `${item.source}-${item.detectedAt}`, type: 'alert', title: item.summary, from: item.source, time: item.detectedAt, priority: item.severity === 'critical' ? 'critical' : 'high', stage: 'ALERT', truthStatus: 'LIVE' })
+  const quickStats = [
+    { label: 'Queued Jobs', value: String(queue.totalQueued ?? 0), truthStatus: queue.truthStatus || 'LIVE', color: 'text-amber-400', bg: 'bg-amber-500/10' },
+    { label: 'Running Jobs', value: String(queue.totalRunning ?? 0), truthStatus: queue.truthStatus || 'LIVE', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    { label: 'Stale Reports', value: String(reports.staleCount ?? 0), truthStatus: reports.truthStatus || (reports.recent?.length ? 'LIVE' : 'DEGRADED'), color: 'text-red-400', bg: 'bg-red-500/10' },
+    { label: 'Operational Confidence', value: String(runtimeHealth.operationalConfidence ?? 0), truthStatus: runtimeHealth.truthStatus || 'DEGRADED', color: 'text-blue-400', bg: 'bg-blue-500/10' },
+  ]
+  const missions = recentJobs.slice(0, 4).map((job) => ({ id: job.id, name: job.title || job.task, owner: job.owner || job.agent || 'Unknown', phase: String(job.status || '').toUpperCase(), tasks: 1, risk: blocked.some((b) => b.id === job.id) ? 'high' : 'low', approval: job.routeStatus || 'ready', progress: job.status === 'completed' ? 100 : job.status === 'running' ? 60 : 20, truthStatus: job.truthStatus || 'LIVE' }))
+  const wrap = []
+  wrap.push({ label: 'Queue', color: 'text-emerald-400', text: `Queued ${queue.totalQueued ?? 0}, running ${queue.totalRunning ?? 0}, blocked ${queue.totalBlocked ?? 0}, stale ${queue.staleJobs?.length ?? 0}.`, truthStatus: queue.truthStatus })
+  wrap.push({ label: 'Reports', color: 'text-amber-400', text: reports.recent?.length ? `${reports.recent.length} recent reports tracked; ${reports.staleCount ?? 0} stale.` : 'No live reports available.', truthStatus: reports.truthStatus })
+  wrap.push({ label: 'Runtime', color: 'text-blue-400', text: `Health ${runtimeHealth.overallHealth}; degraded systems: ${(runtimeHealth.degradedSystems || []).length}.`, truthStatus: runtimeHealth.truthStatus })
+  return { updatedAt: nowIso(), truthStatus: queue.truthStatus, quickStats, inbox: liveInbox, missions, dailyWrapUp: wrap, queue, reports, runtimeHealth, alerts, activity, governance, tokens, agentsSummary: { total: agents.length, live: agents.filter((a) => a.agentFilesystem?.complete).length } }
+}
+
 function readProjectScripts(projectPath = root) {
   try {
     const pkgPath = path.join(projectPath, 'package.json')
@@ -5185,6 +5213,7 @@ const routeDeps = {
   buildRecentActivityView,
   buildRuntimeAlertsView,
   buildGovernanceSummaryView,
+  buildHomeSummaryView,
   getRuntimeCheckpointView,
   persistRuntimeCheckpoint,
   getRuntimeSnapshotExportView,
