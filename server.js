@@ -64,6 +64,7 @@ import {
 } from './lib/operationalViews.js'
 import { buildDepartmentWorkflowRegistry, buildDepartmentWorkflow } from './lib/departmentWorkflows.js'
 import { buildTokenTrackingOverview } from './lib/tokenTrackingViews.js'
+import { LOCAL_BRIDGE_ROUTE, LOCAL_BRIDGE_STALE_MS, isLocalBridgeEligibleTask, detectPerryRisk, summarizeText, buildLocalBridgeCommands, buildEvidenceSummary } from './lib/localBridgeExecution.js'
 import {
   getRuntimeContinuityPaths,
   loadRuntimeCheckpoint,
@@ -1293,6 +1294,171 @@ function getTokenTrackingOverviewView() {
     jobs: jobStore.deriveLedgerView().filter((job) => !['completed', 'cancelled'].includes(String(job.status || '').toLowerCase())),
     now: nowIso(),
   })
+}
+
+function readProjectScripts(projectPath = root) {
+  try {
+    const pkgPath = path.join(projectPath, 'package.json')
+    if (!fs.existsSync(pkgPath)) return {}
+    return JSON.parse(fs.readFileSync(pkgPath, 'utf8')).scripts || {}
+  } catch {
+    return {}
+  }
+}
+
+function createPerryReviewJob({ sourceJob, reason, evidence }) {
+  const createdAt = nowIso()
+  return saveJob({
+    id: `job_${crypto.randomUUID().slice(0, 8)}`,
+    task: `Perry review: ${sourceJob.title || sourceJob.task}`,
+    title: `Perry review: ${sourceJob.title || sourceJob.task}`,
+    owner: 'Perry',
+    agent: 'Perry',
+    department: 'Perry',
+    status: 'queued',
+    routeStatus: 'perry_review_required',
+    priority: 'P0',
+    source: 'local-bridge',
+    sourceType: 'mission-control',
+    inputPayload: { sourceJobId: sourceJob.id, reason, evidence },
+    createdAt,
+    updatedAt: createdAt,
+  })
+}
+
+function createLocalBridgeJob({ owner = 'Van', task, projectPath = root, commands = [], source = 'mission-control', autoExecute = false } = {}) {
+  const createdAt = nowIso()
+  const reviewChain = buildReviewChain({ owner, task, description: task })
+  const workflow = buildDepartmentWorkflow(owner, task, reviewChain)
+  return saveJob({
+    id: `job_${crypto.randomUUID().slice(0, 8)}`,
+    task,
+    title: task,
+    owner,
+    agent: owner,
+    department: owner,
+    status: 'queued',
+    routeStatus: LOCAL_BRIDGE_ROUTE,
+    source,
+    sourceType: 'mission-control',
+    workflow,
+    projectPath,
+    inputPayload: { task, projectPath, commands, assignedDepartmentHead: owner, autoExecute, executionLane: 'local_bridge' },
+    createdAt,
+    updatedAt: createdAt,
+  })
+}
+
+function claimLocalBridgeJob({ bridgeId = 'local-bridge', preferredJobId = '' } = {}) {
+  const now = nowIso()
+  const jobs = jobStore.deriveLedgerView().filter((job) => isLocalBridgeEligibleTask(job) && ['queued', 'paused', 'blocked'].includes(String(job.status || '').toLowerCase()))
+  const candidate = preferredJobId ? jobs.find((job) => job.id === preferredJobId) : jobs.find((job) => !job.lockExpiresAt || new Date(job.lockExpiresAt).getTime() < Date.now())
+  if (!candidate) return null
+  return updateJobStatus(candidate.id, 'running', {
+    updatedAt: now,
+    lockOwner: 'local-bridge',
+    lockSession: bridgeId,
+    lockExpiresAt: new Date(Date.now() + LOCAL_BRIDGE_STALE_MS).toISOString(),
+    lockReason: 'claimed_by_local_bridge',
+    routeStatus: 'local_bridge_claimed',
+    heartbeatAt: now,
+    executionTrace: [{ step: 'local_bridge_claimed', at: now, level: 'info', message: 'claimed', data: { bridgeId } }],
+  })
+}
+
+function heartbeatLocalBridgeJob(jobId, bridgeId = 'local-bridge') {
+  return updateJobStatus(jobId, 'running', {
+    updatedAt: nowIso(),
+    lockOwner: 'local-bridge',
+    lockSession: bridgeId,
+    lockExpiresAt: new Date(Date.now() + LOCAL_BRIDGE_STALE_MS).toISOString(),
+    lockReason: 'heartbeat',
+  })
+}
+
+function completeLocalBridgeJob(jobId, evidence, bridgeId = 'local-bridge') {
+  if (!evidence || !Array.isArray(evidence.checks) || evidence.checks.length === 0) return { error: 'execution_evidence_required' }
+  const summaryText = evidence.checks.map((c) => `${c.command || c.name}: ${c.exitCode}`).join('\n')
+  const needsPerry = detectPerryRisk(summaryText)
+  const updated = updateJobStatus(jobId, 'complete', {
+    updatedAt: nowIso(),
+    completedAt: nowIso(),
+    routeStatus: needsPerry ? 'perry_review_required' : 'execution_complete',
+    lockOwner: null,
+    lockSession: null,
+    lockExpiresAt: null,
+    lockReason: null,
+    outputPayload: { evidence, bridgeId, perryReviewRequired: needsPerry },
+    executionTrace: [{ step: 'local_bridge_completed', at: nowIso(), level: 'info', message: 'complete', data: { bridgeId, needsPerry } }],
+  })
+  const perryJob = needsPerry ? createPerryReviewJob({ sourceJob: updated, reason: 'CI/security/deployment risk indicator detected', evidence }) : null
+  return { job: updated, perryReviewRequired: needsPerry, perryJob }
+}
+
+function failLocalBridgeJob(jobId, evidence, bridgeId = 'local-bridge') {
+  const summaryText = JSON.stringify(evidence || {})
+  const needsPerry = detectPerryRisk(summaryText)
+  const updated = updateJobStatus(jobId, 'failed', {
+    updatedAt: nowIso(),
+    completedAt: nowIso(),
+    routeStatus: needsPerry ? 'perry_review_required' : 'failed',
+    lockOwner: null,
+    lockSession: null,
+    lockExpiresAt: null,
+    lockReason: null,
+    outputPayload: { evidence, bridgeId, perryReviewRequired: needsPerry },
+    executionTrace: [{ step: 'local_bridge_failed', at: nowIso(), level: 'error', message: 'failed', data: { bridgeId, needsPerry } }],
+  })
+  const perryJob = needsPerry ? createPerryReviewJob({ sourceJob: updated, reason: 'CI/security/deployment risk indicator detected', evidence }) : null
+  return { job: updated, perryReviewRequired: needsPerry, perryJob }
+}
+
+function reconcileStaleLocalBridgeJobs(staleAfterMs = LOCAL_BRIDGE_STALE_MS) {
+  const forceAll = Number(staleAfterMs) === 0
+  const cutoff = Date.now() - staleAfterMs
+  const updatedJobIds = []
+  for (const job of jobStore.deriveLedgerView()) {
+    if (job.lockOwner !== 'local-bridge') continue
+    const expires = job.lockExpiresAt ? new Date(job.lockExpiresAt).getTime() : 0
+    if (!forceAll && expires && expires > cutoff) continue
+    updateJobStatus(job.id, 'recoverable_stale', {
+      updatedAt: nowIso(),
+      routeStatus: 'recoverable_stale',
+      recoveryNote: 'Local bridge heartbeat expired.',
+      lockOwner: null,
+      lockSession: null,
+      lockExpiresAt: null,
+      lockReason: null,
+      executionTrace: [{ step: 'local_bridge_stale', at: nowIso(), level: 'warn', message: 'recoverable_stale', data: { staleAfterMs } }],
+    })
+    updatedJobIds.push(job.id)
+  }
+  return { updatedJobIds }
+}
+
+async function runNextLocalBridgeJob({ bridgeId = 'local-bridge', preferredJobId = '' } = {}) {
+  const job = claimLocalBridgeJob({ bridgeId, preferredJobId })
+  if (!job) return null
+  const projectPath = getJobProjectPath(job)
+  const scripts = readProjectScripts(projectPath)
+  const commands = buildLocalBridgeCommands(job, scripts)
+  const before = await runCommandCapture('bash', ['-lc', 'git status --short || true'], { cwd: projectPath, timeoutMs: 30000 })
+  const checks = []
+  for (const command of commands) {
+    heartbeatLocalBridgeJob(job.id, bridgeId)
+    const result = await runCommandCapture('bash', ['-lc', command], { cwd: projectPath, timeoutMs: 600000 })
+    checks.push({ command, exitCode: result.code ?? 1, stdout: summarizeText(result.stdout), stderr: summarizeText(result.stderr) })
+    if ((result.code ?? 1) !== 0) return failLocalBridgeJob(job.id, buildEvidenceSummary(checks), bridgeId)
+  }
+  const after = await runCommandCapture('bash', ['-lc', 'git status --short || true'], { cwd: projectPath, timeoutMs: 30000 })
+  const evidence = buildEvidenceSummary(checks)
+  evidence.filesChanged = { before: summarizeText(before.stdout), after: summarizeText(after.stdout) }
+  return completeLocalBridgeJob(job.id, evidence, bridgeId)
+}
+
+function maybeCreateLocalExecutionJob(owner, task, message, source) {
+  if (!isLocalBridgeEligibleTask({ owner, task, inputPayload: { task, assignedDepartmentHead: owner } })) return null
+  return createLocalBridgeJob({ owner, task, projectPath: root, commands: [], source, autoExecute: true })
 }
 
 function getRuntimeSnapshotInputs() {
@@ -3410,6 +3576,9 @@ function shouldRouteChatToHermes(message = '') {
 }
 
 function shouldRouteChatToExecutor(message = '') {
+  if (/\b(?:have|assign|route|send|ask)\s+(?:van|perry|torina|scribe|dana|ivy|funboy|rab|nettie|bea)\b/i.test(String(message || ''))) {
+    return false
+  }
   return classifyExecutionIntent(message) === 'execution'
 }
 
@@ -4124,22 +4293,24 @@ function handleAssignment(message, source = 'mission-control') {
       missionJob: correction.missionJob,
       directCallable: false,
       deduped: false,
+      autoExecute: false,
     }
   }
 
   const canonicalAgent = readiness.canonical
   const directCallable = isAgentDirectCallable(canonicalAgent)
-  const routeStatus = directCallable ? 'ready' : `awaiting-${canonicalAgent.toLowerCase()}-route`
+  const localBridgeCandidate = isLocalBridgeEligibleTask({ owner: canonicalAgent, task, inputPayload: { task, assignedDepartmentHead: canonicalAgent } })
+  const routeStatus = localBridgeCandidate ? LOCAL_BRIDGE_ROUTE : (directCallable ? 'ready' : `awaiting-${canonicalAgent.toLowerCase()}-route`)
   const status = 'queued'
-  const workflowTemplate = buildDepartmentWorkflow(canonicalAgent, task, [])
+  const workflowTemplate = buildDepartmentWorkflow(canonicalAgent, task, buildReviewChain({ owner: canonicalAgent, task, description: message }))
 
   const duplicate = findOpenDuplicateJob(canonicalAgent, task)
   if (duplicate) {
     duplicate.updatedAt = nowIso()
     duplicate.source = duplicate.source || source
     if (!duplicate.routeStatus) duplicate.routeStatus = routeStatus
+    if (!duplicate.workflow) duplicate.workflow = workflowTemplate
     saveJob(duplicate)
-
     const missionJob = state.jobs.find((job) => job.id === duplicate.id) || createMissionStateJob({
       id: duplicate.id,
       task,
@@ -4149,12 +4320,7 @@ function handleAssignment(message, source = 'mission-control') {
       routeStatus,
       priority: guessPriority(message),
     })
-    const reviewChain = buildReviewChain(duplicate)
-    duplicate.workflow = buildDepartmentWorkflow(canonicalAgent, task, reviewChain)
-    saveJob(duplicate)
     missionJob.updatedAt = nowIso()
-
-    log('info', `Ledger dedupe: ${duplicate.id} reused for "${task}" → ${canonicalAgent}`)
     return {
       replyText: `Nettie: Existing open job found for ${canonicalAgent}. Reusing ${duplicate.id} for "${task}". Status: ${duplicate.status}${duplicate.routeStatus ? ` (${duplicate.routeStatus})` : ''}. Next action: ${duplicate.workflow?.nextAction || workflowTemplate.nextAction}.`,
       replyKind: 'system',
@@ -4163,28 +4329,34 @@ function handleAssignment(message, source = 'mission-control') {
       workflow: duplicate.workflow,
       directCallable,
       deduped: true,
+      autoExecute: Boolean(localBridgeCandidate),
     }
   }
 
-  const ledgerJob = saveJob({
-    id: `job_${crypto.randomUUID().slice(0, 8)}`,
-    agent: canonicalAgent,
-    task,
-    status,
-    routeStatus,
-    source,
-    workflow: buildDepartmentWorkflow(canonicalAgent, task, buildReviewChain({ owner: canonicalAgent, task, description: message })),
-    inputPayload: {
-      assignedDepartmentHead: canonicalAgent,
-      governingRunbook: readiness.governingRunbook,
-      task,
-      text: message,
-      qaPath: canonicalAgent === 'Perry' ? 'Perry' : 'Perry -> Nettie',
-      outputFormat: 'file-backed handoff packet',
-    },
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-  })
+  const ledgerJob = localBridgeCandidate
+    ? createLocalBridgeJob({ owner: canonicalAgent, task, projectPath: root, commands: [], source, autoExecute: true })
+    : saveJob({
+        id: `job_${crypto.randomUUID().slice(0, 8)}`,
+        agent: canonicalAgent,
+        owner: canonicalAgent,
+        department: canonicalAgent,
+        task,
+        title: task,
+        status,
+        routeStatus,
+        source,
+        workflow: workflowTemplate,
+        inputPayload: {
+          assignedDepartmentHead: canonicalAgent,
+          governingRunbook: readiness.governingRunbook,
+          task,
+          text: message,
+          qaPath: canonicalAgent === 'Perry' ? 'Perry' : 'Perry -> Nettie',
+          outputFormat: 'file-backed handoff packet',
+        },
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      })
 
   const missionJob = createMissionStateJob({
     id: ledgerJob.id,
@@ -4198,28 +4370,17 @@ function handleAssignment(message, source = 'mission-control') {
 
   log('info', `Ledger: ${ledgerJob.id} created — "${task}" → ${canonicalAgent} (${routeStatus})`)
 
-  if (!directCallable) {
-    return {
-      replyText: `Nettie: Job created and queued for ${canonicalAgent}: ${task}. Status: queued (awaiting ${canonicalAgent} route). Job ID: ${ledgerJob.id}.`,
-      replyKind: 'system',
-      job: ledgerJob,
-      missionJob,
-      directCallable,
-      deduped: false,
-    }
-  }
-
   return {
-    replyText: `Nettie: Job created for ${canonicalAgent}: ${task}. Status: queued. Job ID: ${ledgerJob.id}.`,
+    replyText: `Nettie: Job created${localBridgeCandidate ? ' and queued for local execution' : ''} for ${canonicalAgent}: ${task}. Status: queued. Job ID: ${ledgerJob.id}.`,
     replyKind: 'system',
     job: ledgerJob,
     missionJob,
     workflow: ledgerJob.workflow,
     directCallable,
     deduped: false,
+    autoExecute: Boolean(localBridgeCandidate),
   }
 }
-
 function formatRegistryLine(job) {
   const task = job.task || job.title || 'Untitled mission'
   const agent = job.agent || job.owner || 'Nettie'
@@ -4727,6 +4888,7 @@ function handleNettieInbound({ message, sender = 'Patrick', channel = 'mission-c
     replyText = result.replyText
     replyKind = result.replyKind
     createdJob = result.job || null
+    if (result.autoExecute && createdJob?.id) setImmediate(() => runNextLocalBridgeJob({ bridgeId: 'auto-bridge', preferredJobId: createdJob.id }).catch(() => {}))
     setImmediate(() => syncRecoveryLedger())
   } else if (intent === 'control_directive') {
     const result = handleControlDirective(cleanMessage)
@@ -4767,6 +4929,7 @@ function handleNettieInbound({ message, sender = 'Patrick', channel = 'mission-c
     replyText = result.replyText
     replyKind = result.replyKind
     createdJob = result.job
+    if (result.autoExecute && createdJob?.id) setImmediate(() => runNextLocalBridgeJob({ bridgeId: 'auto-bridge', preferredJobId: createdJob.id }).catch(() => {}))
     // sync recovery ledger after new assignment
     setImmediate(() => syncRecoveryLedger())
   } else if (intent === 'dispatch_queue') {
@@ -4889,6 +5052,14 @@ const routeDeps = {
   getQueueTopologyView,
   getDepartmentWorkflowRegistryView,
   getTokenTrackingOverviewView,
+  claimLocalBridgeJob,
+  heartbeatLocalBridgeJob,
+  completeLocalBridgeJob,
+  failLocalBridgeJob,
+  reconcileStaleLocalBridgeJobs,
+  runNextLocalBridgeJob,
+  createLocalBridgeJob,
+  attachWorker,
   getRuntimeCheckpointView,
   persistRuntimeCheckpoint,
   getRuntimeSnapshotExportView,

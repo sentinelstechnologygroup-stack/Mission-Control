@@ -39,10 +39,17 @@ export function registerRuntimeRoutes(app, deps) {
     reconcileGovernedRuntimeState,
     evaluateHermesGovernance,
     getRecoveryReconciliationReport,
-  buildAndPersistRecoveryReconciliationReport,
-  getJobDependencyDetail,
-  getExecutorForecastView,
-  getRestartStateView,
+    buildAndPersistRecoveryReconciliationReport,
+    getJobDependencyDetail,
+    getExecutorForecastView,
+    getRestartStateView,
+    claimLocalBridgeJob,
+    heartbeatLocalBridgeJob,
+    completeLocalBridgeJob,
+    failLocalBridgeJob,
+    reconcileStaleLocalBridgeJobs,
+    runNextLocalBridgeJob,
+    createLocalBridgeJob,
 } = deps
 
   app.get('/api/health', (_, res) => {
@@ -421,6 +428,56 @@ export function registerRuntimeRoutes(app, deps) {
     if (!worker) return res.status(404).json({ error: 'Worker not found' })
     res.json(worker)
   })
+
+  app.post('/api/local-bridge/jobs', (req, res) => {
+    const owner = String(req.body?.owner || 'Van')
+    const task = String(req.body?.task || '').trim()
+    if (!task) return res.status(400).json({ error: 'task_required' })
+    const job = createLocalBridgeJob({
+      owner,
+      task,
+      projectPath: req.body?.projectPath || root,
+      commands: Array.isArray(req.body?.commands) ? req.body.commands : [],
+      source: 'local-bridge-api',
+      autoExecute: Boolean(req.body?.autoExecute),
+    })
+    return res.status(201).json({ job })
+  })
+
+  app.post('/api/local-bridge/claim', (req, res) => {
+    const job = claimLocalBridgeJob({ bridgeId: req.body?.bridgeId || 'local-bridge', preferredJobId: req.body?.preferredJobId || '' })
+    if (!job) return res.status(404).json({ error: 'no_claimable_job' })
+    return res.json({ job })
+  })
+
+  app.post('/api/local-bridge/jobs/:id/heartbeat', (req, res) => {
+    const job = heartbeatLocalBridgeJob(req.params.id, req.body?.bridgeId || 'local-bridge')
+    if (!job) return res.status(404).json({ error: 'job_not_found' })
+    return res.json({ job })
+  })
+
+  app.post('/api/local-bridge/jobs/:id/complete', (req, res) => {
+    const result = completeLocalBridgeJob(req.params.id, req.body?.evidence || req.body?.result, req.body?.bridgeId || 'local-bridge')
+    if (result?.error) return res.status(422).json(result)
+    return res.status(result.perryReviewRequired ? 202 : 200).json(result)
+  })
+
+  app.post('/api/local-bridge/jobs/:id/fail', (req, res) => {
+    const result = failLocalBridgeJob(req.params.id, req.body?.evidence || req.body?.result || {}, req.body?.bridgeId || 'local-bridge')
+    return res.status(result.perryReviewRequired ? 202 : 200).json(result)
+  })
+
+  app.post('/api/local-bridge/reconcile-stale', (req, res) => {
+    const staleAfterMs = req.body?.staleAfterMs === 0 ? 0 : (Number(req.body?.staleAfterMs || NaN))
+    return res.json(reconcileStaleLocalBridgeJobs(Number.isFinite(staleAfterMs) ? staleAfterMs : undefined))
+  })
+
+  app.post('/api/local-bridge/run-next', async (req, res) => {
+    const result = await runNextLocalBridgeJob({ bridgeId: req.body?.bridgeId || 'local-bridge', preferredJobId: req.body?.preferredJobId || '' })
+    if (!result) return res.status(404).json({ error: 'no_claimable_job' })
+    return res.status(result.perryReviewRequired ? 202 : 200).json(result)
+  })
+
   app.post('/api/workers/:id/stop', (req, res) => {
     const worker = stateWorkers().find((entry) => entry.id === req.params.id)
     if (!worker) return res.status(404).json({ error: 'Worker not found' })
