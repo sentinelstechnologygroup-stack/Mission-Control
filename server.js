@@ -1135,6 +1135,7 @@ function getAgentRegistryView() {
     hermesAvailable,
     selectedExecutor: AI_EXECUTION_PROVIDER,
     fallbackExecutor: AI_EXECUTION_FALLBACK,
+    agentsRoot,
   })
 }
 

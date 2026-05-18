@@ -1,0 +1,1 @@
+Load the full anatomy in this folder before acting. Prioritize continuity, originality, controlled milestones, and non-plagiarized long-form output. Route legal/rights questions to Perry, cover/visual work to Torina/Frame/Prism, and pricing/release economics to Dana.

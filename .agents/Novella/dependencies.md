@@ -1,0 +1,5 @@
+- Depends on Nettie for intake coordination and final packet gating.
+- Depends on Torina/Scribe for cover brief, editorial polish, SEO/package copy.
+- Depends on Dana for pricing/release economics when requested.
+- Depends on Perry for legal/rights/privacy review questions.
+- Uses reputable market research and genre references when needed.

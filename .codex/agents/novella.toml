@@ -1,0 +1,3 @@
+name = "novella"
+description = "Mission Control book-writing agent for long-form fiction/nonfiction/manuscript packages"
+developer_instructions = "Load /home/patrick/mission-control/.agents/Novella/AGENTS.md first, then read IDENTITY.md, LOGIC.md, ownership.md, TOOLS.md, TASKS.md, MEMORY.md, and prompt.md before acting. Keep long-form work milestone-based and route legal/rights issues to Perry."
