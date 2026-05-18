@@ -1,0 +1,10 @@
+{
+  "agent": "Nettie",
+  "relationships": [
+    {
+      "type": "reports_to",
+      "target": "Patrick"
+    }
+  ],
+  "updatedAt": "2026-05-18T00:00:00Z"
+}

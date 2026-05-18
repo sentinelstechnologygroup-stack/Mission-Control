@@ -1,0 +1,12 @@
+{
+  "agent": "Icky",
+  "unresolvedItems": [
+    {
+      "id": "unresolved-1",
+      "title": "Await runtime writeback automation",
+      "status": "open",
+      "owner": "Icky"
+    }
+  ],
+  "updatedAt": "2026-05-18T00:00:00Z"
+}

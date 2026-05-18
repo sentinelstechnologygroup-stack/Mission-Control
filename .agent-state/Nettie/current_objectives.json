@@ -1,0 +1,11 @@
+{
+  "agent": "Nettie",
+  "currentObjectives": [
+    {
+      "id": "obj-1",
+      "title": "Maintain department/domain readiness",
+      "status": "active"
+    }
+  ],
+  "updatedAt": "2026-05-18T00:00:00Z"
+}

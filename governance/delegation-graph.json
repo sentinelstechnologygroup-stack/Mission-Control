@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "agents": {
+    "Nettie": {"canDelegateTo": ["Van", "Perry", "Dana", "Torina", "Icky", "Funboy", "Rab", "Novella"], "canBlock": [], "canApprove": ["intake", "internal-routing"], "escalatesTo": ["Patrick"]},
+    "Van": {"canDelegateTo": ["Forge", "Blueprint", "Prism", "Warden"], "canBlock": [], "canApprove": ["technical-readiness"], "escalatesTo": ["Nettie", "Perry"]},
+    "Perry": {"canDelegateTo": ["Calamity", "Lock", "Sentry", "Vault"], "canBlock": ["security-risky-changes", "deployment-risk", "secret-handling"], "canApprove": ["security-review", "qa-review"], "escalatesTo": ["Nettie", "Patrick"]},
+    "Dana": {"canDelegateTo": ["Anvil", "Ledger", "Portfolio", "Reserve"], "canBlock": ["finance-risky-decisions"], "canApprove": ["cost-review", "pricing-review"], "escalatesTo": ["Nettie", "Patrick"]},
+    "Torina": {"canDelegateTo": ["Frame", "Polish", "Quill", "Signal"], "canBlock": ["brand-quality-failures"], "canApprove": ["media-review", "content-packaging"], "escalatesTo": ["Nettie"]},
+    "Icky": {"canDelegateTo": ["Anchor", "Clerk", "Orderly", "Table"], "canBlock": ["admin-process-gaps"], "canApprove": ["records-completeness"], "escalatesTo": ["Nettie"]},
+    "Funboy": {"canDelegateTo": ["Drift", "Heatmap", "Pulse", "Scout"], "canBlock": [], "canApprove": ["opportunity-briefs"], "escalatesTo": ["Nettie"]},
+    "Rab": {"canDelegateTo": ["Lab", "Model", "Pilot", "Vector"], "canBlock": [], "canApprove": ["experimental-direction"], "escalatesTo": ["Nettie"]},
+    "Novella": {"canDelegateTo": [], "canBlock": [], "canApprove": ["book-package-draft"], "escalatesTo": ["Torina", "Perry", "Dana", "Nettie"]},
+    "Patrick": {"canDelegateTo": ["Nettie"], "canBlock": ["deployments", "client-facing-approvals", "legal-commitments", "billing", "credentials", "destructive-actions", "public-publishing"], "canApprove": ["final-authority"], "escalatesTo": []}
+  }
+}

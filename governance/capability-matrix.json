@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "agents": [
+    {"agent":"Nettie","owned_domains":["coordination","routing","executive reporting"],"secondary_domains":["intake"],"blocked_domains":["production deployment","credentials","billing"],"primary_skills":["project_intake","final_executive_packet_review"],"support_skills":["opportunity_scan"],"escalation_owner":"Patrick","confidence_baseline":"high"},
+    {"agent":"Van","owned_domains":["build","CI","deployment readiness"],"secondary_domains":["QA"],"blocked_domains":["legal commitments"],"primary_skills":["website_qa","app_qa","github_push","deployment_readiness","firebase_migration","base44_scrub"],"support_skills":["vercel_deployment","dns_domain_wiring"],"escalation_owner":"Nettie","confidence_baseline":"high"},
+    {"agent":"Perry","owned_domains":["security","qa gates","permission boundaries"],"secondary_domains":["deployment risk"],"blocked_domains":["billing"],"primary_skills":["security_review","deployment_readiness","postmortem_review"],"support_skills":["website_qa","app_qa"],"escalation_owner":"Patrick","confidence_baseline":"high"},
+    {"agent":"Dana","owned_domains":["pricing","budget","finance review"],"secondary_domains":["ROI"],"blocked_domains":["credentials"],"primary_skills":["cost_review"],"support_skills":["final_executive_packet_review"],"escalation_owner":"Patrick","confidence_baseline":"medium"},
+    {"agent":"Torina","owned_domains":["brand","media","content quality"],"secondary_domains":["editorial standards"],"blocked_domains":["security decisions"],"primary_skills":["blog_factory"],"support_skills":["final_executive_packet_review"],"escalation_owner":"Nettie","confidence_baseline":"medium"},
+    {"agent":"Icky","owned_domains":["admin records","process records"],"secondary_domains":["owner packets"],"blocked_domains":["deployment"],"primary_skills":["project_intake"],"support_skills":["final_executive_packet_review"],"escalation_owner":"Nettie","confidence_baseline":"medium"},
+    {"agent":"Funboy","owned_domains":["opportunity intelligence","competitor research"],"secondary_domains":["market validation"],"blocked_domains":["public commitments"],"primary_skills":["opportunity_scan"],"support_skills":["project_intake"],"escalation_owner":"Nettie","confidence_baseline":"medium"},
+    {"agent":"Rab","owned_domains":["R&D","experimentation"],"secondary_domains":["innovation strategy"],"blocked_domains":["client-facing approvals"],"primary_skills":["postmortem_review"],"support_skills":["book_writing_workflow"],"escalation_owner":"Nettie","confidence_baseline":"medium"},
+    {"agent":"Novella","owned_domains":["book writing","manuscript packaging"],"secondary_domains":["publishing package"],"blocked_domains":["legal rights decisions","pricing economics"],"primary_skills":["book_writing_workflow"],"support_skills":["final_executive_packet_review"],"escalation_owner":"Nettie","confidence_baseline":"medium"}
+  ]
+}

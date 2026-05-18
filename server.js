@@ -117,6 +117,7 @@ const { checkpoint: runtimeCheckpointPath, summaries: runtimeSummariesPath, reco
 const ciRegisterJsonPath = path.join(sharedLedgerDir, 'ci-register.json')
 const ciRegisterMdPath = path.join(sharedLedgerDir, 'ci-register.md')
 const agentsRoot = '/home/patrick/mission-control/.agents'
+const agentStateRoot = '/home/patrick/mission-control/.agent-state'
 
 fs.mkdirSync(runtimeDir, { recursive: true })
 fs.mkdirSync(workersDir, { recursive: true })
@@ -1136,6 +1137,7 @@ function getAgentRegistryView() {
     selectedExecutor: AI_EXECUTION_PROVIDER,
     fallbackExecutor: AI_EXECUTION_FALLBACK,
     agentsRoot,
+    agentStateRoot,
   })
 }
 
