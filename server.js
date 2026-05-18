@@ -62,6 +62,9 @@ import {
   buildArchiveCompactionDryRun,
   buildQueueTopologyView,
 } from './lib/operationalViews.js'
+import { RUNTIME_TRUTH, getRuntimeTruthStatus, getFreshnessAge, getOperationalConfidence } from './lib/runtimeTruth.js'
+import { buildRuntimeHealth } from './lib/runtimeHealth.js'
+import { buildRuntimeReconciliation } from './lib/runtimeReconciliation.js'
 import { buildDepartmentWorkflowRegistry, buildDepartmentWorkflow } from './lib/departmentWorkflows.js'
 import { buildTokenTrackingOverview } from './lib/tokenTrackingViews.js'
 import { LOCAL_BRIDGE_ROUTE, LOCAL_BRIDGE_STALE_MS, isLocalBridgeEligibleTask, detectPerryRisk, summarizeText, buildLocalBridgeCommands, buildEvidenceSummary } from './lib/localBridgeExecution.js'
@@ -1297,6 +1300,117 @@ function getTokenTrackingOverviewView() {
     jobs: jobStore.deriveLedgerView().filter((job) => !['completed', 'cancelled'].includes(String(job.status || '').toLowerCase())),
     now: nowIso(),
   })
+}
+
+function buildQueueSummaryView() {
+  const registry = buildMasterWorkRegistry()
+  const ledger = jobStore.deriveLedgerView()
+  const now = nowIso()
+  const staleJobs = ledger.filter((job) => {
+    const status = String(job.status || '').toLowerCase()
+    if (['completed', 'cancelled'].includes(status)) return false
+    const updated = Date.parse(job.updatedAt || job.createdAt || now)
+    return Number.isFinite(updated) && (Date.now() - updated) > 6 * 3600 * 1000
+  })
+  const blockedReasons = [...new Set(registry.blocked.map((job) => job.blockedReason || job.routeStatus || job.status || 'blocked'))]
+  return {
+    sourceType: 'ledger_registry',
+    updatedAt: now,
+    truthStatus: getRuntimeTruthStatus({ sourceType: 'ledger_registry', updatedAt: now, staleThresholdMs: 15 * 60 * 1000, fallbackActive: false, available: true }),
+    freshnessAge: getFreshnessAge(now),
+    fallbackActive: false,
+    stale: staleJobs.length > 0,
+    queueUpdatedAt: now,
+    totalQueued: registry.queued.length,
+    totalRunning: registry.running.length,
+    totalBlocked: registry.blocked.length,
+    totalCompleted: registry.completedRecent.length,
+    staleJobs: staleJobs.map((job) => ({ id: job.id, task: job.task || job.title, updatedAt: job.updatedAt || job.createdAt || null })),
+    blockedReasons,
+  }
+}
+
+function buildReportsStatusView() {
+  const reports = buildControlPlaneSnapshot().reports || []
+  const now = nowIso()
+  const thresholds = { daily: 36, weekly: 9 * 24, 'executive-digest': 30, report: 72 }
+  const rows = reports.map((report) => {
+    const reportType = report.reportType || 'report'
+    const thresholdHours = thresholds[reportType] || 72
+    const truthStatus = getRuntimeTruthStatus({
+      sourceType: 'runtime_file',
+      updatedAt: report.createdAt || null,
+      staleThresholdMs: thresholdHours * 3600 * 1000,
+      fallbackActive: false,
+      available: Boolean(report.createdAt || report.path),
+      simulated: false,
+    })
+    return {
+      ...report,
+      sourceType: 'runtime_file',
+      updatedAt: report.createdAt || null,
+      truthStatus,
+      freshnessAge: getFreshnessAge(report.createdAt || null),
+      staleThresholdHours: thresholdHours,
+      stale: truthStatus === RUNTIME_TRUTH.STALE,
+      fallbackActive: false,
+    }
+  })
+  return {
+    sourceType: 'runtime_reports',
+    updatedAt: now,
+    total: rows.length,
+    staleCount: rows.filter((r) => r.stale).length,
+    recent: rows.slice(0, 20),
+    stale: rows.filter((r) => r.stale),
+  }
+}
+
+function buildRecentJobsView(limit = 20) {
+  const ledger = [...jobStore.deriveLedgerView()].sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')))
+  return ledger.slice(0, limit)
+}
+
+function buildBlockedJobsView() {
+  const registry = buildMasterWorkRegistry()
+  return registry.blocked.map((job) => ({ ...job, blockedReason: job.blockedReason || job.routeStatus || job.status || 'blocked' }))
+}
+
+function buildRuntimeHealthView() {
+  const queueSummary = buildQueueSummaryView()
+  const reportsStatus = buildReportsStatusView()
+  const executorStatus = buildExecutorBridgeStatus()
+  const health = buildPlatformHealth()
+  const snapshot = getRuntimeSnapshotExportView()
+  const reconciliation = buildRuntimeReconciliation({ queueSummary, reportStatus: reportsStatus, snapshot })
+  return buildRuntimeHealth({ platformHealth: health, queueSummary, reportsStatus, executorStatus, reconciliation })
+}
+
+function buildRecentActivityView(limit = 20) {
+  const jobs = buildRecentJobsView(limit).map((job) => ({ id: job.id, type: 'job', summary: `${job.owner || job.agent || 'Unknown'} · ${job.task || job.title}`, updatedAt: job.updatedAt || job.createdAt || null, truthStatus: RUNTIME_TRUTH.LIVE }))
+  const reports = buildReportsStatusView().recent.slice(0, limit).map((report) => ({ id: report.id, type: 'report', summary: report.title, updatedAt: report.updatedAt, truthStatus: report.truthStatus }))
+  return [...jobs, ...reports].sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''))).slice(0, limit)
+}
+
+function buildRuntimeAlertsView() {
+  const reportsStatus = buildReportsStatusView()
+  const queueSummary = buildQueueSummaryView()
+  const health = buildRuntimeHealthView()
+  const detectedAt = nowIso()
+  const alerts = []
+  if ((reportsStatus.staleCount || 0) > 0) alerts.push({ severity: 'warning', source: 'reports', summary: `${reportsStatus.staleCount} stale reports detected`, detectedAt, recommendedAction: 'Regenerate or review stale reports.' })
+  if ((queueSummary.staleJobs || []).length > 0) alerts.push({ severity: 'warning', source: 'queue', summary: `${queueSummary.staleJobs.length} stale jobs detected`, detectedAt, recommendedAction: 'Reconcile stale jobs before treating queue as current.' })
+  for (const item of health.degradedSystems || []) alerts.push({ severity: 'critical', source: 'runtime-health', summary: item, detectedAt, recommendedAction: 'Inspect degraded system and truth source.' })
+  return alerts
+}
+
+function buildGovernanceSummaryView() {
+  return {
+    delegationGraph: fs.existsSync(path.join(root, 'governance', 'delegation-graph.json')),
+    capabilityMatrix: fs.existsSync(path.join(root, 'governance', 'capability-matrix.json')),
+    skillRegistry: fs.existsSync(path.join(root, 'governance', 'skill-registry.json')),
+    updatedAt: nowIso(),
+  }
 }
 
 function readProjectScripts(projectPath = root) {
@@ -5062,7 +5176,15 @@ const routeDeps = {
   reconcileStaleLocalBridgeJobs,
   runNextLocalBridgeJob,
   createLocalBridgeJob,
-  attachWorker,
+  getTokenTrackingOverviewView,
+  buildQueueSummaryView,
+  buildRecentJobsView,
+  buildBlockedJobsView,
+  buildReportsStatusView,
+  buildRuntimeHealthView,
+  buildRecentActivityView,
+  buildRuntimeAlertsView,
+  buildGovernanceSummaryView,
   getRuntimeCheckpointView,
   persistRuntimeCheckpoint,
   getRuntimeSnapshotExportView,

@@ -1,45 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { MetricGrid, PageHeader, SectionCard, SimpleTable, StatusPill, LinkButton } from '@/components/mission-control/LiveDataViews'
-
-const reportColumns = [
-  { key: 'title', label: 'Title' },
-  { key: 'department', label: 'Department' },
-  { key: 'createdBy', label: 'Created By' },
-  { key: 'reportType', label: 'Type' },
-  { key: 'status', label: 'Status', render: (row) => <StatusPill status={row.status} /> },
-  { key: 'emailedTo', label: 'Emailed To' },
-  { key: 'createdAt', label: 'Created' },
-  { key: 'body', label: 'Body / Summary' },
-]
-
-export default function ReportsPage() {
-  const { data = [], isLoading, isError } = useQuery({
-    queryKey: ['reports'],
-    queryFn: api.reports,
-    refetchInterval: 30000,
-  })
-
-  return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Reports"
-        subtitle={isLoading ? 'Loading report artifacts…' : isError ? 'Reports unavailable.' : 'Department, executive, emailed, and generated report artifacts stored in Mission Control.'}
-        actions={<LinkButton to="/departments/dana">Dana office</LinkButton>}
-      />
-
-      <MetricGrid
-        items={[
-          { label: 'Total reports', value: data.length },
-          { label: 'Dana reports', value: data.filter((item) => item.department === 'Dana').length },
-          { label: 'Executive reports', value: data.filter((item) => item.department === 'Nettie').length },
-          { label: 'Emailed', value: data.filter((item) => item.emailedTo).length },
-        ]}
-      />
-
-      <SectionCard title="Report inventory" subtitle="Stored reports visible through Mission Control">
-        <SimpleTable columns={reportColumns} rows={data} empty="No reports found." />
-      </SectionCard>
-    </div>
-  )
-}
+const cols=[{key:'title',label:'Title'},{key:'department',label:'Department'},{key:'reportType',label:'Type'},{key:'truthStatus',label:'Truth',render:r=><StatusPill status={r.truthStatus||r.status}/>},{key:'createdAt',label:'Created'},{key:'body',label:'Summary'}]
+export default function ReportsPage(){const {data,isLoading,isError}=useQuery({queryKey:['reports','status'],queryFn:api.reportsStatus,refetchInterval:30000});const rows=data?.recent||[];const stale=data?.staleCount||0;return <div className='space-y-4'><PageHeader title='Reports' subtitle={isLoading?'Loading report artifacts…':isError?'Reports fallback/unavailable.':`Real report inventory · ${stale} stale`} actions={<LinkButton to='/departments/dana'>Dana office</LinkButton>}/><MetricGrid items={[{label:'Total reports',value:data?.total??rows.length},{label:'Stale reports',value:stale},{label:'Truth',value:data?.sourceType||'fallback'},{label:'Updated',value:data?.updatedAt?new Date(data.updatedAt).toLocaleString():'fallback'}]}/><SectionCard title='Report inventory' subtitle='Freshness-aware report artifacts'>{isError&&<p className='text-[11px] text-amber-300 mb-2'>Fallback mode active. Real report status unavailable.</p>}<SimpleTable columns={cols} rows={rows} empty='No reports found.'/></SectionCard></div>}

@@ -243,9 +243,15 @@ export default function Operations() {
     isLoading: jobsLoading,
     isError: jobsError,
   } = useQuery({
-    queryKey: ["operations", "jobs"],
-    queryFn: api.jobs,
+    queryKey: ["operations", "jobsRecent"],
+    queryFn: () => api.jobsRecent(24),
     placeholderData: tasks,
+    refetchInterval: 10000,
+  });
+
+  const { data: queueSummary } = useQuery({
+    queryKey: ["operations", "jobsSummary"],
+    queryFn: api.jobsSummary,
     refetchInterval: 10000,
   });
 
@@ -288,7 +294,7 @@ export default function Operations() {
           <span className="flex items-center gap-1.5">
             <span className={`w-1.5 h-1.5 rounded-full ${jobsLoading ? "bg-amber-500" : jobsError ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
             <span className="text-[9px] text-white/20 font-mono">
-              {jobsLoading ? "Loading" : jobsError ? "Data offline" : "Live"}
+              {jobsLoading ? "Loading" : jobsError ? "Fallback" : (queueSummary?.truthStatus || "LIVE")}
             </span>
           </span>
         </div>
@@ -297,10 +303,10 @@ export default function Operations() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-4">
         {[
-          { label: 'Running', value: workRegistry?.running?.length ?? displayTasks.filter((task) => task.status === 'running').length, accent: 'text-emerald-400' },
-          { label: 'Queued', value: workRegistry?.queued?.length ?? displayTasks.filter((task) => task.status === 'queued').length, accent: 'text-blue-400' },
-          { label: 'Blocked', value: workRegistry?.blocked?.length ?? displayTasks.filter((task) => task.status === 'blocked').length, accent: 'text-amber-400' },
-          { label: 'Live Subset', value: displayTasks.length, accent: 'text-white/70' },
+          { label: 'Running', value: queueSummary?.totalRunning ?? workRegistry?.running?.length ?? displayTasks.filter((task) => task.status === 'running').length, accent: 'text-emerald-400' },
+          { label: 'Queued', value: queueSummary?.totalQueued ?? workRegistry?.queued?.length ?? displayTasks.filter((task) => task.status === 'queued').length, accent: 'text-blue-400' },
+          { label: 'Blocked', value: queueSummary?.totalBlocked ?? workRegistry?.blocked?.length ?? displayTasks.filter((task) => task.status === 'blocked').length, accent: 'text-amber-400' },
+          { label: 'Stale', value: queueSummary?.staleJobs?.length ?? 0, accent: 'text-red-400' },
         ].map((item, index) => (
           <GlassCard key={item.label} delay={index * 0.03} className="py-3">
             <p className="text-[9px] text-white/20 uppercase tracking-wider">{item.label}</p>

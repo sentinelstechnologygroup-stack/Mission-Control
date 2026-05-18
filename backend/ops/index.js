@@ -32,6 +32,12 @@ export function registerOpsRoutes(app, deps) {
     getQueueTopologyView,
     getDepartmentWorkflowRegistryView,
     getTokenTrackingOverviewView,
+    buildQueueSummaryView,
+    buildReportsStatusView,
+    buildRuntimeHealthView,
+    buildRecentActivityView,
+    buildRuntimeAlertsView,
+    buildGovernanceSummaryView,
     getRuntimeCheckpointView,
     persistRuntimeCheckpoint,
     getRuntimeSnapshotExportView,
@@ -103,6 +109,38 @@ export function registerOpsRoutes(app, deps) {
     res.json(getTokenTrackingOverviewView())
   })
 
+  app.get('/api/runtime/health', (_, res) => {
+    res.json(buildRuntimeHealthView())
+  })
+
+  app.get('/api/queues/summary', (_, res) => {
+    res.json(buildQueueSummaryView())
+  })
+
+  app.get('/api/reports/recent', (_, res) => {
+    res.json(buildReportsStatusView().recent)
+  })
+
+  app.get('/api/reports/status', (_, res) => {
+    res.json(buildReportsStatusView())
+  })
+
+  app.get('/api/reports/stale', (_, res) => {
+    res.json(buildReportsStatusView().stale)
+  })
+
+  app.get('/api/activity/recent', (_, res) => {
+    res.json(buildRecentActivityView())
+  })
+
+  app.get('/api/governance/summary', (_, res) => {
+    res.json(buildGovernanceSummaryView())
+  })
+
+  app.get('/api/runtime/alerts', (_, res) => {
+    res.json(buildRuntimeAlertsView())
+  })
+
   app.get('/api/runtime/checkpoint', (_, res) => {
     res.json(getRuntimeCheckpointView())
   })
@@ -113,6 +151,10 @@ export function registerOpsRoutes(app, deps) {
   })
 
   app.get('/api/runtime/snapshot/export', (_, res) => {
+    res.json(getRuntimeSnapshotExportView())
+  })
+
+  app.get('/api/runtime/snapshot', (_, res) => {
     res.json(getRuntimeSnapshotExportView())
   })
 

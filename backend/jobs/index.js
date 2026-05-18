@@ -19,6 +19,9 @@ export function registerJobsRoutes(app, deps) {
     getCooldownBlockedListArtifactView,
     getReconciliationDebtView,
     paginateItems,
+    buildQueueSummaryView,
+    buildRecentJobsView,
+    buildBlockedJobsView,
     loadRecoveryLedger,
     syncRecoveryLedger,
     updateRecoveryEntry,
@@ -29,6 +32,19 @@ export function registerJobsRoutes(app, deps) {
 
   app.get('/api/jobs', (_, res) => res.json(state.jobs.map(attachWorker)))
   app.get('/api/jobs/:id', (req, res) => {
+    if (req.params.id === 'summary') {
+      return res.json(buildQueueSummaryView())
+    }
+    if (req.params.id === 'recent') {
+      const limit = Math.max(1, Math.min(50, Number(req.query?.limit || 20) || 20))
+      return res.json(buildRecentJobsView(limit))
+    }
+    if (req.params.id === 'blocked') {
+      return res.json(buildBlockedJobsView())
+    }
+    if (req.params.id === 'stale') {
+      return res.json(buildQueueSummaryView().staleJobs)
+    }
     if (req.params.id === 'ledger') {
       const ledger = jobStore.deriveLedgerView()
       const summary = req.query?.summary === 'true'
@@ -256,6 +272,23 @@ export function registerJobsRoutes(app, deps) {
 
   app.get('/api/queue/priorities', (req, res) => {
     res.json(getQueuePrioritiesView())
+  })
+
+  app.get('/api/jobs/summary', (_, res) => {
+    res.json(buildQueueSummaryView())
+  })
+
+  app.get('/api/jobs/recent', (req, res) => {
+    const limit = Math.max(1, Math.min(50, Number(req.query?.limit || 20) || 20))
+    res.json(buildRecentJobsView(limit))
+  })
+
+  app.get('/api/jobs/blocked', (_, res) => {
+    res.json(buildBlockedJobsView())
+  })
+
+  app.get('/api/jobs/stale', (_, res) => {
+    res.json(buildQueueSummaryView().staleJobs)
   })
 
   app.get('/api/queue/next-actions', (req, res) => {

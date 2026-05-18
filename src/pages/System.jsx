@@ -116,6 +116,18 @@ export default function System() {
     refetchInterval: 10000,
   });
 
+  const { data: runtimeHealth } = useQuery({
+    queryKey: ["system", "runtimeHealth"],
+    queryFn: api.runtimeHealth,
+    refetchInterval: 10000,
+  });
+
+  const { data: runtimeAlerts = [] } = useQuery({
+    queryKey: ["system", "runtimeAlerts"],
+    queryFn: api.runtimeAlerts,
+    refetchInterval: 10000,
+  });
+
   const {
     data: rawWorkers,
     isLoading: automationsLoading,
@@ -135,6 +147,15 @@ export default function System() {
     mutationFn: (workerId) => api.stopWorker(workerId),
   });
 
+  const liveStateItems = runtimeHealth ? [
+    { label: 'Overall Health', value: runtimeHealth.overallHealth, status: runtimeHealth.overallHealth === 'HEALTHY' ? 'active' : 'warning' },
+    { label: 'Queue Status', value: runtimeHealth.queueStatus || 'UNKNOWN', status: runtimeHealth.queueStatus === 'LIVE' ? 'active' : 'warning' },
+    { label: 'Report Status', value: runtimeHealth.reportStatus || 'UNKNOWN', status: runtimeHealth.reportStatus === 'LIVE' ? 'active' : 'warning' },
+    { label: 'Operational Confidence', value: `${runtimeHealth.operationalConfidence?.score ?? 0}%`, status: (runtimeHealth.operationalConfidence?.score ?? 0) >= 85 ? 'active' : 'warning' },
+    { label: 'Degraded Systems', value: String((runtimeHealth.degradedSystems || []).length), status: (runtimeHealth.degradedSystems || []).length ? 'warning' : 'active' },
+    { label: 'Unavailable Systems', value: String((runtimeHealth.unavailableSystems || []).length), status: (runtimeHealth.unavailableSystems || []).length ? 'critical' : 'active' },
+  ] : stateItems.map((item)=>({...item,status:'idle'}));
+
   // currentlyActive: whether the item is active before this click
   // Pause → calls api.stopWorker (API-backed when backend is live)
   // Play  → local-only (no resume endpoint exists)
@@ -151,6 +172,9 @@ export default function System() {
         <h1 className="text-[15px] font-semibold text-white/80 mb-1">System</h1>
         <p className="text-[11px] text-white/30">Cost, automations, logs, state, and configuration</p>
       </div>
+      {runtimeAlerts.length > 0 && (
+        <div className="mb-4 space-y-2">{runtimeAlerts.slice(0,3).map((alert,idx)=><GlassCard key={idx} className="py-2"><p className="text-[10px] text-amber-300 uppercase tracking-wider">{alert.severity}</p><p className="text-[11px] text-white/60">{alert.summary}</p><p className="text-[9px] text-white/25">{alert.recommendedAction}</p></GlassCard>)}</div>
+      )}
       <SubTabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
       <AnimatePresence mode="wait">
@@ -249,11 +273,11 @@ export default function System() {
         {activeTab === "state" && (
           <motion.div key="state" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {stateItems.map((item, i) => (
+              {liveStateItems.map((item, i) => (
                 <GlassCard key={i} delay={i * 0.04} className="text-center">
                   <p className="text-[9px] text-white/25 uppercase tracking-wider mb-2">{item.label}</p>
                   <p className="text-[13px] text-white/70 font-medium font-mono">{item.value}</p>
-                  <StatusBadge variant="active" className="mt-2" dot={true}>Healthy</StatusBadge>
+                  <StatusBadge variant={item.status || 'idle'} className="mt-2" dot={true}>{item.status || 'idle'}</StatusBadge>
                 </GlassCard>
               ))}
             </div>
