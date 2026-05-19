@@ -1,0 +1,2 @@
+import assert from 'assert/strict'
+const r=await fetch('http://127.0.0.1:4174/api/executors/cooldown-fallback'); const d=await r.json(); assert.equal(r.status,200); assert.ok(Array.isArray(d.allowedWorkDuringCooldown)); assert.ok(Array.isArray(d.pausedWorkDuringCooldown)); console.log('cooldown fallback mode tests passed')

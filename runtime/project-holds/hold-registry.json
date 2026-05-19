@@ -1,0 +1,49 @@
+{
+  "updatedAt": "2026-05-19T07:14:57.056Z",
+  "projects": [
+    {
+      "id": "healthcare-teams-zoho-message-logging-middleware",
+      "title": "Healthcare Teams-to-Zoho Message Logging Middleware",
+      "owner": "Icky",
+      "holdReason": "Permanent hold until client reactivation",
+      "holdDate": "2026-05-19T07:14:57.055Z",
+      "restartConditions": [
+        "client reactivation",
+        "explicit Patrick approval"
+      ],
+      "artifactLocations": [
+        "/home/patrick/projects/internal-tools/healthcare-teams-zoho-middleware"
+      ],
+      "preservedRoutes": [],
+      "preservedSchemas": [
+        "docs/zoho-communications-schema-draft.md"
+      ],
+      "preservedReports": [],
+      "preservedDependencies": [],
+      "resumeNotes": "Preserve architecture and notes; no active execution."
+    },
+    {
+      "id": "internal-speculative-middleware",
+      "title": "Internal Speculative Middleware",
+      "owner": "Icky",
+      "holdReason": "Speculative middleware initiatives paused pending ROI/necessity/demand proof",
+      "holdDate": "2026-05-19T07:14:57.056Z",
+      "restartConditions": [
+        "measurable ROI",
+        "operational necessity",
+        "validated market demand"
+      ],
+      "artifactLocations": [
+        "/home/patrick/mission-control/governance/middleware-hub-wedge-checklist.md",
+        "/home/patrick/mission-control/reports/middleware-hub-architecture-decision-2026-04-26.md"
+      ],
+      "preservedRoutes": [],
+      "preservedSchemas": [],
+      "preservedReports": [
+        "reports/middleware-hub-architecture-decision-2026-04-26.md"
+      ],
+      "preservedDependencies": [],
+      "resumeNotes": "Do not auto-resume or inflate runtime queues."
+    }
+  ]
+}

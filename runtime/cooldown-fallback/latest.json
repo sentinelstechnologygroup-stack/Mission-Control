@@ -1,0 +1,20 @@
+{
+  "gptAvailable": true,
+  "cooldownDetected": false,
+  "fallbackExecutor": "local_ollama",
+  "allowedWorkDuringCooldown": [
+    "report formatting",
+    "blog drafting",
+    "artifact indexing",
+    "audits",
+    "docs",
+    "queue/report status generation"
+  ],
+  "pausedWorkDuringCooldown": [
+    "high-stakes finance judgment",
+    "new strategy decisions",
+    "client-facing final approval",
+    "production deployment decisions"
+  ],
+  "lastFallbackRun": "2026-05-19T07:30:56.159Z"
+}

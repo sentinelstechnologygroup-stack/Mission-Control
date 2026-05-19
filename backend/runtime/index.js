@@ -52,6 +52,14 @@ export function registerRuntimeRoutes(app, deps) {
     reconcileStaleLocalBridgeJobs,
     runNextLocalBridgeJob,
     createLocalBridgeJob,
+    buildExecutorEvidenceView,
+    buildExecutorsRoutingPolicyView,
+    buildExecutorsLocalHealthView,
+    buildTaskOwnershipView,
+    buildReportExecutionHealthView,
+    buildStartupHealthView,
+    applyHoldGovernanceTransitions,
+    loadCooldownFallback,
 } = deps
 
   app.get('/api/health', (_, res) => {
@@ -166,6 +174,42 @@ export function registerRuntimeRoutes(app, deps) {
   app.get('/api/executors/health', async (_, res) => {
     const health = await getExecutorsHealth()
     res.json(health)
+  })
+
+  app.get('/api/executors/evidence', (_, res) => {
+    res.json(buildExecutorEvidenceView())
+  })
+
+  app.get('/api/executors/routing-policy', (_, res) => {
+    res.json(buildExecutorsRoutingPolicyView())
+  })
+
+  app.get('/api/executors/local-health', (_, res) => {
+    res.json(buildExecutorsLocalHealthView())
+  })
+
+  app.get('/api/tasks/ownership', (_, res) => {
+    res.json(buildTaskOwnershipView())
+  })
+
+  app.get('/api/reports/execution-health', (_, res) => {
+    res.json(buildReportExecutionHealthView())
+  })
+
+  app.get('/api/runtime/startup-health', (_, res) => {
+    res.json(buildStartupHealthView())
+  })
+
+  app.get('/api/projects/holds', (_, res) => {
+    res.json(applyHoldGovernanceTransitions().registry)
+  })
+
+  app.post('/api/projects/holds/apply', (_, res) => {
+    res.json(applyHoldGovernanceTransitions())
+  })
+
+  app.get('/api/executors/cooldown-fallback', (_, res) => {
+    res.json(loadCooldownFallback(root))
   })
 
   app.post('/api/executors/test', async (_, res) => {

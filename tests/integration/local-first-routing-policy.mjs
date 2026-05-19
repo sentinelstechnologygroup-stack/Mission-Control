@@ -1,0 +1,2 @@
+import assert from 'assert/strict'
+const r=await fetch('http://127.0.0.1:4174/api/executors/routing-policy'); const d=await r.json(); assert.equal(r.status,200); assert.equal(d.localFirstEnabled,true); assert.ok(Array.isArray(d.localEligibleTaskTypes)); console.log('local first routing policy tests passed')

@@ -65,6 +65,7 @@ import {
 import { RUNTIME_TRUTH, getRuntimeTruthStatus, getFreshnessAge, getOperationalConfidence } from './lib/runtimeTruth.js'
 import { buildRuntimeHealth } from './lib/runtimeHealth.js'
 import { buildRuntimeReconciliation, buildRuntimeLocksSummary } from './lib/runtimeReconciliation.js'
+import { ensureOperationalRecoveryRoots, appendExecutorEvidence, loadExecutorEvidence, buildRoutingPolicy, buildLocalHealth, writeCooldownFallback, loadCooldownFallback, buildHoldRegistry, classifyHoldMatches, appendReportTimeline, buildReportExecutionHealth, buildTaskOwnership, buildStartupHealth } from './lib/operationalRecovery.js'
 import { classifyBlockedJobs } from './lib/blockerTaxonomy.js'
 import { buildTriageSummary } from './lib/triageSummary.js'
 import { buildNettieCommandResponse } from './lib/nettieResponseEngine.js'
@@ -124,7 +125,9 @@ const ciRegisterJsonPath = path.join(sharedLedgerDir, 'ci-register.json')
 const ciRegisterMdPath = path.join(sharedLedgerDir, 'ci-register.md')
 const agentsRoot = '/home/patrick/mission-control/.agents'
 const agentStateRoot = '/home/patrick/mission-control/.agent-state'
-
+ensureOperationalRecoveryRoots(root)
+const holdRegistry = buildHoldRegistry(root)
+const cooldownFallbackState = writeCooldownFallback(root, { cooldownDetected: Boolean(getExecutorCooldownSummary()), fallbackExecutor: 'local_ollama' })
 fs.mkdirSync(runtimeDir, { recursive: true })
 fs.mkdirSync(workersDir, { recursive: true })
 fs.mkdirSync(jobArchiveDir, { recursive: true })
@@ -1487,6 +1490,43 @@ function buildHomeSummaryView() {
   return { updatedAt: nowIso(), truthStatus: queue.truthStatus, quickStats, inbox: liveInbox, missions, dailyWrapUp: wrap, queue, reports, runtimeHealth, alerts, activity, governance, tokens, agentsSummary: { total: agents.length, live: agents.filter((a) => a.agentFilesystem?.complete).length } }
 }
 
+function buildExecutorEvidenceView() {
+  return loadExecutorEvidence(root)
+}
+
+function buildReportExecutionHealthView() {
+  return buildReportExecutionHealth(root, buildReportsStatusView(), jobStore.deriveLedgerView())
+}
+
+function buildTaskOwnershipView() {
+  return buildTaskOwnership(jobStore.deriveLedgerView())
+}
+
+function buildStartupHealthView() {
+  return buildStartupHealth({ jobs: jobStore.deriveLedgerView(), reportsStatus: buildReportsStatusView() })
+}
+
+function applyHoldGovernanceTransitions() {
+  const matchedIds = classifyHoldMatches(jobStore.deriveLedgerView())
+  const transitioned=[]
+  for (const id of matchedIds) {
+    const updated = updateJobStatus(id, 'hold', { routeStatus: 'hold', updatedAt: nowIso(), nextAction: 'Preserved on HOLD; excluded from active runtime pressure.', lockOwner: null, lockSession: null, lockExpiresAt: null, lockReason: null })
+    if (updated?.id) transitioned.push(updated.id)
+  }
+  return { registry: holdRegistry, transitioned }
+}
+
+function buildExecutorsRoutingPolicyView() {
+  const policy = buildRoutingPolicy()
+  const health = buildLocalHealth()
+  const cooldown = loadCooldownFallback(root)
+  return { ...policy, localModelsAvailable: health.qwenAvailable, currentPrimaryExecutor: AI_EXECUTION_PROVIDER, recentFallbackReasons: buildExecutorEvidenceView().tasks.filter(t => t.fallbackReason).slice(0, 10).map(t => ({ taskId: t.taskId, reason: t.fallbackReason, timestamp: t.timestamp })), tokenConservationMode: Boolean(cooldown.cooldownDetected || policy.tokenConservationMode) }
+}
+
+function buildExecutorsLocalHealthView() {
+  return buildLocalHealth()
+}
+
 function readProjectScripts(projectPath = root) {
   try {
     const pkgPath = path.join(projectPath, 'package.json')
@@ -1521,7 +1561,7 @@ function createLocalBridgeJob({ owner = 'Van', task, projectPath = root, command
   const createdAt = nowIso()
   const reviewChain = buildReviewChain({ owner, task, description: task })
   const workflow = buildDepartmentWorkflow(owner, task, reviewChain)
-  return saveJob({
+  const created = saveJob({
     id: `job_${crypto.randomUUID().slice(0, 8)}`,
     task,
     title: task,
@@ -1538,6 +1578,8 @@ function createLocalBridgeJob({ owner = 'Van', task, projectPath = root, command
     createdAt,
     updatedAt: createdAt,
   })
+  appendExecutorEvidence(root,{taskId:created.id,taskTitle:task,owningAgent:owner,assignedBy:source,executorProvider:'local-bridge',executorModel:'governed-local-lane',localModelAttempted:false,localModelName:null,localModelResult:null,gptUsed:false,gptReason:null,fallbackReason:null,filesChanged:[],testsRun:[],outputArtifacts:[],status:'queued'})
+  return created
 }
 
 function claimLocalBridgeJob({ bridgeId = 'local-bridge', preferredJobId = '' } = {}) {
@@ -1583,6 +1625,7 @@ function completeLocalBridgeJob(jobId, evidence, bridgeId = 'local-bridge') {
     executionTrace: [{ step: 'local_bridge_completed', at: nowIso(), level: 'info', message: 'complete', data: { bridgeId, needsPerry } }],
   })
   const perryJob = needsPerry ? createPerryReviewJob({ sourceJob: updated, reason: 'CI/security/deployment risk indicator detected', evidence }) : null
+  appendExecutorEvidence(root,{taskId:jobId,taskTitle:updated?.title||updated?.task,owningAgent:updated?.owner||updated?.agent,assignedBy:'local-bridge',executorProvider:'local-bridge',executorModel:'governed-local-lane',localModelAttempted:false,localModelName:null,localModelResult:null,gptUsed:false,gptReason:null,fallbackReason:needsPerry?'perry_review_required':null,filesChanged:evidence?.filesChanged?[evidence.filesChanged.after||'']:[],testsRun:evidence?.commandsRun||[],outputArtifacts:[`job:${jobId}`],status:needsPerry?'perry_review_required':'completed'})
   return { job: updated, perryReviewRequired: needsPerry, perryJob }
 }
 
@@ -1601,6 +1644,7 @@ function failLocalBridgeJob(jobId, evidence, bridgeId = 'local-bridge') {
     executionTrace: [{ step: 'local_bridge_failed', at: nowIso(), level: 'error', message: 'failed', data: { bridgeId, needsPerry } }],
   })
   const perryJob = needsPerry ? createPerryReviewJob({ sourceJob: updated, reason: 'CI/security/deployment risk indicator detected', evidence }) : null
+  appendExecutorEvidence(root,{taskId:jobId,taskTitle:updated?.title||updated?.task,owningAgent:updated?.owner||updated?.agent,assignedBy:'local-bridge',executorProvider:'local-bridge',executorModel:'governed-local-lane',localModelAttempted:false,localModelName:null,localModelResult:null,gptUsed:false,gptReason:null,fallbackReason:'execution_failed',filesChanged:evidence?.filesChanged?[evidence.filesChanged.after||'']:[],testsRun:evidence?.commandsRun||[],outputArtifacts:[`job:${jobId}`],status:needsPerry?'perry_review_required':'failed'})
   return { job: updated, perryReviewRequired: needsPerry, perryJob }
 }
 
@@ -5264,6 +5308,14 @@ const routeDeps = {
   buildRuntimeAlertsView,
   buildGovernanceSummaryView,
   buildHomeSummaryView,
+  buildExecutorEvidenceView,
+  buildExecutorsRoutingPolicyView,
+  buildExecutorsLocalHealthView,
+  buildReportExecutionHealthView,
+  buildTaskOwnershipView,
+  buildStartupHealthView,
+  applyHoldGovernanceTransitions,
+  loadCooldownFallback,
   getRuntimeCheckpointView,
   persistRuntimeCheckpoint,
   getRuntimeSnapshotExportView,

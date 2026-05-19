@@ -1,0 +1,2 @@
+import assert from 'assert/strict'
+const r=await fetch('http://127.0.0.1:4174/api/tasks/ownership'); const d=await r.json(); assert.equal(r.status,200); assert.ok(Array.isArray(d.activeTasks)); if (d.activeTasks[0]) assert.ok('ownerAgent' in d.activeTasks[0]); console.log('task ownership truth tests passed')
