@@ -110,11 +110,11 @@ export function registerRuntimeRoutes(app, deps) {
         {
           id: 'local_ollama',
           family: 'local',
-          available: false,
+          available: true,
           selected: status.selectedExecutor === 'ollama',
           coolingDown: false,
-          role: 'draft_triage_only',
-          mode: 'draft_only',
+          role: 'local_first_coding',
+          mode: 'ollama:qwen2.5-coder:14b',
         },
         {
           id: 'hermes',
