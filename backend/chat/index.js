@@ -1,6 +1,9 @@
 export function registerChatRoutes(app, deps) {
   const {
     state,
+    fs,
+    path,
+    runtimeDir,
     crypto,
     nowIso,
     fetch,
@@ -18,6 +21,8 @@ export function registerChatRoutes(app, deps) {
     classifyExecutionIntent,
     sendTelegramText,
     extractTelegramMessage,
+    handleAssignment,
+    buildNettieCommandResponse,
     jobStore,
     buildDepartmentWorkflow,
     buildReviewChain,
@@ -27,7 +32,86 @@ export function registerChatRoutes(app, deps) {
     telegramWebhookSecret,
   } = deps
 
+  const nettieConversationDir = path.join(runtimeDir, 'nettie-conversations')
+
+  function saveNettieConversation(entry) {
+    fs.mkdirSync(nettieConversationDir, { recursive: true })
+    const stamp = (entry.createdAt || nowIso()).replace(/[:.]/g, '-')
+    const filePath = path.join(nettieConversationDir, `${stamp}-${entry.id}.json`)
+    fs.writeFileSync(filePath, JSON.stringify(entry, null, 2))
+    return filePath
+  }
+
+  function loadRecentNettieConversations(limit = 25) {
+    try {
+      if (!fs.existsSync(nettieConversationDir)) return []
+      return fs.readdirSync(nettieConversationDir)
+        .filter((name) => name.endsWith('.json'))
+        .sort()
+        .reverse()
+        .slice(0, limit)
+        .map((name) => {
+          try {
+            return JSON.parse(fs.readFileSync(path.join(nettieConversationDir, name), 'utf8'))
+          } catch {
+            return null
+          }
+        })
+        .filter(Boolean)
+    } catch {
+      return []
+    }
+  }
+
   app.get('/api/chat/history', (_, res) => res.json(state.chat))
+
+  app.get('/api/nettie/conversations/recent', (_, res) => {
+    res.json({ conversations: loadRecentNettieConversations() })
+  })
+
+  app.post('/api/nettie/command', async (req, res) => {
+    const message = String(req.body?.message || '').trim()
+    const operator = String(req.body?.operator || 'Patrick').trim() || 'Patrick'
+    const context = req.body?.context && typeof req.body.context === 'object' ? req.body.context : {}
+
+    if (!message) {
+      return res.status(400).json({ error: 'message is required' })
+    }
+
+    const response = await buildNettieCommandResponse({
+      message,
+      operator,
+      context,
+      now: nowIso(),
+      sources: {
+        queueSummary: async () => deps.buildQueueSummaryView(),
+        jobsBlocked: async () => deps.buildBlockedJobsClassifiedView(),
+        jobsStale: async () => deps.buildQueueSummaryView().staleJobs,
+        reportsStatus: async () => deps.buildReportsStatusView(),
+        runtimeHealth: async () => deps.buildRuntimeHealthView(),
+        runtimeReconciliation: async () => deps.buildRuntimeReconciliationView(),
+        runtimeLocks: async () => deps.buildRuntimeLocksView(),
+        triageSummary: async () => deps.buildTriageSummaryView(),
+        workRegistry: async () => deps.buildMasterWorkRegistry(),
+      },
+      actions: {
+        routeAssignment: async (commandMessage) => handleAssignment(commandMessage, 'api/nettie/command'),
+      },
+    })
+
+    const record = {
+      ...response,
+      createdJobs: (response.createdJobs || []).map((job) => ({
+        jobId: job.jobId || job.id,
+        task: job.task || job.title || 'Untitled job',
+        owner: job.owner || job.agent || job.department || 'Unknown',
+        status: job.status || 'queued',
+      })),
+      approvalRequired: response.requiresApproval,
+    }
+    saveNettieConversation(record)
+    res.json(response)
+  })
 
   app.post('/api/nettie/messages', requireBridgeToken, async (req, res) => {
     const message = String(req.body?.message || '').trim()

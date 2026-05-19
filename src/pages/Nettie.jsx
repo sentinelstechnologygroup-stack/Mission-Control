@@ -326,8 +326,10 @@ function formatContextSummary(summary, nextActionHint) {
 }
 
 function extractCanonicalReply(data) {
-  const text = data?.reply?.text
+  const text = data?.replyMarkdown
+    ?? data?.reply?.text
     ?? data?.reply?.message
+    ?? data?.summary
     ?? data?.message
     ?? data?.text
     ?? formatContextSummary(data?.job?.contextSummary, data?.job?.nextActionHint)
@@ -664,7 +666,7 @@ export default function Nettie() {
   const executorStateView = getExecutorStateView(executorStatus, executorStatusLoading, executorStatusError);
 
   const sendChatMutation = useMutation({
-    mutationFn: (message) => api.sendNettieMessage(message),
+    mutationFn: (message) => api.nettieCommand(message, { route: "/nettie", selectedObjectId: activeThread?.id || null, selectedObjectType: "thread" }),
     onSuccess: (data) => {
       console.log("NETTIE_ON_SUCCESS_RAW", data);
       const serverReply = extractCanonicalReply(data);

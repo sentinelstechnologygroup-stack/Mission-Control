@@ -1,6 +1,7 @@
 import {
   Home,
   MessageSquare,
+  Activity,
   Radio,
   Bot,
   Target,
@@ -14,6 +15,7 @@ import {
 
 export const navItems = [
   { path: "/", label: "Home", icon: Home },
+  { path: "/triage", label: "Triage Center", icon: Activity, accent: true },
   { path: "/nettie", label: "Nettie", icon: MessageSquare, badge: 3, accent: true },
   { path: "/operations", label: "Operations", icon: Radio },
   { path: "/agents", label: "Agents", icon: Bot },

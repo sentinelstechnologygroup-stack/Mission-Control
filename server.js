@@ -64,7 +64,10 @@ import {
 } from './lib/operationalViews.js'
 import { RUNTIME_TRUTH, getRuntimeTruthStatus, getFreshnessAge, getOperationalConfidence } from './lib/runtimeTruth.js'
 import { buildRuntimeHealth } from './lib/runtimeHealth.js'
-import { buildRuntimeReconciliation } from './lib/runtimeReconciliation.js'
+import { buildRuntimeReconciliation, buildRuntimeLocksSummary } from './lib/runtimeReconciliation.js'
+import { classifyBlockedJobs } from './lib/blockerTaxonomy.js'
+import { buildTriageSummary } from './lib/triageSummary.js'
+import { buildNettieCommandResponse } from './lib/nettieResponseEngine.js'
 import { buildDepartmentWorkflowRegistry, buildDepartmentWorkflow } from './lib/departmentWorkflows.js'
 import { buildTokenTrackingOverview } from './lib/tokenTrackingViews.js'
 import { LOCAL_BRIDGE_ROUTE, LOCAL_BRIDGE_STALE_MS, isLocalBridgeEligibleTask, detectPerryRisk, summarizeText, buildLocalBridgeCommands, buildEvidenceSummary } from './lib/localBridgeExecution.js'
@@ -1376,13 +1379,43 @@ function buildBlockedJobsView() {
   return registry.blocked.map((job) => ({ ...job, blockedReason: job.blockedReason || job.routeStatus || job.status || 'blocked' }))
 }
 
+function buildBlockedJobsClassifiedView() {
+  return classifyBlockedJobs(buildBlockedJobsView(), { executorState: buildExecutorBridgeStatus(), now: nowIso() })
+}
+
+function buildRuntimeLocksView() {
+  return buildRuntimeLocksSummary({
+    ledgerJobs: jobStore.deriveLedgerView(),
+    registry: buildMasterWorkRegistry(),
+    now: nowIso(),
+  })
+}
+
+function buildRuntimeReconciliationView() {
+  const registry = buildMasterWorkRegistry()
+  const activeWorkView = buildActiveWorkView(registry)
+  const queueSummary = buildQueueSummaryView()
+  const reportStatus = buildReportsStatusView()
+  return buildRuntimeReconciliation({
+    ledgerJobs: jobStore.deriveLedgerView(),
+    registry,
+    activeWorkView,
+    queueSummary,
+    blockedJobs: buildBlockedJobsView(),
+    recentActivity: buildRecentActivityView(20),
+    reportStatus,
+    snapshot: getRuntimeSnapshotExportView(),
+    executorState: buildExecutorBridgeStatus(),
+    now: nowIso(),
+  })
+}
+
 function buildRuntimeHealthView() {
   const queueSummary = buildQueueSummaryView()
   const reportsStatus = buildReportsStatusView()
   const executorStatus = buildExecutorBridgeStatus()
   const health = buildPlatformHealth()
-  const snapshot = getRuntimeSnapshotExportView()
-  const reconciliation = buildRuntimeReconciliation({ queueSummary, reportStatus: reportsStatus, snapshot })
+  const reconciliation = buildRuntimeReconciliationView()
   return buildRuntimeHealth({ platformHealth: health, queueSummary, reportsStatus, executorStatus, reconciliation })
 }
 
@@ -1413,6 +1446,19 @@ function buildGovernanceSummaryView() {
   }
 }
 
+function buildTriageSummaryView() {
+  return buildTriageSummary({
+    runtimeHealth: buildRuntimeHealthView(),
+    reconciliation: buildRuntimeReconciliationView(),
+    locks: buildRuntimeLocksView(),
+    queueSummary: buildQueueSummaryView(),
+    reportsStatus: buildReportsStatusView(),
+    activityFeed: buildRecentActivityView(12),
+    nextActions: getTopNextActionsView(10),
+    now: nowIso(),
+  })
+}
+
 function buildHomeSummaryView() {
   const queue = buildQueueSummaryView()
   const recentJobs = buildRecentJobsView(8)
@@ -1431,7 +1477,7 @@ function buildHomeSummaryView() {
     { label: 'Queued Jobs', value: String(queue.totalQueued ?? 0), truthStatus: queue.truthStatus || 'LIVE', color: 'text-amber-400', bg: 'bg-amber-500/10' },
     { label: 'Running Jobs', value: String(queue.totalRunning ?? 0), truthStatus: queue.truthStatus || 'LIVE', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
     { label: 'Stale Reports', value: String(reports.staleCount ?? 0), truthStatus: reports.truthStatus || (reports.recent?.length ? 'LIVE' : 'DEGRADED'), color: 'text-red-400', bg: 'bg-red-500/10' },
-    { label: 'Operational Confidence', value: String(runtimeHealth.operationalConfidence ?? 0), truthStatus: runtimeHealth.truthStatus || 'DEGRADED', color: 'text-blue-400', bg: 'bg-blue-500/10' },
+    { label: 'Operational Confidence', value: Number.isFinite(runtimeHealth.operationalConfidence?.score) ? `${runtimeHealth.operationalConfidence.score}% ${runtimeHealth.operationalConfidence.label || 'UNKNOWN'}` : 'No confidence score', truthStatus: runtimeHealth.truthStatus || 'DEGRADED', color: 'text-blue-400', bg: 'bg-blue-500/10' },
   ]
   const missions = recentJobs.slice(0, 4).map((job) => ({ id: job.id, name: job.title || job.task, owner: job.owner || job.agent || 'Unknown', phase: String(job.status || '').toUpperCase(), tasks: 1, risk: blocked.some((b) => b.id === job.id) ? 'high' : 'low', approval: job.routeStatus || 'ready', progress: job.status === 'completed' ? 100 : job.status === 'running' ? 60 : 20, truthStatus: job.truthStatus || 'LIVE' }))
   const wrap = []
@@ -5208,8 +5254,12 @@ const routeDeps = {
   buildQueueSummaryView,
   buildRecentJobsView,
   buildBlockedJobsView,
+  buildBlockedJobsClassifiedView,
   buildReportsStatusView,
   buildRuntimeHealthView,
+  buildRuntimeReconciliationView,
+  buildRuntimeLocksView,
+  buildTriageSummaryView,
   buildRecentActivityView,
   buildRuntimeAlertsView,
   buildGovernanceSummaryView,
@@ -5251,6 +5301,8 @@ const routeDeps = {
   classifyExecutionIntent,
   shouldRouteChatToExecutor,
   handleNettieInbound,
+  handleAssignment,
+  buildNettieCommandResponse,
   buildDepartmentWorkflow,
   buildReviewChain,
   extractAgent,

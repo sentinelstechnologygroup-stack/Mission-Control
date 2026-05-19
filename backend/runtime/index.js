@@ -40,6 +40,8 @@ export function registerRuntimeRoutes(app, deps) {
     evaluateHermesGovernance,
     getRecoveryReconciliationReport,
     buildAndPersistRecoveryReconciliationReport,
+    buildRuntimeReconciliationView,
+    buildRuntimeLocksView,
     getJobDependencyDetail,
     getExecutorForecastView,
     getRestartStateView,
@@ -151,6 +153,14 @@ export function registerRuntimeRoutes(app, deps) {
   app.get('/api/runtime/recovery', requireBridgeToken, (_, res) => {
     const report = getRecoveryReconciliationReport() || buildAndPersistRecoveryReconciliationReport()
     res.json(report)
+  })
+
+  app.get('/api/runtime/reconciliation', (_, res) => {
+    res.json(buildRuntimeReconciliationView())
+  })
+
+  app.get('/api/runtime/locks', (_, res) => {
+    res.json(buildRuntimeLocksView())
   })
 
   app.get('/api/executors/health', async (_, res) => {

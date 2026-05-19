@@ -22,6 +22,7 @@ export function registerJobsRoutes(app, deps) {
     buildQueueSummaryView,
     buildRecentJobsView,
     buildBlockedJobsView,
+    buildBlockedJobsClassifiedView,
     loadRecoveryLedger,
     syncRecoveryLedger,
     updateRecoveryEntry,
@@ -40,7 +41,7 @@ export function registerJobsRoutes(app, deps) {
       return res.json(buildRecentJobsView(limit))
     }
     if (req.params.id === 'blocked') {
-      return res.json(buildBlockedJobsView())
+      return res.json(buildBlockedJobsClassifiedView())
     }
     if (req.params.id === 'stale') {
       return res.json(buildQueueSummaryView().staleJobs)
@@ -284,7 +285,7 @@ export function registerJobsRoutes(app, deps) {
   })
 
   app.get('/api/jobs/blocked', (_, res) => {
-    res.json(buildBlockedJobsView())
+    res.json(buildBlockedJobsClassifiedView())
   })
 
   app.get('/api/jobs/stale', (_, res) => {

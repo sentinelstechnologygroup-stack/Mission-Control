@@ -6,6 +6,7 @@ import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import PageNotFound from "./lib/PageNotFound";
 import AppShell from "./components/mission-control/AppShell";
 import Home from "./pages/Home";
+import OperationalTriage from "./pages/OperationalTriage";
 import Operations from "./pages/Operations";
 import Agents from "./pages/Agents";
 import Missions from "./pages/Missions";
@@ -31,6 +32,7 @@ function App() {
         <Routes>
           <Route element={<AppShell />}>
             <Route path="/" element={<Home />} />
+            <Route path="/triage" element={<OperationalTriage />} />
             <Route path="/operations" element={<Operations />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/missions" element={<Missions />} />
