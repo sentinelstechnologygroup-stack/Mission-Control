@@ -125,17 +125,30 @@ The current POC keeps risky operations in draft/approval mode.
 - Aurora persistence test: passed (`node tests/integration/aurora-runtime-persistence.mjs`)
 - Browser route wiring: confirmed at `/aurora`
 - Backend API: confirmed for all listed Aurora endpoints
-- Refresh persistence: confirmed; newly created jobs remain visible after refresh
+- Refresh persistence: confirmed locally; newly created jobs remain visible after refresh
+- GitHub push: succeeded to `origin/main`
+- Deployment refresh: not directly verifiable from this session because the live URL resolves to Cloudflare Access
 - External destructive actions: not implemented
+
+## Live verification
+- Live URL tested: `https://missioncontrol.sentinelstechnologygroup.com/aurora`
+- Result: Cloudflare Access login gate blocked authenticated inspection of the live app shell
+- Because of the Access gate, live department-page and Aurora-state verification could not be completed from this browser session
+
+## Git metadata
+- Aurora persistence commit: `e582c23` (`feat: harden aurora persistence and office aliases`)
+- Current pushed branch tip: `ed75660` (`Refresh home cost card on telemetry updates`)
 
 ## Known limitations
 - Model gateway is still deterministic POC metadata, not live provider execution.
 - Live market data is not fetched for the Microsoft share-price demo.
 - External email/calendar actions remain draft-only.
 - localStorage remains a cache/fallback, not the source of truth.
+- Live authenticated verification remains blocked by Cloudflare Access in this session.
 
 ## Next steps to Aurora v1
 - Add live model-provider execution hooks.
 - Add server-backed approval gates.
 - Add live evidence and queue APIs.
 - Replace demo-mode finance lookup with a real finance provider if approved.
+- Re-run live verification once Cloudflare Access-authenticated access is available.
