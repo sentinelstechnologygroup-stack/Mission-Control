@@ -2,404 +2,197 @@
   "scope": {
     "browser": "http://127.0.0.1:5173",
     "api": "http://127.0.0.1:4174",
+    "publicHost": "https://mission-control-livid-zeta.vercel.app",
     "notes": [
       "Cloudflare Access vars were verified present without printing secrets.",
       "No Aurora terminology used in the audit outputs."
     ]
   },
-  "liveRouteInventory": [
+  "localRouteInventory": [
     {
-      "route": "/",
-      "state": "hybrid",
-      "truth": [
-        "live queue counts",
-        "live activity",
-        "live department board",
-        "fallback cards"
-      ],
-      "notes": "Home uses live sources, but still renders fallback cards for several panels."
+      "route": "/missions",
+      "state": "live",
+      "sourceLabels": ["live", "registry-backed"],
+      "notes": "Live mission queue with explicit source labels and honest empty states."
+    },
+    {
+      "route": "/approvals",
+      "state": "live",
+      "sourceLabels": ["live", "registry-backed", "seeded"],
+      "notes": "Executive review inbox with a seeded rework lane."
+    },
+    {
+      "route": "/calendar",
+      "state": "live",
+      "sourceLabels": ["live", "registry-backed", "seeded"],
+      "notes": "Operational planner with seeded conference blocks and break buffers."
+    },
+    {
+      "route": "/knowledge",
+      "state": "live",
+      "sourceLabels": ["live", "registry-backed", "seeded"],
+      "notes": "Skill/docs/evidence registry surface with seeded canon docs."
+    },
+    {
+      "route": "/security",
+      "state": "live",
+      "sourceLabels": ["live", "registry-backed", "seeded"],
+      "notes": "Perry security/compliance/risk surface with seeded release checks."
     },
     {
       "route": "/departments",
       "state": "live",
-      "truth": [
-        "department workflow registry",
-        "live activity",
-        "live queue pressure",
-        "one demo department"
-      ],
-      "notes": "9 departments total; 8 real, 1 demo (Novella)."
+      "sourceLabels": ["live", "registry-backed"],
+      "notes": "Department overview remains live and registry-backed, with one demo department."
     },
     {
       "route": "/departments/command",
-      "state": "live_but_incomplete",
-      "truth": [
-        "Nettie office",
-        "19 live jobs",
-        "0 blocked",
-        "0 approvals"
-      ],
-      "notes": "Workflow templates are missing; office surface is mostly scaffolding plus job table."
+      "state": "live_but_sparse",
+      "sourceLabels": ["live", "registry-backed"],
+      "notes": "Nettie office is truthful but still sparse on workflow templates."
     },
     {
       "route": "/departments/technology",
-      "state": "live_but_incomplete",
-      "truth": [
-        "Van office",
-        "214 workload",
-        "20 blocked",
-        "live jobs table"
-      ],
-      "notes": "Live queue is visible, but workflow templates are absent."
+      "state": "live_but_sparse",
+      "sourceLabels": ["live", "registry-backed"],
+      "notes": "Van office is the strongest office surface, but still missing more workflow template depth."
     },
     {
       "route": "/departments/media",
       "state": "live_but_sparse",
-      "truth": [
-        "0 workload",
-        "0 jobs",
-        "0 evidence"
-      ],
-      "notes": "Generic slug heading; no workflow templates or missions surfaced."
+      "sourceLabels": ["live", "seeded"],
+      "notes": "Truth-labeled office shell with honest empty states."
     },
     {
       "route": "/departments/security",
       "state": "live_but_sparse",
-      "truth": [
-        "0 workload",
-        "0 jobs",
-        "0 evidence"
-      ],
-      "notes": "Generic slug heading; no workflow templates or missions surfaced."
+      "sourceLabels": ["live", "seeded", "registry-backed"],
+      "notes": "Truth-labeled office shell with honest empty states."
     },
     {
       "route": "/departments/finance",
       "state": "live_but_sparse",
-      "truth": [
-        "0 workload",
-        "0 jobs",
-        "0 evidence"
-      ],
-      "notes": "Generic slug heading; no workflow templates or missions surfaced."
+      "sourceLabels": ["live", "seeded"],
+      "notes": "Truth-labeled office shell with honest empty states."
     },
     {
       "route": "/departments/opportunity",
       "state": "live_but_sparse",
-      "truth": [
-        "0 workload",
-        "0 jobs",
-        "0 evidence"
-      ],
-      "notes": "Generic slug heading; no workflow templates or missions surfaced."
+      "sourceLabels": ["live", "seeded"],
+      "notes": "Truth-labeled office shell with honest empty states."
     },
     {
       "route": "/departments/research",
       "state": "live_but_sparse",
-      "truth": [
-        "0 workload",
-        "0 jobs",
-        "0 evidence"
-      ],
-      "notes": "Generic slug heading; no workflow templates or missions surfaced."
+      "sourceLabels": ["live", "seeded"],
+      "notes": "Truth-labeled office shell with honest empty states."
     },
     {
       "route": "/departments/admin",
       "state": "live_but_sparse",
-      "truth": [
-        "0 workload",
-        "0 jobs",
-        "0 evidence"
-      ],
-      "notes": "Generic slug heading; no workflow templates or missions surfaced."
+      "sourceLabels": ["live", "seeded"],
+      "notes": "Truth-labeled office shell with honest empty states."
     },
     {
       "route": "/agents",
-      "state": "static_seeded",
-      "truth": [
-        "hardcoded org chart",
-        "hardcoded executive details",
-        "hardcoded model routing"
-      ],
-      "notes": "No live agent registry drive-in; all desks and loads are baked into the component."
-    },
-    {
-      "route": "/missions",
-      "state": "static_seeded",
-      "truth": [
-        "hardcoded mission cards",
-        "hardcoded lifecycle states"
-      ],
-      "notes": "No API-backed mission registry on the page."
-    },
-    {
-      "route": "/approvals",
-      "state": "static_seeded",
-      "truth": [
-        "hardcoded approval lanes",
-        "hardcoded item counts"
-      ],
-      "notes": "QA gate cards are static and always render the same decisions."
-    },
-    {
-      "route": "/calendar",
-      "state": "static_seeded",
-      "truth": [
-        "hardcoded dates",
-        "hardcoded events",
-        "hardcoded tasks"
-      ],
-      "notes": "Calendar is a local planning board, not a live calendar feed."
-    },
-    {
-      "route": "/knowledge",
-      "state": "static_seeded",
-      "truth": [
-        "hardcoded docs",
-        "hardcoded memories",
-        "hardcoded ecosystem apps"
-      ],
-      "notes": "Useful as a reference hub, but not connected to a live knowledge store on-page."
-    },
-    {
-      "route": "/security",
-      "state": "static_seeded",
-      "truth": [
-        "hardcoded infra metrics",
-        "hardcoded alerts",
-        "hardcoded release checks"
-      ],
-      "notes": "The page is a static security dashboard mock, not a live security feed."
+      "state": "live",
+      "sourceLabels": ["live", "registry-backed", "seeded", "unavailable"],
+      "notes": "Employee desks are source-labeled and registry-backed."
     },
     {
       "route": "/runtime",
-      "state": "hybrid_demo_safe",
-      "truth": [
-        "stored jobs",
-        "evidence-backed steps",
-        "approval gates",
-        "seeded command examples"
-      ],
-      "notes": "The page is live, but the command scenario is demo-safe and local state is persisted in browser storage."
+      "state": "hybrid",
+      "sourceLabels": ["live", "seeded"],
+      "notes": "Runtime remains demo-safe and localStorage-backed for some state."
     },
     {
       "route": "/system",
       "state": "live",
-      "truth": [
-        "executor truth",
-        "runtime health",
-        "logs",
-        "job counts",
-        "burn telemetry"
-      ],
-      "notes": "Live API-backed system panel; executor lane is unavailable/auth-failed in this session."
+      "sourceLabels": ["live"],
+      "notes": "System remains live with runtime/executor truth."
     },
     {
       "route": "/costs",
       "state": "live",
-      "truth": [
-        "token ledger",
-        "burn telemetry",
-        "model routing",
-        "ledger rows"
-      ],
-      "notes": "Live telemetry is present, but some values are estimated/unavailable rather than metered."
+      "sourceLabels": ["live", "estimated"],
+      "notes": "Costs are live but include estimated/unavailable fields."
     }
   ],
-  "apiRouteInventory": [
-    {
-      "route": "/api/health",
-      "response": "json",
-      "status": 200,
-      "note": "Health endpoint"
-    },
-    {
-      "route": "/api/departments",
-      "response": "json",
-      "status": 200,
-      "note": "Department registry"
-    },
-    {
-      "route": "/api/departments/technology",
-      "response": "json",
-      "status": 200,
-      "note": "Van detail"
-    },
-    {
-      "route": "/api/departments/media",
-      "response": "json",
-      "status": 200,
-      "note": "Torina detail"
-    },
-    {
-      "route": "/api/departments/security",
-      "response": "json",
-      "status": 200,
-      "note": "Perry detail"
-    },
-    {
-      "route": "/api/departments/finance",
-      "response": "json",
-      "status": 200,
-      "note": "Dana detail"
-    },
-    {
-      "route": "/api/departments/command",
-      "response": "json",
-      "status": 200,
-      "note": "Nettie detail"
-    },
-    {
-      "route": "/api/departments/opportunity",
-      "response": "json",
-      "status": 200,
-      "note": "Funboy detail"
-    },
-    {
-      "route": "/api/departments/research",
-      "response": "json",
-      "status": 200,
-      "note": "Rab detail"
-    },
-    {
-      "route": "/api/departments/admin",
-      "response": "json",
-      "status": 200,
-      "note": "Icky detail"
-    },
-    {
-      "route": "/api/departments/workflows",
-      "response": "json",
-      "status": 200,
-      "note": "Summary says 8 real / 1 demo"
-    },
-    {
-      "route": "/api/agents",
-      "response": "json",
-      "status": 200,
-      "note": "9 agent registry entries"
-    },
-    {
-      "route": "/api/jobs",
-      "response": "json",
-      "status": 200,
-      "note": "498 job rows"
-    },
-    {
-      "route": "/api/jobs/ledger",
-      "response": "json",
-      "status": 200,
-      "note": "Ledger-backed job truth"
-    },
-    {
-      "route": "/api/jobs/summary",
-      "response": "json",
-      "status": 200,
-      "note": "LIVE, stale=true, 12 queued / 1 running / 3 blocked / 25 completed"
-    },
-    {
-      "route": "/api/runtime/health",
-      "response": "json",
-      "status": 200,
-      "note": "overallHealth=DEGRADED"
-    },
-    {
-      "route": "/api/runtime/snapshot",
-      "response": "json",
-      "status": 200,
-      "note": "Runtime snapshot"
-    },
-    {
-      "route": "/api/runtime/snapshot/export",
-      "response": "json",
-      "status": 200,
-      "note": "Snapshot export alias"
-    },
-    {
-      "route": "/api/runtime/alerts",
-      "response": "json",
-      "status": 200,
-      "note": "Runtime alert list"
-    },
-    {
-      "route": "/api/runtime/reconciliation",
-      "response": "json",
-      "status": 200,
-      "note": "DEGRADED reconciliation view"
-    },
-    {
-      "route": "/api/runtime/restart-state",
-      "response": "json",
-      "status": 200,
-      "note": "Restart state"
-    },
-    {
-      "route": "/api/runtime/locks",
-      "response": "json",
-      "status": 200,
-      "note": "Lock view"
-    },
-    {
-      "route": "/api/runtime/summaries",
-      "response": "json",
-      "status": 200,
-      "note": "Large runtime summary feed"
-    },
-    {
-      "route": "/api/runtime/summaries/latest",
-      "response": "json",
-      "status": 200,
-      "note": "Latest summary"
-    },
-    {
-      "route": "/api/runtime/summaries/chain",
-      "response": "json",
-      "status": 200,
-      "note": "Summary chain"
-    },
-    {
-      "route": "/api/system",
-      "response": "json",
-      "status": 200,
-      "note": "System truth with counts, agents, jobs"
-    },
-    {
-      "route": "/api/costs",
-      "response": "json",
-      "status": 200,
-      "note": "Cost/ledger telemetry"
-    },
+  "localApiInventory": [
     {
       "route": "/api/runtime",
-      "response": "json",
       "status": 200,
-      "note": "Runtime health payload instead of SPA fallback"
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "notes": "Returns runtime truth locally."
     },
     {
       "route": "/api/runtime/healthz",
-      "response": "json",
       "status": 200,
-      "note": "Runtime health alias now returns JSON"
-    }
-  ],
-  "localStorageSurfaces": [
-    {
-      "surface": "/nettie",
-      "stateKey": "NETTIE_OPERATOR_THREAD_KEY",
-      "purpose": "Persist operator thread entries",
-      "notes": "Local-only browser persistence, not server truth."
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "notes": "Returns runtime truth locally."
     },
     {
-      "surface": "/runtime",
-      "stateKey": "runtime seed storage key used by the runtime demo state",
-      "purpose": "Persist demo-safe runtime seed state / selected job state",
-      "notes": "Local browser persistence used by the runtime page."
+      "route": "/api/departments/workflows",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "notes": "9 total departments, 8 real, 1 demo."
+    },
+    {
+      "route": "/api/agents",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "notes": "Live agent registry."
+    },
+    {
+      "route": "/api/jobs",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "notes": "Live job list."
+    },
+    {
+      "route": "/api/system",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "notes": "Live system truth payload."
+    },
+    {
+      "route": "/api/costs",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "notes": "Live ledger telemetry with estimated fields."
     }
   ],
-  "replacementPriority": [
-    "Department office workflow lanes",
-    "Agent desks / live registry views",
-    "Home fallback cards",
-    "Runtime executor auth/bridge truth",
-    "Static reference pages that should either become live or be clearly labeled as reference-only"
+  "publicHostInventory": [
+    {
+      "route": "/missions",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "Public deployment still serves the old shell."
+    },
+    {
+      "route": "/api/runtime",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "Public deployment still falls through to index.html."
+    },
+    {
+      "route": "/api/runtime/healthz",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "Public deployment still falls through to index.html."
+    }
+  ],
+  "blockers": [
+    "Public deployment is stale and must be refreshed before live verification can be considered complete."
   ]
 }

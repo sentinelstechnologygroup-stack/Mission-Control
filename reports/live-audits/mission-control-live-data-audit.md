@@ -1,101 +1,75 @@
 # Mission Control Live / Static Data Audit
 
 Scope:
-- Routes audited in local Mission Control shell at localhost:5173 and API at localhost:4174
-- Cloudflare Access vars were present and verified without printing secrets
-- No Aurora terminology used in the audit outputs
+- Local browser shell: `http://127.0.0.1:5173`
+- Local API: `http://127.0.0.1:4174`
+- Public live host checked for deployment truth: `https://mission-control-livid-zeta.vercel.app`
+- Cloudflare Access vars were verified present without printing secrets
+- No Aurora terminology used
 
 ## Executive summary
 
-Mission Control is now much closer to truthful live operation. The shell is live, the department overview is live, the department office surfaces now render source-labeled desks and honest empty states, and the runtime/system/cost surfaces are live. Remaining static surfaces are mostly legacy non-office pages and seeded desk truth.
+Mission Control’s local productization phase is now materially more truthful. The five legacy pages targeted in this phase have been converted into source-labeled operational surfaces:
+- `/missions`
+- `/approvals`
+- `/calendar`
+- `/knowledge`
+- `/security`
 
-The biggest split:
-- Live / hybrid: `/`, `/departments`, `/departments/command`, `/departments/technology`, `/departments/media`, `/departments/security`, `/departments/finance`, `/departments/opportunity`, `/departments/research`, `/departments/admin`, `/runtime`, `/system`, `/costs`
-- Source-labeled desk surfaces: `/agents`
-- Static / seeded / demo legacy pages: `/missions`, `/approvals`, `/calendar`, `/knowledge`, `/security`
+The department office surfaces remain live/truthful and continue to show honest empty states where live work is absent. The local runtime API now returns JSON for `/api/runtime` and `/api/runtime/healthz`.
 
-## What loads live
+The remaining blocker is the public live deployment: the public host still serves an older build. On the public host, `/api/runtime` and `/api/runtime/healthz` still return `index.html`, so live deployment verification is blocked until the updated build is deployed.
 
-- Home shell and global nav load live.
-- Department overview board loads live from the department workflow registry.
-- Command / technology department offices load live job data.
-- Runtime, system, and cost surfaces load API-backed operational truth.
-- Department overview shows 9 departments, with 8 real and 1 demo department.
-- Job summary reports 12 queued, 1 running, 3 blocked, 25 completed, and stale=true.
-- Runtime health is DEGRADED, not healthy.
-- Cost telemetry is live, but several values are estimated or unavailable.
+## What loads live locally
 
-## What is static, seeded, demo, or fallback
+- `/`
+- `/departments`
+- `/departments/command`
+- `/departments/technology`
+- `/departments/media`
+- `/departments/security`
+- `/departments/finance`
+- `/departments/opportunity`
+- `/departments/research`
+- `/departments/admin`
+- `/agents`
+- `/missions`
+- `/approvals`
+- `/calendar`
+- `/knowledge`
+- `/security`
+- `/runtime`
+- `/system`
+- `/costs`
 
-- Agents page is now source-labeled and registry-backed, but many desks still resolve as seeded/unavailable instead of fully live.
-- Missions page is hardcoded mission cards.
-- Approvals page is hardcoded QA gate columns/cards.
-- Calendar page is hardcoded dates/events/tasks.
-- Knowledge page is hardcoded docs, memories, and ecosystem apps.
-- Security page is hardcoded metrics, alerts, and release checks.
-- Home page still contains fallback cards for Patrick's Inbox, Activity, Recent Artifacts, System Security, and Daily Wrap-Up.
-- Runtime page includes seeded demo commands and a demo-safe blocked market-data flow.
-- `/runtime` still persists seed-style state locally.
-- `/nettie` still uses localStorage for the operator thread.
+## What is source-labeled rather than fake
 
-## What is live but degraded or partially truthful
+- `/missions` is now a live work queue surface with live / registry-backed source labels.
+- `/approvals` is now an executive review and QA/security gate inbox with live / registry-backed / seeded labels.
+- `/calendar` is now an operational schedule/checkpoint/planner surface with live / registry-backed / seeded labels.
+- `/knowledge` is now a skill/docs/evidence registry surface with live / registry-backed / seeded labels.
+- `/security` is now Perry’s security/compliance/risk surface with live / registry-backed / seeded labels.
+- `/agents` remains source-labeled and registry-backed.
+- Department office pages continue to render truthful office shells rather than generic decorative pages.
 
-- Home activity feed is live.
-- Home department board is live, but one department is demo-labeled.
-- Home cost panel is live, but some values are unavailable/estimated.
-- System is live, but executor lane is unavailable / auth-failed.
-- Runtime health is live, but overall health is DEGRADED.
-- Runtime reconciliation is live, but degraded.
-- Costs are live, but multiple fields are estimated rather than metered.
-- Department office pages have live counts, but most offices are empty and missing workflow templates.
+## What is still seeded or placeholder-only
 
-## What should be replaced first
+- `/calendar` conference blocks and break/idle lanes are explicitly seeded placeholders.
+- `/knowledge` canon documents are explicitly seeded.
+- `/approvals` includes an explicit seeded rework lane.
+- `/security` includes explicit seeded compliance/release checks.
+- `/runtime` remains hybrid and demo-safe for command scenarios, with local persistence.
+- `/nettie` remains localStorage-backed for the operator thread.
 
-1. Department office workflow lanes
-   - Add real workflow templates and evidence surfaces to the empty department offices first.
-2. Agent desks
-   - Replace hardcoded executive/org-chart cards with live agent registry status and desk truth.
-3. Home fallback cards
-   - Replace silent fallback cards with explicit live/fallback labeling and real source-backed panels.
-4. Runtime executor lane
-   - Resolve the missing bridge token / auth-failure state so the runtime lane can show real executor truth.
-5. Static media / mission / approvals / calendar / knowledge / security pages
-   - Convert to live registry-backed operational surfaces or label them clearly as reference libraries.
+## Local API truth
 
-## Route summary
-
-| Route | Status | Visible truth |
-| --- | --- | --- |
-| `/` | Live shell + hybrid | Live queues, live activity, live department board; fallback cards remain |
-| `/departments` | Live | 9 departments, 8 real / 1 demo, live routing lines, live activity, live queue pressure |
-| `/departments/command` | Live but incomplete | Nettie office shows 19 queued jobs, 0 blocked, no workflow templates |
-| `/departments/technology` | Live but incomplete | Van office shows 214 workload, 20 blocked, live jobs table, no workflow templates |
-| `/departments/media` | Live but sparse | Truth-labeled office shell with honest empty states |
-| `/departments/security` | Live but sparse | Truth-labeled office shell with honest empty states |
-| `/departments/finance` | Live but sparse | Truth-labeled office shell with honest empty states |
-| `/departments/opportunity` | Live but sparse | Truth-labeled office shell with honest empty states |
-| `/departments/research` | Live but sparse | Truth-labeled office shell with honest empty states |
-| `/departments/admin` | Live but sparse | Truth-labeled office shell with honest empty states |
-| `/agents` | Source-labeled / hybrid | Registry-backed desks with live, seeded, static, and unavailable labels |
-| `/missions` | Static / seeded | Hardcoded mission cards and lifecycle states |
-| `/approvals` | Static / seeded | Hardcoded approval columns and decisions |
-| `/calendar` | Static / seeded | Hardcoded events and tasks |
-| `/knowledge` | Static / seeded | Hardcoded docs, memory, ecosystem cards |
-| `/security` | Static / seeded | Hardcoded infra metrics, alerts, release checks |
-| `/runtime` | Hybrid | Live stored jobs/evidence with seeded demo-safe command scenario and local state persistence |
-| `/system` | Live | Live executor truth, job counts, runtime alerts, logs, and burn telemetry |
-| `/costs` | Live | Live ledger and burn telemetry, but several values remain estimated/unavailable |
-
-## API truth
-
-### JSON API routes
+### JSON API routes verified locally
 - `/api/health`
 - `/api/departments`
 - `/api/departments/technology`
 - `/api/departments/media`
 - `/api/departments/security`
 - `/api/departments/finance`
-- `/api/departments/command`
 - `/api/departments/opportunity`
 - `/api/departments/research`
 - `/api/departments/admin`
@@ -103,30 +77,64 @@ The biggest split:
 - `/api/agents`
 - `/api/jobs`
 - `/api/jobs/ledger`
-- `/api/jobs/summary`
+- `/api/runtime`
+- `/api/runtime/healthz`
 - `/api/runtime/health`
 - `/api/runtime/snapshot`
-- `/api/runtime/snapshot/export`
 - `/api/runtime/alerts`
 - `/api/runtime/reconciliation`
-- `/api/runtime/restart-state`
-- `/api/runtime/locks`
-- `/api/runtime/summaries`
-- `/api/runtime/summaries/latest`
-- `/api/runtime/summaries/chain`
 - `/api/system`
 - `/api/costs`
 
-### Routes that incorrectly return index.html
-- None after the runtime route fix and service restart.
+### Incorrect index.html fall-through locally
+- None.
 
-### 404s in the requested list
-- None of the requested page routes or API routes 404ed during this audit.
+### 404s in the requested list locally
+- None.
+
+## Public live host verification
+
+The public host is reachable, but it is serving an older build.
+
+Observed on `https://mission-control-livid-zeta.vercel.app`:
+- page routes return `200` with `index.html`
+- `/api/runtime` returns `index.html`
+- `/api/runtime/healthz` returns `index.html`
+
+This means public live deployment verification is blocked until the updated build is deployed.
+
+## What should be replaced first next
+
+1. Deploy the updated build so the public host matches local truth.
+2. Continue upgrading any remaining seeded placeholders in `/calendar`, `/knowledge`, and `/security` if live sources become available.
+3. Continue expanding live evidence in department office surfaces where workflows are still sparse.
+4. Keep `/api/runtime` and `/api/runtime/healthz` under JSON truth on the deployed host.
+
+## Route summary
+
+| Route | Local status | Visible truth |
+| --- | --- | --- |
+| `/missions` | Live | Live queue, live/registry-backed source labels, explicit empty states |
+| `/approvals` | Live | Live review inbox, registry-backed security gates, seeded rework lane |
+| `/calendar` | Live | Live checkpoints, registry-backed planner, seeded conference blocks |
+| `/knowledge` | Live | Registry-backed skills/permissions, seeded canon docs, live evidence posture |
+| `/security` | Live | Live security queue, registry-backed audits, seeded release checks |
+| `/departments/command` | Live | Truthful office shell with live queue and honest empty states |
+| `/departments/technology` | Live | Strongest office surface, live queue and honest empty states |
+| `/departments/media` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
+| `/departments/security` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
+| `/departments/finance` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
+| `/departments/opportunity` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
+| `/departments/research` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
+| `/departments/admin` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
+| `/agents` | Live | Registry-backed desks with live, seeded, static, and unavailable labels |
+| `/runtime` | Hybrid | Live stored jobs/evidence with seeded demo-safe command scenarios |
+| `/system` | Live | Live executor truth, job counts, runtime alerts, logs, and burn telemetry |
+| `/costs` | Live | Live ledger and burn telemetry, with estimated/unavailable fields where applicable |
 
 ## Key replacement order
 
-1. Replace empty department offices with real workflow/evidence/job truth.
-2. Replace static agent desks with live agent registry views.
-3. Replace home fallback cards with explicit live/fallback/degraded panels.
-4. Fix runtime executor auth/bridge truth.
-5. Replace static editorial/reference pages with live registry-backed surfaces or clearly label them as reference-only.
+1. Keep the new public deployment aligned with local truth.
+2. Convert any remaining seeded placeholders into live feeds only when true sources exist.
+3. Continue to fill out departmental workflow templates and evidence lanes where live history exists.
+4. Preserve honest empty states instead of inventing activity.

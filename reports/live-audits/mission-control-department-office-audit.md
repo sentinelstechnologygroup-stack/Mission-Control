@@ -3,51 +3,38 @@
 ## Department overview board
 
 - `/api/departments/workflows` reports 9 departments total: 8 real, 1 demo.
-- The demo department is Novella.
-- The overview board is live and useful, but it still carries one demo surface.
+- The demo department remains Novella.
+- The overview board is live and useful, with one explicit demo surface still visible in the registry.
 
 ## Live office surfaces
 
 ### `/departments/command`
 - Resolves to Nettie.
-- Shows live workload: 19 queued jobs, 0 blocked, 0 approvals.
-- Shows archived / historical job rows as the active table content.
-- Still missing workflow templates.
-- This is a live office, but not yet a full command-center experience.
+- Shows live workload and honest empty states where no packet history is present.
+- Has employee desks, workflow canvas, queue/status board, evidence drawer, internal messages, blocked work, and completed work sections.
+- Still sparse on actual workflow template depth.
 
 ### `/departments/technology`
 - Resolves to Van.
-- Shows live workload: 214 current workload, 20 blocked/rejected, 12 completed, 20 failed.
-- Shows a live jobs table and live execution health.
-- Still missing workflow templates.
-- This is the strongest office surface and should be the model for the others.
+- Shows the strongest office surface with live workload, live jobs, and truthful empty states.
+- Acts as the model office for the rest of the department floors.
 
-## Live office surfaces with honest empty states
-
-These routes now load truth-labeled department offices. Some are still sparse, but they no longer rely on generic slug-only scaffolding:
-- `/departments/media`
-- `/departments/security`
-- `/departments/finance`
-- `/departments/opportunity`
-- `/departments/research`
-- `/departments/admin`
-
-Common state on those pages:
-- department header
-- department head / manager
-- employee desks
-- workflow canvas
-- queue/status board
-- evidence panel
-- internal messages / handoffs
-- blocked work
-- completed work
-- honest empty states such as "No active work packets" and "No live workflow records yet."
+### `/departments/media`
+### `/departments/security`
+### `/departments/finance`
+### `/departments/opportunity`
+### `/departments/research`
+### `/departments/admin`
+- These routes now load truth-labeled office shells rather than generic static pages.
+- They include department head office, agent desks, current work packets, workflow canvas, handoff lines, blocked work, completed work, evidence drawer, and meeting/conference concept sections.
+- When there is no live packet, they show honest empty states such as:
+  - `No active work packets`
+  - `No live workflow records yet.`
 
 ## Missing or static employee / agent desks
 
 ### Static or seeded desks
-- `/agents` is now source-labeled and registry-backed.
+- `/agents` is source-labeled and registry-backed.
 - Several desks still resolve as seeded/unavailable rather than fully live.
 - Some desk evidence remains registry-backed rather than executor-backed.
 
@@ -57,18 +44,17 @@ Common state on those pages:
 
 ## What should be replaced first
 
-1. Add real workflow templates and evidence-bearing lanes to the empty department offices.
-2. Add live desk panels from the agent registry to the Agents page.
-3. Replace the hardcoded executive/org-chart cards with live agent status views.
-4. Normalize the slug aliasing so office headings render human department names everywhere.
-5. Surface Novella as a real desk or explicitly mark it as demo/reference-only.
+1. Add more real workflow templates and evidence-bearing lanes where live history exists.
+2. Continue replacing seeded/unavailable desks with executor-backed live truth where a real registry record exists.
+3. Surface Novella as a real desk or explicitly mark it as demo/reference-only everywhere it appears.
+4. Keep the department office model consistent across all floors.
 
 ## Office-by-office status
 
 | Route | Status | Notes |
 | --- | --- | --- |
-| `/departments/command` | Live and truthful | Nettie office is populated and now uses honest empty states where needed |
-| `/departments/technology` | Live and truthful | Van office is the most complete and now uses the office workflow model |
+| `/departments/command` | Live and truthful | Nettie office is populated and uses honest empty states where needed |
+| `/departments/technology` | Live and truthful | Van office is the most complete and uses the office workflow model |
 | `/departments/media` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
 | `/departments/security` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
 | `/departments/finance` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
@@ -78,6 +64,7 @@ Common state on those pages:
 
 ## Recommendation order for office recovery
 
-1. Continue replacing seeded/unavailable desks with executor-backed live truth where a real registry record exists.
-2. Tighten evidence parity for office pages that still only have sparse activity.
-3. Keep non-office legacy pages clearly labeled until they are rebuilt.
+1. Keep the office pages aligned with live registry data and honest empty states.
+2. Add more true workflow templates where the registry already has them.
+3. Continue tightening evidence parity for office pages that are still sparse.
+4. Keep non-office legacy pages clearly labeled or converted as operational surfaces.
