@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Clock3,
   Copy,
@@ -24,6 +24,7 @@ import {
   DEMO_COMMANDS,
   buildSeedState,
   buildWorkflowBundle,
+  mergeAuroraBundleIntoState,
   getCurrentJob,
   getCurrentNode,
   getDepartmentJobCount,
@@ -119,12 +120,36 @@ export default function Aurora() {
   const [command, setCommand] = useState("");
   const [inputError, setInputError] = useState("");
 
-  const createJobMutation = useMutation({
-    mutationFn: async ({ title, owner, description }) => {
+  const auroraStateQuery = useQuery({
+    queryKey: ["aurora-state"],
+    queryFn: async () => {
       try {
-        return await api.createJob({ title, owner, description, priority: owner === "Perry" ? "P0" : "P1" });
+        return await api.auroraState();
       } catch {
-        return null;
+        return loadAuroraState();
+      }
+    },
+    initialData: loadAuroraState(),
+    staleTime: 10_000,
+    refetchOnWindowFocus: false,
+  });
+
+  useEffect(() => {
+    if (auroraStateQuery.data) {
+      setState(auroraStateQuery.data);
+      setActiveDepartment(auroraStateQuery.data.activeDepartment || "Dana");
+      setSelectedJobId(auroraStateQuery.data.selectedJobId || null);
+      setSelectedNodeId(auroraStateQuery.data.selectedNodeId || null);
+    }
+  }, [auroraStateQuery.data]);
+
+  const createJobMutation = useMutation({
+    mutationFn: async (text) => {
+      try {
+        return await api.auroraCreateJob({ command: text });
+      } catch {
+        const bundle = buildWorkflowBundle(text, { createdAt: new Date().toISOString() });
+        return { bundle };
       }
     },
     onSuccess: async () => {
@@ -181,49 +206,14 @@ export default function Aurora() {
     setInputError("");
     setCommand(text);
 
-    const bundle = buildWorkflowBundle(text, { createdAt: new Date().toISOString() });
-    const backendJob = await createJobMutation.mutateAsync({
-      title: text,
-      owner: bundle.job.assigned_department,
-      description: `Aurora POC command routed to ${bundle.job.assigned_department}.`,
-    });
-
-    const hydratedBundle = {
-      ...bundle,
-      job: {
-        ...bundle.job,
-        backend_job_id: backendJob?.id || null,
-      },
-    };
-
-    const nextState = {
-      ...state,
-      jobs: sortJobsNewestFirst([hydratedBundle.job, ...(state.jobs || []).filter((job) => job.id !== hydratedBundle.job.id)]),
-      department_workflows: [hydratedBundle.workflow, ...(state.department_workflows || []).filter((workflow) => workflow.job_id !== hydratedBundle.job.id)],
-      workflow_nodes: [...hydratedBundle.nodes, ...(state.workflow_nodes || []).filter((node) => node.job_id !== hydratedBundle.job.id)],
-      workflow_edges: [...hydratedBundle.edges, ...(state.workflow_edges || []).filter((edge) => edge.job_id !== hydratedBundle.job.id)],
-      evidence_logs: [...hydratedBundle.evidenceLogs, ...(state.evidence_logs || []).filter((entry) => entry.job_id !== hydratedBundle.job.id)],
-      agent_messages: [...hydratedBundle.agentMessages, ...(state.agent_messages || []).filter((entry) => entry.job_id !== hydratedBundle.job.id)],
-      model_runs: [...hydratedBundle.modelRuns, ...(state.model_runs || []).filter((entry) => entry.job_id !== hydratedBundle.job.id)],
-      nettie_feed: [
-        {
-          job_id: hydratedBundle.job.id,
-          department: hydratedBundle.route.department,
-          text: hydratedBundle.nettieReply.text,
-          status: hydratedBundle.nettieReply.status,
-          risk_tier: hydratedBundle.nettieReply.risk_tier,
-          approval_required: hydratedBundle.nettieReply.approval_required,
-          created_at: hydratedBundle.job.created_at,
-        },
-        ...(state.nettie_feed || []).filter((entry) => entry.job_id !== hydratedBundle.job.id),
-      ],
-    };
-
+    const response = await createJobMutation.mutateAsync(text);
+    const nextState = mergeAuroraBundleIntoState(state, response);
     setState(nextState);
-    setActiveDepartment(hydratedBundle.route.department);
-    setSelectedJobId(hydratedBundle.job.id);
-    const nextNode = hydratedBundle.nodes.find((node) => node.status === "blocked") || hydratedBundle.nodes.find((node) => node.status === "awaiting_approval") || hydratedBundle.nodes[hydratedBundle.nodes.length - 1];
-    setSelectedNodeId(nextNode?.id || null);
+    saveAuroraState(nextState);
+    queryClient.setQueryData(["aurora-state"], nextState);
+    setActiveDepartment(nextState.activeDepartment || response?.bundle?.route?.department || "Dana");
+    setSelectedJobId(nextState.selectedJobId || response?.bundle?.job?.id || null);
+    setSelectedNodeId(nextState.selectedNodeId || response?.bundle?.nodes?.find((node) => node.status === "blocked")?.id || response?.bundle?.nodes?.find((node) => node.status === "awaiting_approval")?.id || response?.bundle?.nodes?.[response?.bundle?.nodes?.length - 1]?.id || null);
   };
 
   const handleDemoClick = (value) => {

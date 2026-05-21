@@ -16,6 +16,7 @@ import Knowledge from "./pages/Knowledge";
 import Security from "./pages/Security";
 import System from "./pages/System";
 import Nettie from "./pages/Nettie";
+import Aurora from "./pages/Aurora";
 import CalendarPage from "./pages/CalendarPage";
 import DepartmentPage from "./pages/DepartmentPage";
 import CostsPage from "./pages/CostsPage";
@@ -38,11 +39,13 @@ function App() {
             <Route path="/missions" element={<Missions />} />
             <Route path="/approvals" element={<Approvals />} />
             <Route path="/nettie" element={<Nettie />} />
+            <Route path="/aurora" element={<Aurora />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/intelligence" element={<Intelligence />} />
             <Route path="/knowledge" element={<Knowledge />} />
             <Route path="/security" element={<Security />} />
             <Route path="/system" element={<System />} />
+            <Route path="/departments" element={<DepartmentPage />} />
             <Route path="/departments/:departmentId" element={<DepartmentPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/reports" element={<ReportsPage />} />

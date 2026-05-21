@@ -96,6 +96,7 @@ import {
 import { saveSessionTelemetry, saveCooldownTelemetry } from './lib/tokenTelemetry.js'
 import { registerChatRoutes } from './backend/chat/index.js'
 import { registerJobsRoutes } from './backend/jobs/index.js'
+import { registerAuroraRoutes } from './backend/aurora/index.js'
 import { registerRuntimeRoutes } from './backend/runtime/index.js'
 import { registerAgentsRoutes } from './backend/agents/index.js'
 import { registerOpsRoutes } from './backend/ops/index.js'
@@ -1297,7 +1298,14 @@ function getQueueTopologyView() {
 }
 
 function getDepartmentWorkflowRegistryView() {
-  return buildDepartmentWorkflowRegistry()
+  return buildDepartmentWorkflowRegistry({
+    departments: buildControlPlaneSnapshot().departments,
+    jobs: jobStore.deriveLedgerView(),
+    logs: state.logs,
+    runtimeHealth: buildRuntimeHealthView(),
+    queueSummary: buildQueueSummaryView(),
+    now: nowIso(),
+  })
 }
 
 function getTokenTrackingOverviewView() {
@@ -5272,6 +5280,7 @@ const routeDeps = {
   buildPlatformHealth,
   buildControlPlaneSnapshot,
   getAgentRegistryView,
+  persistState,
   getAgentRegistryRecord,
   governanceState: () => governanceState,
   reconcileGovernedRuntimeState,
@@ -5398,6 +5407,7 @@ const routeDeps = {
 registerRuntimeRoutes(app, routeDeps)
 registerAgentsRoutes(app, routeDeps)
 registerJobsRoutes(app, routeDeps)
+registerAuroraRoutes(app, routeDeps)
 registerChatRoutes(app, routeDeps)
 registerOpsRoutes(app, routeDeps)
 
