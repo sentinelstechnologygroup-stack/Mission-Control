@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import GlassCard from "./GlassCard";
 import StatusBadge from "./StatusBadge";
 import { api } from "@/lib/api";
@@ -9,11 +10,21 @@ function metricValue(value, fallback = 'Unavailable') {
 }
 
 export default function CostPanel() {
+  const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: ['home', 'costs'],
     queryFn: api.costs,
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
+
+  useEffect(() => {
+    const refresh = () => {
+      void queryClient.invalidateQueries({ queryKey: ['home', 'costs'] });
+    };
+
+    window.addEventListener('mission-control:costs-updated', refresh);
+    return () => window.removeEventListener('mission-control:costs-updated', refresh);
+  }, [queryClient]);
 
   const summary = data?.summary || {};
   const burnRate = data?.burnRate || {};

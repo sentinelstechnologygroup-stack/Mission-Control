@@ -7,12 +7,9 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import GlassCard from "../components/mission-control/GlassCard";
 import StatusBadge from "../components/mission-control/StatusBadge";
 import { StageBadge } from "../components/mission-control/LifecycleStage";
-import { motion, AnimatePresence } from "framer-motion";
 import {
-  Send, Pin, CheckCircle, AlertTriangle, Target, Zap,
-  FileText, RotateCcw, ArrowUpRight, Clock, Paperclip, MoreHorizontal,
-  Archive, ChevronRight, XCircle, Flag, Brain, Crown,
-  Filter, Star, Inbox, MessageSquare, Menu, PanelRight, SlidersHorizontal
+  Send, Pin, ArrowUpRight, Paperclip, MoreHorizontal,
+  Archive, ChevronRight, Brain, Crown, Menu, PanelRight, SlidersHorizontal
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -700,6 +697,7 @@ export default function Nettie() {
 
       refetchHistory();
       refetchExecutorStatus();
+      queryClient.invalidateQueries({ queryKey: ['costs'] });
     },
     onError: (error) => {
       setPendingReplyId(null);
@@ -707,6 +705,7 @@ export default function Nettie() {
         prev.map(m => m._optimistic ? { ...m, failed: true, failureText: getDeliveryFailureText(error) } : m)
       );
       refetchExecutorStatus();
+      queryClient.invalidateQueries({ queryKey: ['costs'] });
     },
   });
 

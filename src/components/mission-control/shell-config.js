@@ -2,6 +2,7 @@ import {
   Home,
   MessageSquare,
   Activity,
+  Sparkles,
   Radio,
   Bot,
   Target,
@@ -11,13 +12,16 @@ import {
   BookOpen,
   Lock,
   Settings,
+  DollarSign,
 } from "lucide-react";
 
 export const navItems = [
   { path: "/", label: "Home", icon: Home },
   { path: "/triage", label: "Triage Center", icon: Activity, accent: true },
   { path: "/nettie", label: "Nettie", icon: MessageSquare, badge: 3, accent: true },
+  { path: "/aurora", label: "Aurora POC", icon: Sparkles, badge: 7 },
   { path: "/operations", label: "Operations", icon: Radio },
+  { path: "/departments", label: "Departments", icon: Target, badge: 9, accent: true },
   { path: "/agents", label: "Agents", icon: Bot },
   { path: "/missions", label: "Missions", icon: Target },
   { path: "/approvals", label: "Approvals", icon: ShieldCheck, badge: 6 },
@@ -25,6 +29,7 @@ export const navItems = [
   { path: "/calendar", label: "Calendar", icon: Calendar },
   { path: "/knowledge", label: "Knowledge", icon: BookOpen },
   { path: "/security", label: "Security", icon: Lock },
+  { path: "/costs", label: "Costs", icon: DollarSign, badge: 1, accent: true },
   { path: "/system", label: "System", icon: Settings },
 ];
 

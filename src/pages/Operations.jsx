@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import SubTabBar from "../components/mission-control/SubTabBar";
 import GlassCard from "../components/mission-control/GlassCard";
@@ -8,7 +8,7 @@ import { StageBadge } from "../components/mission-control/LifecycleStage";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle, XCircle, RotateCcw, AlertTriangle, User, Flag, Clock,
-  ChevronRight, X, ArrowUpRight, Zap
+  ChevronRight, X, ArrowUpRight
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import BuildLogs from "../components/mission-control/BuildLogs";
@@ -235,6 +235,7 @@ function TaskDetail({ task, onClose }) {
 }
 
 export default function Operations() {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("lifecycle");
   const [selectedTask, setSelectedTask] = useState(null);
 
@@ -284,6 +285,9 @@ export default function Operations() {
   // Wire when stage transition schema is confirmed with backend
   const transitionJobMutation = useMutation({
     mutationFn: ({ id, stage }) => api.transitionJob(id, stage),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['costs'] });
+    },
   });
 
   return (

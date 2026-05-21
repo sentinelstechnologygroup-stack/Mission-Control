@@ -1,309 +1,356 @@
-import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { api } from "@/lib/api";
-import SubTabBar from "../components/mission-control/SubTabBar";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
+
+import BurnDashboard from "../components/mission-control/BurnDashboard";
 import GlassCard from "../components/mission-control/GlassCard";
 import StatusBadge from "../components/mission-control/StatusBadge";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  DollarSign, FileText, Database, Settings, AlertTriangle, CheckCircle,
-  Clock, Cpu, RefreshCw, Play, Pause, Zap, ChevronRight, Plus, X, Edit3
-} from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import BurnDashboard from "../components/mission-control/BurnDashboard";
+import { api } from "@/lib/api";
+import { LinkButton, MetricGrid, PageHeader, SectionCard, SimpleTable, StatusPill } from "../components/mission-control/LiveDataViews";
 
 const tabs = [
-  { id: "cost", label: "Cost / Usage" },
-  { id: "automations", label: "Automations" },
+  { id: "overview", label: "Command" },
+  { id: "executors", label: "Executors" },
+  { id: "skills", label: "Skills / Runbooks" },
   { id: "logs", label: "Logs" },
   { id: "state", label: "State" },
   { id: "settings", label: "Settings" },
 ];
 
-const costByDept = [
-  { name: "Perry", cost: 1420 },
-  { name: "Core", cost: 580 },
-  { name: "Ivy", cost: 620 },
-  { name: "Sam", cost: 340 },
-  { name: "Nexus", cost: 450 },
-  { name: "Nettie", cost: 376 },
+const SKILLS = [
+  { id: "missioncontrol-safe-local-transformation-policy", owner: "Perry / Van", loaded: true, state: "loaded", migration: "native", statusNote: "Session-loaded and visible in Mission Control." },
+  { id: "mc-command-bridge", owner: "Nettie", loaded: true, state: "loaded", migration: "native", statusNote: "Command routing and execution truth are visible in-app." },
+  { id: "missioncontrol-verification-checklist", owner: "Perry", loaded: true, state: "loaded", migration: "native", statusNote: "Verification flow is available for local checks." },
+  { id: "missioncontrol-base44-runbook-rules", owner: "Van", loaded: false, state: "missing", migration: "pending", statusNote: "Should be surfaced as an explicit operator runbook." },
+  { id: "missioncontrol-governance-layer", owner: "Nettie", loaded: false, state: "missing", migration: "pending", statusNote: "Still mostly backend-adjacent and should be visible in the UI." },
+  { id: "missioncontrol-safe-local-policy-core", owner: "Perry", loaded: false, state: "missing", migration: "pending", statusNote: "Needs a visible operator surface, not just policy internals." },
+  { id: "missioncontrol-irl-registration", owner: "Nettie", loaded: false, state: "missing", migration: "pending", statusNote: "IRL registration should be obvious to operators." },
+  { id: "gptCodexSubscriptionAdapter", owner: "Van", loaded: false, state: "scaffold", migration: "scaffold only", statusNote: "Visible adapter surface exists; live subscription route still needs a verified exercise." },
 ];
 
-const costByModel = [
-  { name: "GPT-4o", value: 1650, color: "#22c55e" },
-  { name: "Claude 3.5", value: 980, color: "#3b82f6" },
-  { name: "GPT-4o-mini", value: 420, color: "#a855f7" },
-  { name: "Gemini 1.5", value: 520, color: "#f59e0b" },
-  { name: "Other", value: 216, color: "#6b7280" },
-];
-
-const automations = [
-  { id: 1, name: "Daily Nettie Briefing", trigger: "Scheduled 7:00 AM daily", dept: "Nettie", status: "active", lastRun: "7:00 AM today", nextRun: "7:00 AM tomorrow", runs: 142 },
-  { id: 2, name: "Market Signal Indexer", trigger: "Every 6 hours", dept: "Ivy", status: "active", lastRun: "2h ago", nextRun: "4h from now", runs: 284 },
-  { id: 3, name: "Pipeline Health Check", trigger: "Every 30 minutes", dept: "Nexus", status: "active", lastRun: "12m ago", nextRun: "18m from now", runs: 1842 },
-  { id: 4, name: "Auto-Scale Trigger", trigger: "Load > 85%", dept: "Nexus", status: "active", lastRun: "2h ago (triggered)", nextRun: "On threshold", runs: 14 },
-  { id: 5, name: "Security Anomaly Scan", trigger: "Every 1 hour", dept: "Within Core", status: "active", lastRun: "47m ago", nextRun: "13m from now", runs: 368 },
-  { id: 6, name: "Social Publishing Bot", trigger: "Per schedule", dept: "Sam", status: "paused", lastRun: "1d ago", nextRun: "Paused", runs: 28 },
-  { id: 7, name: "Approval Reminder", trigger: "Every 4h if pending", dept: "Nettie", status: "active", lastRun: "1h ago", nextRun: "3h from now", runs: 54 },
-  { id: 8, name: "Weekly Wrap-Up Generator", trigger: "Friday 5:30 PM", dept: "Nettie", status: "active", lastRun: "Apr 5", nextRun: "Apr 12", runs: 8 },
-];
-
-const logs = [
-  { time: "12:47", type: "success", msg: "Demo.ai frontend deployed to staging", dept: "Perry" },
-  { time: "12:42", type: "info", msg: "Market trends batch 7 indexing started", dept: "Ivy" },
-  { time: "12:38", type: "warning", msg: "Rate limit at 85% — auto-scaling triggered", dept: "Nexus" },
-  { time: "12:30", type: "success", msg: "Security audit report generated", dept: "Within Core" },
-  { time: "12:22", type: "info", msg: "Nettie completed pipeline health check", dept: "Nettie" },
-  { time: "12:15", type: "error", msg: "Failed to fetch competitor pricing data (retry 2/3)", dept: "Ivy" },
-  { time: "12:10", type: "success", msg: "GTM Playbook v2 submitted for review", dept: "Sam" },
-  { time: "12:01", type: "info", msg: "Daily cost snapshot saved", dept: "System" },
-];
-
-const logColors = { success: "text-emerald-400", info: "text-blue-400", warning: "text-amber-400", error: "text-red-400" };
-
-const stateItems = [
-  { label: "Last State Snapshot", value: "Apr 8, 12:00 UTC" },
-  { label: "Agent Registry", value: "12 agents registered" },
-  { label: "Entity Count", value: "2,847 records" },
-  { label: "Last Sync", value: "47 seconds ago" },
-  { label: "Environment", value: "Production" },
-  { label: "System Uptime", value: "99.97% (30d)" },
-];
-
-const settingsGroups = [
-  { label: "Model Routing", items: [["Default Model", "GPT-4o"], ["Code Tasks", "Claude 3.5 Sonnet"], ["Fast Routing", "Claude 3 Haiku"], ["Long Context", "Gemini 1.5 Pro"]] },
-  { label: "Thresholds", items: [["Max Daily Spend", "$200"], ["Rate Limit Alert", "80%"], ["Auto-Scale Trigger", "85%"], ["Max Concurrent Jobs", "50"]] },
-  { label: "Alerting", items: [["Critical Alerts", "Slack + Email"], ["Warning Alerts", "Slack"], ["Daily Digest", "Email @ 18:00"]] },
-];
-
-function normalizeWorker(w) {
-  return {
-    id: w.id,
-    name: w.name ?? "Unknown",
-    trigger: w.trigger ?? w.schedule ?? "Not scheduled",
-    dept: w.dept ?? w.department ?? "—",
-    status: w.status ?? "unknown",
-    lastRun: w.lastRun ?? w.updatedAt ?? "Unknown",
-    nextRun: w.nextRun ?? "Unknown",
-    runs: w.runs ?? w.runCount ?? 0,
-  };
+function statusTone(status = "idle") {
+  const value = String(status).toLowerCase();
+  if (["running", "active", "live", "healthy", "ready", "available", "loaded", "success"].includes(value)) return "active";
+  if (["blocked", "failed", "error", "critical", "missing", "unavailable", "auth failure", "scaffold"].includes(value)) return "critical";
+  if (["queued", "pending", "cooldown", "warning", "review", "cooling down"].includes(value)) return "warning";
+  return "idle";
 }
 
-const CustomTooltip = ({ active, payload }) => {
-  if (active && payload?.length) {
-    return (
-      <div className="glass-card rounded-lg px-3 py-2 text-[10px]">
-        <p className="text-white/60">{payload[0].payload.name}</p>
-        <p className="text-white/80 font-mono">${payload[0].value}</p>
+function MiniStat({ label, value, sub }) {
+  return (
+    <GlassCard className="py-3">
+      <p className="text-[9px] uppercase tracking-wider text-white/25">{label}</p>
+      <p className="mt-2 text-[18px] font-bold font-mono text-white/75">{value ?? "—"}</p>
+      {sub ? <p className="mt-1 text-[9px] text-white/25">{sub}</p> : null}
+    </GlassCard>
+  );
+}
+
+function TabButton({ active, children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1.5 text-[10px] transition-colors ${active ? "border-white/20 bg-white/10 text-white/85" : "border-white/[0.06] bg-white/[0.02] text-white/35 hover:bg-white/[0.06] hover:text-white/60"}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SkillRow({ item }) {
+  return (
+    <div className="grid gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-3 md:grid-cols-[1.7fr_0.7fr_0.8fr_1fr] md:items-center">
+      <div>
+        <p className="text-[11px] font-semibold text-white/75">{item.id}</p>
+        <p className="mt-1 text-[10px] text-white/28 leading-relaxed">{item.statusNote}</p>
       </div>
-    );
-  }
-  return null;
-};
+      <div className="text-[10px] text-white/45">Owner: {item.owner}</div>
+      <div><StatusBadge variant={statusTone(item.state)}>{item.state}</StatusBadge></div>
+      <div className="text-[10px] text-white/45">Migration: {item.migration}</div>
+    </div>
+  );
+}
+
+function ExecutorStat({ label, value, sub }) {
+  return (
+    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+      <p className="text-[8px] uppercase tracking-wider text-white/22">{label}</p>
+      <p className="mt-1 text-[11px] font-mono text-white/72">{value ?? "—"}</p>
+      {sub ? <p className="mt-1 text-[9px] text-white/24">{sub}</p> : null}
+    </div>
+  );
+}
 
 export default function System() {
-  const [activeTab, setActiveTab] = useState("cost");
-  const [automationStates, setAutomationStates] = useState({});
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("overview");
 
-  const {
-    data: liveLogs = logs,
-    isLoading: logsLoading,
-    isError: logsError,
-  } = useQuery({
-    queryKey: ["system", "logs"],
-    queryFn: api.logs,
-    placeholderData: logs,
+  const { data: systemTruth } = useQuery({
+    queryKey: ["system", "truth"],
+    queryFn: api.system,
     refetchInterval: 10000,
   });
 
   const { data: runtimeHealth } = useQuery({
-    queryKey: ["system", "runtimeHealth"],
+    queryKey: ["system", "runtime-health"],
     queryFn: api.runtimeHealth,
     refetchInterval: 10000,
   });
 
   const { data: runtimeAlerts = [] } = useQuery({
-    queryKey: ["system", "runtimeAlerts"],
+    queryKey: ["system", "runtime-alerts"],
     queryFn: api.runtimeAlerts,
     refetchInterval: 10000,
   });
 
-  const {
-    data: rawWorkers,
-    isLoading: automationsLoading,
-    isError: automationsError,
-  } = useQuery({
-    queryKey: ["system", "automations"],
-    queryFn: api.workers,
-    placeholderData: automations,
+  const { data: executorHealth } = useQuery({
+    queryKey: ["system", "executor-health"],
+    queryFn: api.executorsHealth,
     refetchInterval: 10000,
   });
 
-  const liveAutomations = Array.isArray(rawWorkers)
-    ? rawWorkers.map(normalizeWorker)
-    : automations;
+  const { data: executorEvidence = {} } = useQuery({
+    queryKey: ["system", "executor-evidence"],
+    queryFn: api.executorEvidence,
+    refetchInterval: 10000,
+  });
+
+  const { data: executorStatus, error: executorStatusError } = useQuery({
+    queryKey: ["system", "executor-status"],
+    queryFn: api.executorStatus,
+    retry: false,
+    refetchInterval: 10000,
+  });
+
+  const { data: queueSummary } = useQuery({
+    queryKey: ["system", "queue-summary"],
+    queryFn: api.queueSummary,
+    refetchInterval: 10000,
+  });
+
+  const { data: jobsSummary } = useQuery({
+    queryKey: ["system", "jobs-summary"],
+    queryFn: api.jobsSummary,
+    refetchInterval: 10000,
+  });
+
+  const { data: recentActivity = [] } = useQuery({
+    queryKey: ["system", "activity-recent"],
+    queryFn: api.activityRecent,
+    refetchInterval: 10000,
+  });
+
+  const { data: liveLogs = [] } = useQuery({
+    queryKey: ["system", "logs"],
+    queryFn: api.logs,
+    refetchInterval: 10000,
+  });
 
   const stopWorkerMutation = useMutation({
     mutationFn: (workerId) => api.stopWorker(workerId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['costs'] });
+    },
   });
 
-  const liveStateItems = runtimeHealth ? [
-    { label: 'Overall Health', value: runtimeHealth.overallHealth, status: runtimeHealth.overallHealth === 'HEALTHY' ? 'active' : 'warning' },
-    { label: 'Queue Status', value: runtimeHealth.queueStatus || 'UNKNOWN', status: runtimeHealth.queueStatus === 'LIVE' ? 'active' : 'warning' },
-    { label: 'Report Status', value: runtimeHealth.reportStatus || 'UNKNOWN', status: runtimeHealth.reportStatus === 'LIVE' ? 'active' : 'warning' },
-    { label: 'Operational Confidence', value: `${runtimeHealth.operationalConfidence?.score ?? 0}%`, status: (runtimeHealth.operationalConfidence?.score ?? 0) >= 85 ? 'active' : 'warning' },
-    { label: 'Degraded Systems', value: String((runtimeHealth.degradedSystems || []).length), status: (runtimeHealth.degradedSystems || []).length ? 'warning' : 'active' },
-    { label: 'Unavailable Systems', value: String((runtimeHealth.unavailableSystems || []).length), status: (runtimeHealth.unavailableSystems || []).length ? 'critical' : 'active' },
-  ] : stateItems.map((item)=>({...item,status:'idle'}));
+  const executorMode = useMemo(() => {
+    if (executorStatusError) return "auth failure / unavailable";
+    if (executorStatus?.cooldown || executorHealth?.codexAuthStatus === "cooldown") return "cooldown";
+    if (executorStatus?.available || executorHealth?.selectedExecutor || systemTruth?.system?.selectedExecutor) return "available";
+    return "unavailable";
+  }, [executorStatus, executorStatusError, executorHealth, systemTruth]);
 
-  // currentlyActive: whether the item is active before this click
-  // Pause → calls api.stopWorker (API-backed when backend is live)
-  // Play  → local-only (no resume endpoint exists)
-  const toggleAutomation = (id, currentlyActive) => {
-    setAutomationStates(prev => ({ ...prev, [id]: !prev[id] }));
-    if (currentlyActive && !automationsError) {
-      stopWorkerMutation.mutate(id);
-    }
-  };
+  const renderedWorkers = Array.isArray(systemTruth?.workers) ? systemTruth.workers : [];
 
   return (
-    <div>
-      <div className="mb-4">
-        <h1 className="text-[15px] font-semibold text-white/80 mb-1">System</h1>
-        <p className="text-[11px] text-white/30">Cost, automations, logs, state, and configuration</p>
+    <div className="space-y-4">
+      <PageHeader
+        title="System"
+        subtitle="Operational command room for burn, executor truth, logs, state, and the MC-side skill/runbook surface."
+        actions={<LinkButton to="/departments/van">Van office</LinkButton>}
+      />
+
+      <div className="flex flex-wrap gap-2">
+        {tabs.map((tab) => <TabButton key={tab.id} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)}>{tab.label}</TabButton>)}
       </div>
-      {runtimeAlerts.length > 0 && (
-        <div className="mb-4 space-y-2">{runtimeAlerts.slice(0,3).map((alert,idx)=><GlassCard key={idx} className="py-2"><p className="text-[10px] text-amber-300 uppercase tracking-wider">{alert.severity}</p><p className="text-[11px] text-white/60">{alert.summary}</p><p className="text-[9px] text-white/25">{alert.recommendedAction}</p></GlassCard>)}</div>
-      )}
-      <SubTabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
       <AnimatePresence mode="wait">
-        {activeTab === "cost" && (
-          <motion.div key="cost" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <BurnDashboard />
+        {activeTab === "overview" && (
+          <motion.div key="overview" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <MiniStat label="Overall health" value={runtimeHealth?.overallHealth || "—"} sub={runtimeHealth?.reconciliationWarnings?.length ? `${runtimeHealth.reconciliationWarnings.length} reconciliation warnings` : "Live"} />
+              <MiniStat label="Queue pressure" value={`${queueSummary?.totalQueued ?? "—"} queued`} sub={`${queueSummary?.totalBlocked ?? "—"} blocked`} />
+              <MiniStat label="Executor truth" value={executorMode} sub={executorHealth?.recommendation || executorStatusError?.message || "Ready state truth"} />
+              <MiniStat label="Burn / approvals" value={`${jobsSummary?.totalCompleted ?? 0} complete`} sub={`${systemTruth?.counts?.approvals ?? 0} approvals`} />
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <SectionCard title="Command center" subtitle="Visible operational storytelling for the system surface.">
+                <BurnDashboard />
+              </SectionCard>
+
+              <SectionCard title="Executor lane" subtitle="Selected executor, fallback, cooldown, and adapter state are visible here.">
+                <div className="space-y-3">
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <ExecutorStat label="Selected executor" value={systemTruth?.system?.selectedExecutor || executorHealth?.selectedExecutor || "—"} sub="Primary route" />
+                    <ExecutorStat label="Fallback executor" value={systemTruth?.system?.fallbackExecutor || executorHealth?.fallbackExecutor || "—"} sub="Fallback route" />
+                    <ExecutorStat label="Codex auth" value={executorHealth?.codexAuthStatus || "—"} sub={executorHealth?.codexAvailable ? executorHealth?.codexVersion : "Not available"} />
+                    <ExecutorStat label="Hermes mode" value={systemTruth?.system?.hermesMode || executorHealth?.hermesMode || "—"} sub={executorHealth?.hermesAvailable ? "Present" : "Not present"} />
+                  </div>
+                  <GlassCard className="p-3">
+                    <p className="text-[11px] font-semibold text-white/75">gptCodexSubscriptionAdapter</p>
+                    <p className="mt-1 text-[10px] text-white/40">
+                      {executorStatusError
+                        ? `auth failure / unavailable · ${executorStatusError.message}`
+                        : executorStatus
+                          ? `available ${executorStatus.available ? "yes" : "no"} · executor ${executorStatus.executor || systemTruth?.system?.selectedExecutor || "codex"} · cooldown ${executorStatus.cooldown || "none"}`
+                          : `scaffolded only · live browser verification still required`}
+                    </p>
+                  </GlassCard>
+                </div>
+              </SectionCard>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <SectionCard title="Runtime execution feed" subtitle="Recent operational activity and feed truth.">
+                <div className="space-y-2">
+                  {recentActivity.slice(0, 8).map((item) => (
+                    <div key={item.id} className="flex items-start gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                      <span className="mt-0.5 h-2 w-2 rounded-full bg-emerald-400" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] text-white/72">{item.summary}</p>
+                        <p className="text-[9px] text-white/24">{item.type} · {item.truthStatus || "LIVE"} · {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : "—"}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Latest alerts" subtitle="Visible signal pressure without burying it in metadata.">
+                <div className="space-y-2">
+                  {runtimeAlerts.slice(0, 3).map((alert, index) => (
+                    <GlassCard key={`${alert.summary}-${index}`} className="p-3">
+                      <p className="text-[10px] uppercase tracking-wider text-amber-300/80">{alert.severity || "info"}</p>
+                      <p className="mt-1 text-[11px] text-white/70">{alert.summary}</p>
+                      <p className="mt-1 text-[9px] text-white/25">{alert.recommendedAction}</p>
+                    </GlassCard>
+                  ))}
+                </div>
+              </SectionCard>
+            </div>
           </motion.div>
         )}
 
-        {activeTab === "automations" && (
-          <motion.div key="automations" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <p className="text-[11px] text-white/30">{liveAutomations.filter(a => a.status === "active").length} active · {liveAutomations.filter(a => a.status === "paused").length} paused</p>
-                <span className="flex items-center gap-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full ${automationsLoading ? "bg-amber-500" : automationsError ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
-                  <span className="text-[9px] text-white/20 font-mono">
-                    {automationsLoading ? "Loading" : automationsError ? "Data offline" : "Live"}
-                  </span>
-                </span>
+        {activeTab === "executors" && (
+          <motion.div key="executors" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+            <SectionCard title="gptCodexSubscriptionAdapter" subtitle="Visible adapter status for the subscription executor path.">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <MiniStat label="State" value={executorMode} sub="selected / unavailable / cooldown / auth failure" />
+                <MiniStat label="Started at" value={executorEvidence?.tasks?.[0]?.timestamp || executorHealth?.checkedAt || "—"} sub="Most recent evidence timestamp" />
+                <MiniStat label="Completed at" value={executorEvidence?.updatedAt || executorStatus?.completed_at || "—"} sub="Evidence / completion stamp" />
+                <MiniStat label="Cooldown until" value={executorStatus?.cooldown || executorHealth?.recommendation || "—"} sub="Truthful cooldown signal" />
               </div>
-              <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.10] text-white/40 text-[10px] font-medium transition-colors">
-                <Plus className="w-3 h-3" />New Automation
-              </button>
-            </div>
-            <div className="space-y-2">
-              {liveAutomations.map((auto) => {
-                const isToggled = automationStates[auto.id];
-                const isActive = isToggled !== undefined ? !isToggled : auto.status === "active";
-                return (
-                  <GlassCard key={auto.id} className="p-3">
-                    <div className="flex items-center gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <p className="text-[12px] text-white/65 font-semibold">{auto.name}</p>
-                          <StatusBadge variant={isActive ? "active" : "idle"} dot={true}>
-                            {isActive ? "active" : "paused"}
-                          </StatusBadge>
-                        </div>
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <span className="text-[9px] text-white/25 flex items-center gap-1">
-                            <Clock className="w-3 h-3" />{auto.trigger}
-                          </span>
-                          <span className="text-[9px] text-white/20">{auto.dept}</span>
-                          <span className="text-[9px] text-white/15">Last: {auto.lastRun}</span>
-                          <span className="text-[9px] text-white/15">Next: {auto.nextRun}</span>
-                          <span className="text-[9px] text-white/15">{auto.runs} runs</span>
-                        </div>
+            </SectionCard>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <SectionCard title="Executor truth panel" subtitle="Readiness, auth, fallback, and local lane visibility.">
+                <div className="grid gap-2 md:grid-cols-2">
+                  <ExecutorStat label="Codex available" value={String(executorHealth?.codexAvailable ?? false)} sub={executorHealth?.codexVersion || "—"} />
+                  <ExecutorStat label="Codex auth" value={executorHealth?.codexAuthStatus || "—"} sub="Bridge readiness" />
+                  <ExecutorStat label="Hermes available" value={String(executorHealth?.hermesAvailable ?? false)} sub={executorHealth?.hermesMode || "—"} />
+                  <ExecutorStat label="Local fallback" value={executorHealth?.localFallback || "—"} sub="Fallback continuity lane" />
+                  <ExecutorStat label="Selected executor" value={executorStatus?.executor || systemTruth?.system?.selectedExecutor || "—"} sub="Primary route" />
+                  <ExecutorStat label="Executor availability" value={executorStatus?.available ? "available" : "unavailable"} sub={executorStatusError ? "auth failure" : "Readiness truth"} />
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Execution evidence" subtitle="What the runtime has already recorded for the adapter path.">
+                <div className="space-y-2 max-h-[26rem] overflow-y-auto pr-1">
+                  {Array.isArray(executorEvidence?.tasks) ? executorEvidence.tasks.slice(0, 8).map((task) => (
+                    <GlassCard key={`${task.taskId}-${task.timestamp}`} className="p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[11px] font-semibold text-white/75">{task.taskTitle}</p>
+                        <StatusBadge variant={statusTone(task.status)}>{task.status || "queued"}</StatusBadge>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/20 transition-colors">
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => toggleAutomation(auto.id, isActive)}
-                          className={`p-1.5 rounded-lg transition-colors ${isActive ? "hover:bg-amber-500/10 text-amber-400/50 hover:text-amber-400" : "hover:bg-emerald-500/10 text-emerald-400/50 hover:text-emerald-400"}`}
-                          title={isActive ? "Pause (API-backed when backend live)" : "Resume (local-only — no resume endpoint)"}
-                        >
-                          {isActive ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                    </div>
-                  </GlassCard>
-                );
-              })}
+                      <p className="mt-1 text-[9px] text-white/28">Provider {task.executorProvider || "—"} · Model {task.executorModel || "—"}</p>
+                      <p className="mt-1 text-[9px] text-white/25">Files changed: {(task.filesChanged || []).length} · Tests: {(task.testsRun || []).length} · GPT used: {String(task.gptUsed ?? false)}</p>
+                    </GlassCard>
+                  )) : <p className="text-[10px] text-white/25">No executor evidence returned.</p>}
+                </div>
+              </SectionCard>
             </div>
+          </motion.div>
+        )}
+
+        {activeTab === "skills" && (
+          <motion.div key="skills" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+            <SectionCard title="Skills / Runbooks surface" subtitle="Loaded, missing, scaffold, and migration states are visible on the screen.">
+              <div className="space-y-2">
+                {SKILLS.map((skill) => <SkillRow key={skill.id} item={skill} />)}
+              </div>
+            </SectionCard>
           </motion.div>
         )}
 
         {activeTab === "logs" && (
-          <motion.div key="logs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <GlassCard>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">Event Log</h3>
-                <span className="flex items-center gap-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full ${logsLoading ? "bg-amber-500" : logsError ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
-                  <span className="text-[9px] text-white/25 font-mono">
-                    {logsLoading ? "Loading" : logsError ? "Data offline" : "Live"}
-                  </span>
-                </span>
-              </div>
-              <div className="divide-y divide-white/[0.04]">
-                {liveLogs.map((log, i) => (
-                  <div key={i} className="flex items-start gap-3 py-2.5">
-                    <span className="text-[10px] font-mono text-white/20 w-10 shrink-0">{log.time}</span>
-                    <span className={`text-[10px] font-mono w-14 shrink-0 ${logColors[log.type]}`}>{log.type.toUpperCase()}</span>
-                    <p className="text-[11px] text-white/45 flex-1">{log.msg}</p>
-                    <span className="text-[9px] text-white/15 shrink-0">{log.dept}</span>
-                  </div>
-                ))}
-              </div>
-            </GlassCard>
+          <motion.div key="logs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+            <SectionCard title="Logs" subtitle="Recent system log lines, kept visible for investor-demo context and QA review.">
+              <SimpleTable
+                columns={[
+                  { key: "time", label: "Time" },
+                  { key: "type", label: "Type", render: (row) => <StatusPill status={row.type} /> },
+                  { key: "msg", label: "Message" },
+                  { key: "dept", label: "Department" },
+                ]}
+                rows={liveLogs}
+                empty="No log lines returned."
+              />
+            </SectionCard>
           </motion.div>
         )}
 
         {activeTab === "state" && (
-          <motion.div key="state" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {liveStateItems.map((item, i) => (
-                <GlassCard key={i} delay={i * 0.04} className="text-center">
-                  <p className="text-[9px] text-white/25 uppercase tracking-wider mb-2">{item.label}</p>
-                  <p className="text-[13px] text-white/70 font-medium font-mono">{item.value}</p>
-                  <StatusBadge variant={item.status || 'idle'} className="mt-2" dot={true}>{item.status || 'idle'}</StatusBadge>
-                </GlassCard>
-              ))}
-            </div>
+          <motion.div key="state" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+            <SectionCard title="State" subtitle="High-level runtime and worker state is visible here.">
+              <MetricGrid
+                items={[
+                  { label: "Jobs", value: systemTruth?.counts?.jobs ?? "—", sub: "Total persisted jobs" },
+                  { label: "Active jobs", value: systemTruth?.counts?.activeJobs ?? "—", sub: "Live work" },
+                  { label: "Queued jobs", value: queueSummary?.totalQueued ?? "—", sub: "Awaiting execution" },
+                  { label: "Blocked jobs", value: queueSummary?.totalBlocked ?? "—", sub: "Needs recovery" },
+                ]}
+              />
+              <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                <MiniStat label="Runtime health" value={runtimeHealth?.overallHealth || "—"} />
+                <MiniStat label="Executor truth" value={runtimeHealth?.executorTruth || "—"} />
+                <MiniStat label="Workers" value={renderedWorkers.length} />
+              </div>
+            </SectionCard>
           </motion.div>
         )}
 
         {activeTab === "settings" && (
-          <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="space-y-4">
-              {settingsGroups.map((group, gi) => (
-                <GlassCard key={gi} delay={gi * 0.05}>
-                  <h3 className="text-[11px] font-semibold text-white/40 uppercase tracking-wider mb-3">{group.label}</h3>
-                  <div className="space-y-2">
-                    {group.items.map(([key, val], i) => (
-                      <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] cursor-pointer transition-colors group">
-                        <span className="text-[11px] text-white/40">{key}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-white/60 font-medium font-mono">{val}</span>
-                          <Edit3 className="w-3 h-3 text-white/15 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+          <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+            <SectionCard title="Settings" subtitle="Routing and model preferences are readable, not hidden.">
+              <div className="grid gap-3 xl:grid-cols-3">
+                <GlassCard className="p-3">
+                  <p className="text-[11px] font-semibold text-white/75">Model routing</p>
+                  <p className="mt-1 text-[10px] text-white/28">Selected executor: {systemTruth?.system?.selectedExecutor || "—"}</p>
+                  <p className="mt-1 text-[10px] text-white/28">Fallback executor: {systemTruth?.system?.fallbackExecutor || "—"}</p>
                 </GlassCard>
-              ))}
-            </div>
+                <GlassCard className="p-3">
+                  <p className="text-[11px] font-semibold text-white/75">Alerting</p>
+                  <p className="mt-1 text-[10px] text-white/28">Queue: {queueSummary?.truthStatus || "LIVE"}</p>
+                  <p className="mt-1 text-[10px] text-white/28">Runtime: {runtimeHealth?.overallHealth || "—"}</p>
+                </GlassCard>
+                <GlassCard className="p-3">
+                  <p className="text-[11px] font-semibold text-white/75">Lifecycle</p>
+                  <p className="mt-1 text-[10px] text-white/28">Codex: {executorHealth?.codexAuthStatus || "—"}</p>
+                  <p className="mt-1 text-[10px] text-white/28">Hermes: {executorHealth?.hermesMode || "—"}</p>
+                </GlassCard>
+              </div>
+            </SectionCard>
           </motion.div>
         )}
       </AnimatePresence>

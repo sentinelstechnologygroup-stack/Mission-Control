@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { MetricGrid, PageHeader, SectionCard, SimpleTable, StatusPill, KeyValueList } from '@/components/mission-control/LiveDataViews'
 
@@ -21,6 +22,7 @@ const usageColumns = [
 ]
 
 export default function CostsPage() {
+  const queryClient = useQueryClient();
   const { data, isLoading, isError } = useQuery({
     queryKey: ['costs'],
     queryFn: api.costs,
@@ -37,6 +39,15 @@ export default function CostsPage() {
   const activeModelUsage = data?.activeModelUsage || {}
   const modelAssignmentMatrix = data?.modelAssignmentMatrix || []
   const apiKeyTracking = data?.apiKeyTracking || []
+
+  useEffect(() => {
+    const refresh = () => {
+      void queryClient.invalidateQueries({ queryKey: ['costs'] })
+    }
+
+    window.addEventListener('mission-control:costs-updated', refresh)
+    return () => window.removeEventListener('mission-control:costs-updated', refresh)
+  }, [queryClient])
 
   return (
     <div className="space-y-4">

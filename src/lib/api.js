@@ -71,7 +71,30 @@ async function request(path, options = {}) {
     throw error
   }
 
+  notifyCostTelemetryRefresh(path, requestOptions)
+
   return data
+}
+
+function notifyCostTelemetryRefresh(path, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase()
+  if (method === 'GET') return
+
+  const refreshPaths = [
+    '/api/chat',
+    '/api/nettie/messages',
+    '/api/nettie/command',
+    '/api/jobs',
+    '/api/jobs/',
+    '/api/workers/',
+    '/api/costs/session',
+    '/api/costs/cooldowns',
+  ]
+
+  if (!refreshPaths.some((prefix) => path === prefix || path.startsWith(prefix))) return
+  if (typeof window === 'undefined') return
+
+  window.dispatchEvent(new CustomEvent('mission-control:costs-updated', { detail: { path, method, at: new Date().toISOString() } }))
 }
 
 export const api = {
@@ -88,7 +111,10 @@ export const api = {
   queueSummary: () => request('/api/queues/summary'),
   activityRecent: () => request('/api/activity/recent'),
   governanceSummary: () => request('/api/governance/summary'),
+  governanceRecursive: () => request('/api/governance/recursive'),
   executorStatus: () => request('/api/executor/status'),
+  executorsHealth: () => request('/api/executors/health'),
+  executorEvidence: () => request('/api/executors/evidence'),
   jobs: () => request('/api/jobs'),
   jobsSummary: () => request('/api/jobs/summary'),
   jobsRecent: (limit = 20) => request(`/api/jobs/recent?limit=${limit}`),
@@ -100,6 +126,7 @@ export const api = {
   agents: () => request('/api/agents'),
   departments: () => request('/api/departments'),
   department: (id) => request(`/api/departments/${id}`),
+  departmentsWorkflows: () => request('/api/departments/workflows'),
   projects: () => request('/api/projects'),
   reports: () => request('/api/reports'),
   reportsStatus: () => request('/api/reports/status'),
