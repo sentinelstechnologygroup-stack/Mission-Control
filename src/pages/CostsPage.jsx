@@ -21,6 +21,20 @@ const usageColumns = [
   { key: 'notes', label: 'Notes' },
 ]
 
+const chatLedgerColumns = [
+  { key: 'conversationId', label: 'Conversation' },
+  { key: 'status', label: 'Status', render: (row) => <StatusPill status={row.status} /> },
+  { key: 'agent', label: 'Agent' },
+  { key: 'department', label: 'Department' },
+  { key: 'estimatedInputTokens', label: 'Input Tokens' },
+  { key: 'estimatedOutputTokens', label: 'Output Tokens' },
+  { key: 'estimatedTotalTokens', label: 'Total Tokens' },
+  { key: 'startedAt', label: 'Started' },
+  { key: 'lastMessageAt', label: 'Last Message' },
+  { key: 'source', label: 'Source' },
+  { key: 'notes', label: 'Notes' },
+]
+
 export default function CostsPage() {
   const queryClient = useQueryClient();
   const { data, isLoading, isError } = useQuery({
@@ -39,6 +53,11 @@ export default function CostsPage() {
   const activeModelUsage = data?.activeModelUsage || {}
   const modelAssignmentMatrix = data?.modelAssignmentMatrix || []
   const apiKeyTracking = data?.apiKeyTracking || []
+  const chatUsageSummary = data?.chatUsageSummary || {}
+  const chatUsageLedger = data?.chatUsageLedger || []
+  const chatUsageActive = data?.chatUsageActive || []
+  const chatUsageInactive = data?.chatUsageInactive || []
+  const chatUsageArchived = data?.chatUsageArchived || []
 
   useEffect(() => {
     const refresh = () => {
@@ -61,6 +80,55 @@ export default function CostsPage() {
           { label: 'Confidence', value: summary.confidence || '—', sub: summary.lastUpdated || '—' },
         ]}
       />
+
+      <div className="grid gap-4 xl:grid-cols-4">
+        <SectionCard title="Conversation ledger" subtitle="All chats, including inactive and archived sessions.">
+          <MetricGrid
+            items={[
+              { label: 'All chats today', value: chatUsageSummary.todayTotalTokenUse != null ? chatUsageSummary.todayTotalTokenUse : '—' },
+              { label: 'Ledger rows', value: chatUsageSummary.totalRows ?? '—' },
+              { label: 'Active chats', value: chatUsageSummary.activeRows ?? '—' },
+              { label: 'Inactive chats', value: chatUsageSummary.inactiveRows ?? '—' },
+            ]}
+          />
+        </SectionCard>
+        <SectionCard title="Archived chats" subtitle="Historical conversation rows retained for accuracy.">
+          <KeyValueList
+            items={[
+              { label: 'Archived', value: chatUsageSummary.archivedRows ?? '—' },
+              { label: 'Blocked', value: chatUsageSummary.blockedRows ?? '—' },
+              { label: 'All-time estimated tokens', value: chatUsageSummary.allTimeEstimatedTokenUse ?? 'Unavailable' },
+              { label: 'Source', value: chatUsageSummary.source || 'Mission Control chat ledger' },
+            ]}
+          />
+        </SectionCard>
+        <SectionCard title="Today’s burn" subtitle="Session and ledger totals.">
+          <KeyValueList
+            items={[
+              { label: 'Session estimate', value: summary.currentSessionTokenEstimate ?? 'Unavailable' },
+              { label: 'Ledger today', value: chatUsageSummary.todayTotalTokenUse ?? 'Unavailable' },
+              { label: 'Combined total', value: `${summary.todayTotalTokenUse ?? 'Unavailable'} / ${chatUsageSummary.todayTotalTokenUse ?? 'Unavailable'}` },
+              { label: 'Confidence', value: summary.confidence || '—' },
+            ]}
+          />
+        </SectionCard>
+        <SectionCard title="Refresh" subtitle="Ledger updates on every chat/job mutation.">
+          <KeyValueList
+            items={[
+              { label: 'Active rows', value: chatUsageActive.length },
+              { label: 'Inactive rows', value: chatUsageInactive.length },
+              { label: 'Archived rows', value: chatUsageArchived.length },
+              { label: 'Ledger version', value: 'v1' },
+            ]}
+          />
+        </SectionCard>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <SectionCard title="Conversation token ledger" subtitle="All chats and conversations, including inactive and archived rows.">
+          <SimpleTable columns={chatLedgerColumns} rows={chatUsageLedger} empty="No chat ledger rows available yet." />
+        </SectionCard>
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <SectionCard title="Current usage summary" subtitle="Actual tracked data where available; otherwise clearly marked unavailable.">

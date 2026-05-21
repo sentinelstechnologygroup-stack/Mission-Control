@@ -30,9 +30,10 @@ export default function CostPanel() {
   const burnRate = data?.burnRate || {};
   const cooldown = data?.cooldown || {};
   const warning = data?.dashboardWarning || null;
+  const chatUsageSummary = data?.chatUsageSummary || {};
 
   const metrics = [
-    { label: 'Session Burn', value: metricValue(summary.currentSessionTokenEstimate), detail: `${metricValue(summary.percentUsed)}% used`, icon: DollarSign },
+    { label: 'Session Burn', value: metricValue(summary.currentSessionTokenEstimate), detail: `${metricValue(summary.percentUsed)}% used · ${chatUsageSummary.todayTotalTokenUse ?? 'no ledger total'}`, icon: DollarSign },
     { label: 'Rate / Min', value: burnRate.tokensPerMinute || 'Unavailable', detail: `${burnRate.tokensPerHour || 'Unavailable'} per hour`, icon: TrendingUp },
     { label: 'Time Remaining', value: burnRate.estimatedTimeUntilCap || 'Unavailable', detail: summary.confidence || 'unknown confidence', icon: TimerReset },
   ];
