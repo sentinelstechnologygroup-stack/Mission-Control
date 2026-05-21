@@ -1,7 +1,10 @@
+import { readGptCodexSubscriptionRun, recordGptCodexSubscriptionRun } from '../../lib/gptCodexSubscriptionAdapter.js'
+
 export function registerRuntimeRoutes(app, deps) {
   const {
     state,
     root,
+    runtimeDir,
     nowIso,
     codexAvailable,
     codexVersion,
@@ -86,9 +89,16 @@ export function registerRuntimeRoutes(app, deps) {
   app.get('/api/executors', requireBridgeToken, async (_, res) => {
     const status = buildExecutorBridgeStatus()
     const health = await getExecutorsHealth()
+    const subscriptionAdapter = readGptCodexSubscriptionRun(runtimeDir) || {
+      adapter: 'gptCodexSubscriptionAdapter',
+      provider: 'openai-codex-subscription',
+      status: 'scaffolded',
+      notes: 'No live adapter run has been recorded yet.',
+    }
     res.json({
       selectedExecutor: status.selectedExecutor,
       runtime: status.runtime,
+      subscriptionAdapter,
       executors: [
         {
           id: 'gpt_codex',
@@ -97,6 +107,8 @@ export function registerRuntimeRoutes(app, deps) {
           selected: status.selectedExecutor === 'codex',
           coolingDown: Boolean(status.executorCoolingDown && status.selectedExecutor === 'codex'),
           role: 'technical_execution',
+          adapter: 'gptCodexSubscriptionAdapter',
+          adapterState: subscriptionAdapter,
         },
         {
           id: 'claude_cli',
@@ -180,6 +192,20 @@ export function registerRuntimeRoutes(app, deps) {
     res.json(buildExecutorEvidenceView())
   })
 
+  app.get('/api/executors/gpt-codex-subscription-adapter', (_, res) => {
+    const adapter = readGptCodexSubscriptionRun(runtimeDir) || {
+      adapter: 'gptCodexSubscriptionAdapter',
+      provider: 'openai-codex-subscription',
+      status: 'scaffolded',
+      notes: 'No live adapter run has been recorded yet.',
+    }
+    res.json({
+      route: 'gptCodexSubscriptionAdapter',
+      registered: true,
+      adapter,
+    })
+  })
+
   app.get('/api/executors/routing-policy', (_, res) => {
     res.json(buildExecutorsRoutingPolicyView())
   })
@@ -220,6 +246,18 @@ export function registerRuntimeRoutes(app, deps) {
     if (!result.ok) {
       setLastExecutorError({ executor: 'codex', type: result.codexAuthStatus, message: result.error, at: nowIso() })
     }
+    recordGptCodexSubscriptionRun(runtimeDir, {
+      started_at: nowIso(),
+      completed_at: nowIso(),
+      stdout: result.output || '',
+      stderr: result.error || '',
+      exit_code: result.ok ? 0 : 1,
+      cooldown_until: result.codexAuthStatus === 'cooldown' ? result.codexVersion || null : null,
+      auth_failure: result.codexAuthStatus === 'auth_failure',
+      rate_limit: result.codexAuthStatus === 'cooldown',
+      status: result.ok ? 'complete' : result.codexAuthStatus || 'failed',
+      notes: 'Recorded from the live codex smoke test route.',
+    })
     res.status(result.ok ? 200 : 502).json({
       ok: result.ok,
       expected: CODEX_CONNECTED_TEXT,

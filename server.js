@@ -96,7 +96,7 @@ import {
 import { saveSessionTelemetry, saveCooldownTelemetry } from './lib/tokenTelemetry.js'
 import { registerChatRoutes } from './backend/chat/index.js'
 import { registerJobsRoutes } from './backend/jobs/index.js'
-import { registerAuroraRoutes } from './backend/aurora/index.js'
+import { registerAuroraRoutes } from './backend/mission-runtime/index.js'
 import { registerRuntimeRoutes } from './backend/runtime/index.js'
 import { registerAgentsRoutes } from './backend/agents/index.js'
 import { registerOpsRoutes } from './backend/ops/index.js'
@@ -5410,6 +5410,14 @@ registerJobsRoutes(app, routeDeps)
 registerAuroraRoutes(app, routeDeps)
 registerChatRoutes(app, routeDeps)
 registerOpsRoutes(app, routeDeps)
+
+app.get('/api/runtime', (_, res) => {
+  res.json(buildRuntimeHealthView())
+})
+
+app.get('/api/runtime/healthz', (_, res) => {
+  res.json(buildRuntimeHealthView())
+})
 
 app.use(express.static(distDir))
 app.use((_, res) => {

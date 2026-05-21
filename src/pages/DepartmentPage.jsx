@@ -18,6 +18,8 @@ import {
 import { api } from "@/lib/api";
 import GlassCard from "../components/mission-control/GlassCard";
 import StatusBadge from "../components/mission-control/StatusBadge";
+import AgentDesk from "../components/departments/AgentDesk";
+import WorkflowCanvas from "../components/departments/WorkflowCanvas";
 import {
   KeyValueList,
   LinkButton,
@@ -60,9 +62,41 @@ const SKILL_SURFACE = [
 ];
 
 const PRIMARY_DEPARTMENTS = ["nettie", "van", "perry", "torina", "dana", "icky", "funboy", "rab", "novella"];
+const DEPARTMENT_ALIAS_LOOKUP = {
+  media: "torina",
+  security: "perry",
+  finance: "dana",
+  admin: "icky",
+  opportunity: "funboy",
+  research: "rab",
+  command: "nettie",
+  "signal media": "torina",
+  "signal intel": "funboy",
+};
+
+function canonicalDepartmentId(value = "") {
+  const lower = String(value || "").trim().toLowerCase();
+  return DEPARTMENT_ALIAS_LOOKUP[lower] || lower;
+}
 
 function safeArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function departmentDisplayName(value = "") {
+  const id = canonicalDepartmentId(value);
+  const names = {
+    nettie: "Nettie",
+    van: "Van",
+    perry: "Perry",
+    torina: "Torina",
+    dana: "Dana",
+    icky: "Icky",
+    funboy: "Funboy",
+    rab: "Rab",
+    novella: "Novella",
+  };
+  return names[id] || String(value || "Department").replace(/^[a-z]/, (m) => m.toUpperCase());
 }
 
 function formatDate(value) {
@@ -87,6 +121,63 @@ function statusTone(status = "idle") {
 
 function NodeStatusBadge({ status }) {
   return <StatusBadge variant={statusTone(status)}>{status || "idle"}</StatusBadge>;
+}
+
+function findRegistryAgent(name = "", registry = []) {
+  const target = canonicalDepartmentId(name);
+  return safeArray(registry).find((agent) => {
+    const aliases = safeArray(agent.aliases);
+    return canonicalDepartmentId(agent.id) === target || canonicalDepartmentId(agent.displayName) === target || aliases.some((alias) => canonicalDepartmentId(alias) === target);
+  }) || null;
+}
+
+function deskSourceLabel(name, registryAgent) {
+  if (!registryAgent) return DEPARTMENT_ALIAS_LOOKUP[name] ? 'SEEDED' : 'UNAVAILABLE';
+  const isPrimary = canonicalDepartmentId(registryAgent.displayName) === canonicalDepartmentId(name) || canonicalDepartmentId(registryAgent.id) === canonicalDepartmentId(name);
+  if (!isPrimary) return 'SEEDED';
+  if (registryAgent.agentFilesystem?.complete && ['available', 'assigned', 'active', 'idle'].includes(String(registryAgent.status || '').toLowerCase())) return 'LIVE';
+  if (registryAgent.agentFilesystem?.complete) return 'SEEDED';
+  return 'STATIC';
+}
+
+function buildDeskItem(name, registry = [], department = null, departmentId = '') {
+  const registryAgent = findRegistryAgent(name, registry);
+  const sourceLabel = deskSourceLabel(name, registryAgent);
+  const displayDepartmentId = canonicalDepartmentId(departmentId || department?.id || '')
+  const managerMap = {
+    nettie: 'Patrick',
+    van: 'Nettie',
+    perry: 'Nettie',
+    torina: 'Nettie',
+    dana: 'Nettie',
+    icky: 'Nettie',
+    funboy: 'Nettie',
+    rab: 'Nettie',
+    novella: 'Torina',
+  };
+  const manager = managerMap[displayDepartmentId] || 'Nettie';
+  const role = registryAgent?.roleTitle || department?.title || 'Employee desk';
+  const currentWork = registryAgent?.activeQueueCount > 0
+    ? `${formatCount(registryAgent.activeQueueCount)} queued packets`
+    : (department?.activeQueueCount > 0 ? `${formatCount(department.activeQueueCount)} packets on the floor` : 'No active work packets');
+  const skills = safeArray(registryAgent?.permissions).slice(0, 4).map((perm) => perm.replace(/-/g, ' '));
+  const tools = registryAgent?.executorRoute?.target ? [registryAgent.executorRoute.target, registryAgent.fallbackRoute?.target || '—'] : ['registry', 'workflow lane'];
+  const evidence = registryAgent?.updatedAt ? `Last registry update ${formatDate(registryAgent.updatedAt)} · heartbeat ${registryAgent.heartbeat?.status || 'unknown'}` : 'No live evidence available';
+  return {
+    agent: name,
+    role,
+    manager,
+    department: department?.name || departmentDisplayName(displayDepartmentId),
+    status: registryAgent?.status || (department?.activeQueueCount > 0 ? 'active' : 'idle'),
+    currentWork,
+    room: department?.title || department?.mandate || null,
+    skills: skills.length ? skills : [departmentDisplayName(displayDepartmentId), 'registry-backed desk'],
+    tools,
+    evidence,
+    breakState: registryAgent?.heartbeat?.status && registryAgent.heartbeat.status !== 'live' ? registryAgent.heartbeat.status : null,
+    tone: sourceLabel === 'LIVE' ? 'active' : sourceLabel === 'SEEDED' ? 'warning' : sourceLabel === 'STATIC' ? 'critical' : 'idle',
+    sourceLabel,
+  };
 }
 
 function WorkflowNodeChain({ nodes = [] }) {
@@ -240,6 +331,12 @@ export default function DepartmentPage() {
     refetchInterval: 10000,
   });
 
+  const { data: registryAgents = [] } = useQuery({
+    queryKey: ["departments", "agents"],
+    queryFn: api.agents,
+    refetchInterval: 10000,
+  });
+
   const { data: selectedDepartment } = useQuery({
     queryKey: ["departments", departmentId],
     queryFn: () => api.department(departmentId),
@@ -290,7 +387,7 @@ export default function DepartmentPage() {
     return PRIMARY_DEPARTMENTS.map((id) => map.get(id)).filter(Boolean);
   }, [departments]);
 
-  const selectedWorkflow = departments.find((dept) => dept.id === departmentId);
+  const selectedWorkflow = departments.find((dept) => canonicalDepartmentId(dept.id) === canonicalDepartmentId(departmentId) || canonicalDepartmentId(dept.name) === canonicalDepartmentId(departmentId));
   const detail = selectedDepartment || selectedWorkflow;
   const templates = safeArray(selectedWorkflow?.workflowTemplates || detail?.workflowTemplates);
   const latestReport = detail?.reports?.latestDepartmentReport || null;
@@ -299,12 +396,13 @@ export default function DepartmentPage() {
   const activeJobs = safeArray(detail?.activeJobs);
   const blockedRejected = activeJobs.filter((job) => ["blocked", "failed", "rejected", "hold", "cancelled", "archived"].includes(String(job.status).toLowerCase()));
   const runningOrQueued = activeJobs.filter((job) => ["queued", "running", "active", "in_progress", "scoped", "hold"].includes(String(job.status).toLowerCase()));
+  const completedJobs = activeJobs.filter((job) => ["complete", "completed", "done", "success"].includes(String(job.status).toLowerCase()));
   const departmentStatus = detail?.status || {};
   const metrics = detail?.metrics || {};
   const approvedGates = safeArray(selectedWorkflow?.qaGates || detail?.qaGates || detail?.approvalGates);
   const routeKeywords = safeArray(detail?.routeKeywords);
-  const owner = detail?.name || departmentId || "Department";
-  const title = detail?.title || "Department command center";
+  const owner = departmentDisplayName(detail?.name || selectedWorkflow?.name || departmentId);
+  const title = detail?.title || selectedWorkflow?.title || "Department command center";
 
   if (isOverview) {
     return (
@@ -443,6 +541,22 @@ export default function DepartmentPage() {
           </div>
         </SectionCard>
 
+        <SectionCard title="Employee desks" subtitle="Source-labeled employees for this office.">
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <StatusPill status={detail?.sourceTruth || selectedWorkflow?.sourceTruth || 'live'} />
+              <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[9px] uppercase tracking-wider text-white/50">
+                {safeArray(detail?.agents).length ? `${safeArray(detail?.agents).length} employee desks` : 'No active work packets'}
+              </span>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {safeArray(detail?.agents).length ? safeArray(detail?.agents).map((agent) => (
+                <AgentDesk key={agent} {...buildDeskItem(agent, registryAgents, detail, selectedWorkflow?.id || departmentId)} />
+              )) : <p className="text-[10px] text-white/25">No active work packets</p>}
+            </div>
+          </div>
+        </SectionCard>
+
         <SectionCard title="Department execution health" subtitle="What the department is carrying right now.">
           <KeyValueList
             items={[
@@ -474,8 +588,17 @@ export default function DepartmentPage() {
               </div>
               <WorkflowNodeChain nodes={template.nodeChain || []} />
             </div>
-          )) : <p className="text-[10px] text-white/25">No workflow templates returned for this office.</p>}
+          )) : <p className="text-[10px] text-white/25">No live workflow records yet.</p>}
         </div>
+      </SectionCard>
+
+      <SectionCard title="Workflow canvas" subtitle="Work packets move through desks, handoffs, evidence, and completion.">
+        <WorkflowCanvas
+          title="Department work packet canvas"
+          subtitle="Workflow state is rendered as a node chain using live registry and queue truth."
+          nodes={safeArray(selectedWorkflow?.workflowVisualization)}
+          footer={safeArray(selectedWorkflow?.workflowVisualization).length ? 'Live workflow nodes are surfaced from the department registry.' : 'No live workflow records yet.'}
+        />
       </SectionCard>
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -488,8 +611,8 @@ export default function DepartmentPage() {
               { key: "priority", label: "Priority" },
               { key: "nextAction", label: "Next action" },
             ]}
-            rows={activeJobs}
-            empty={`No active jobs found for ${owner}.`}
+            rows={runningOrQueued}
+            empty="No active work packets"
           />
         </SectionCard>
 
@@ -503,10 +626,24 @@ export default function DepartmentPage() {
               { key: "nextAction", label: "Next action" },
             ]}
             rows={blockedRejected}
-            empty="No blocked or rejected work."
+            empty="No blocked work packets"
           />
         </SectionCard>
       </div>
+
+      <SectionCard title="Completed work" subtitle="Finished packets, archived outcomes, and wrapped tasks.">
+        <SimpleTable
+          columns={[
+            { key: "id", label: "Job ID" },
+            { key: "task", label: "Task" },
+            { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
+            { key: "updatedAt", label: "Completed" },
+            { key: "nextAction", label: "Next action" },
+          ]}
+          rows={completedJobs}
+          empty="No completed work packets"
+        />
+      </SectionCard>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <SectionCard title="Approval gates" subtitle="Explicit checkpoints required before moving work to the next phase.">
@@ -546,6 +683,21 @@ export default function DepartmentPage() {
           </div>
         </SectionCard>
       </div>
+
+      <SectionCard title="Internal messages / handoffs" subtitle="Visible handoff notes and inter-desk communication.">
+        <div className="space-y-2">
+          {safeArray(selectedWorkflow?.queuedHandoffs).length ? safeArray(selectedWorkflow.queuedHandoffs).slice(0, 6).map((handoff) => (
+            <GlassCard key={handoff.id} className="p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold text-white/75">{handoff.task}</p>
+                <StatusBadge variant={statusTone(handoff.status)}>{handoff.status || 'queued'}</StatusBadge>
+              </div>
+              <p className="mt-1 text-[10px] text-white/25">Owner: {handoff.owner || owner}</p>
+              <p className="mt-1 text-[10px] text-white/35">{handoff.handoffReason || 'No handoff reason recorded'}</p>
+            </GlassCard>
+          )) : <p className="text-[10px] text-white/25">No internal messages yet.</p>}
+        </div>
+      </SectionCard>
 
       <SectionCard title="Department command surface" subtitle="Actionable tasks and supporting table state for this office.">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
