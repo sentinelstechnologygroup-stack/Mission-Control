@@ -140,6 +140,26 @@ function deskSourceLabel(name, registryAgent) {
   return 'STATIC';
 }
 
+function classifyDeskTransition(item = {}) {
+  const status = String(item.status || '').toLowerCase();
+  const route = String(item.routeStatus || '').toLowerCase();
+  const nextAction = String(item.nextAction || '').toLowerCase();
+  if (['blocked', 'failed', 'rejected'].includes(status) || route.includes('blocked') || route.includes('hold') || route.includes('failed') || nextAction.includes('blocked')) return 'blocked';
+  if (route.includes('review') || route.includes('qa') || route.includes('approval') || status.includes('review')) return 'reviewing';
+  if (status.includes('queue') || status.includes('pending') || status.includes('hold') || route.includes('awaiting')) return 'waiting';
+  if (['active', 'running', 'live', 'available', 'assigned'].includes(status)) return 'active';
+  return 'idle';
+}
+
+function summarizeDeskTransitions(runs = []) {
+  const counts = { active: 0, idle: 0, blocked: 0, reviewing: 0, waiting: 0 };
+  safeArray(runs).forEach((item) => {
+    const state = classifyDeskTransition(item);
+    counts[state] = (counts[state] || 0) + 1;
+  });
+  return counts;
+}
+
 function buildDeskItem(name, registry = [], department = null, departmentId = '') {
   const registryAgent = findRegistryAgent(name, registry);
   const sourceLabel = deskSourceLabel(name, registryAgent);
@@ -394,6 +414,13 @@ export default function DepartmentPage() {
   const reportItems = safeArray(detail?.reports?.items);
   const auditItems = safeArray(detail?.audit);
   const activeJobs = safeArray(detail?.activeJobs);
+  const workflowRuns = safeArray(selectedWorkflow?.activeWorkflowRuns);
+  const queuedHandoffs = safeArray(selectedWorkflow?.queuedHandoffs);
+  const evidenceLogs = safeArray(selectedWorkflow?.evidenceLogs);
+  const approvalGates = safeArray(selectedWorkflow?.approvalGates || detail?.approvalGates);
+  const blockedRejectedWork = safeArray(selectedWorkflow?.blockedRejectedWork);
+  const nextPhaseRecommendations = safeArray(selectedWorkflow?.nextPhaseRecommendations);
+  const workflowVisualization = safeArray(selectedWorkflow?.workflowVisualization);
   const blockedRejected = activeJobs.filter((job) => ["blocked", "failed", "rejected", "hold", "cancelled", "archived"].includes(String(job.status).toLowerCase()));
   const runningOrQueued = activeJobs.filter((job) => ["queued", "running", "active", "in_progress", "scoped", "hold"].includes(String(job.status).toLowerCase()));
   const completedJobs = activeJobs.filter((job) => ["complete", "completed", "done", "success"].includes(String(job.status).toLowerCase()));
@@ -403,6 +430,13 @@ export default function DepartmentPage() {
   const routeKeywords = safeArray(detail?.routeKeywords);
   const owner = departmentDisplayName(detail?.name || selectedWorkflow?.name || departmentId);
   const title = detail?.title || selectedWorkflow?.title || "Department command center";
+  const officeTruth = selectedWorkflow?.sourceTruth || detail?.sourceTruth || 'unavailable';
+  const deskTransitions = summarizeDeskTransitions(workflowRuns);
+  const conferenceRoomState = workflowRuns.length || approvalGates.length ? 'occupied' : 'open';
+  const breakRoomState = runningOrQueued.length ? 'available' : 'idle';
+  const liveHandoffCount = queuedHandoffs.length;
+  const liveEvidenceCount = evidenceLogs.length;
+  const floorLabels = officeTruth === 'real' ? 'LIVE' : officeTruth === 'demo' ? 'SEEDED' : 'UNAVAILABLE';
 
   if (isOverview) {
     return (
@@ -555,10 +589,55 @@ export default function DepartmentPage() {
               )) : <p className="text-[10px] text-white/25">No active work packets</p>}
             </div>
           </div>
-        </SectionCard>
+      </SectionCard>
 
-        <SectionCard title="Department execution health" subtitle="What the department is carrying right now.">
-          <KeyValueList
+      <SectionCard title="Department floor states" subtitle="Desk state transitions, conference room state, and break room state are visible as floor truth.">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge variant={officeTruth === 'real' ? 'active' : officeTruth === 'demo' ? 'warning' : 'idle'}>{floorLabels}</StatusBadge>
+          <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[9px] uppercase tracking-wider text-white/50">source truth: {officeTruth}</span>
+          <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[9px] uppercase tracking-wider text-white/50">live workflow runs: {formatCount(workflowRuns.length)}</span>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <MiniStat label="Active desks" value={formatCount(deskTransitions.active)} compact />
+          <MiniStat label="Idle desks" value={formatCount(deskTransitions.idle)} compact />
+          <MiniStat label="Blocked desks" value={formatCount(deskTransitions.blocked)} compact />
+          <MiniStat label="Reviewing desks" value={formatCount(deskTransitions.reviewing)} compact />
+          <MiniStat label="Waiting desks" value={formatCount(deskTransitions.waiting)} compact />
+        </div>
+        <div className="mt-4 grid gap-3 xl:grid-cols-2">
+          <GlassCard className="p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold text-white/75">Conference room state</p>
+              <StatusBadge variant={conferenceRoomState === 'occupied' ? 'active' : 'idle'}>{conferenceRoomState}</StatusBadge>
+            </div>
+            <p className="mt-2 text-[10px] text-white/35 leading-relaxed">Conference room is {conferenceRoomState === 'occupied' ? 'occupied by live workflow activity or approval gates' : 'open and available for the next handoff.'}</p>
+            <div className="mt-3 grid gap-2 md:grid-cols-3">
+              <MiniStat label="Approval gates" value={formatCount(approvalGates.length)} compact />
+              <MiniStat label="Queued handoffs" value={formatCount(liveHandoffCount)} compact />
+              <MiniStat label="Blocked records" value={formatCount(blockedRejectedWork.length)} compact />
+            </div>
+          </GlassCard>
+          <GlassCard className="p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold text-white/75">Break room / idle state</p>
+              <StatusBadge variant={breakRoomState === 'available' ? 'warning' : 'idle'}>{breakRoomState}</StatusBadge>
+            </div>
+            <p className="mt-2 text-[10px] text-white/35 leading-relaxed">Agents without active packets fall back to break room or idle state until the next packet lands.</p>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              <MiniStat label="Live evidence logs" value={formatCount(liveEvidenceCount)} compact />
+              <MiniStat label="Next phase notes" value={formatCount(nextPhaseRecommendations.length)} compact />
+            </div>
+          </GlassCard>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Department execution health" subtitle="What the department is carrying right now.">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge variant={officeTruth === 'real' ? 'active' : officeTruth === 'demo' ? 'warning' : 'idle'}>{floorLabels}</StatusBadge>
+          <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[9px] uppercase tracking-wider text-white/50">queue source: live</span>
+          <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[9px] uppercase tracking-wider text-white/50">registry source: {officeTruth}</span>
+        </div>
+        <KeyValueList
             items={[
               { label: "Open jobs", value: formatCount(metrics.openJobs ?? activeJobs.length) },
               { label: "Completed jobs", value: formatCount(metrics.completedJobs ?? departmentStatus.recentlyCompletedItems ?? 0) },
@@ -593,6 +672,11 @@ export default function DepartmentPage() {
       </SectionCard>
 
       <SectionCard title="Workflow canvas" subtitle="Work packets move through desks, handoffs, evidence, and completion.">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <StatusBadge variant={officeTruth === 'real' ? 'active' : officeTruth === 'demo' ? 'warning' : 'idle'}>{floorLabels}</StatusBadge>
+          <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[9px] uppercase tracking-wider text-white/50">workflow source: registry-backed</span>
+          <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[9px] uppercase tracking-wider text-white/50">visualization nodes: {formatCount(workflowVisualization.length)}</span>
+        </div>
         <WorkflowCanvas
           title="Department work packet canvas"
           subtitle="Workflow state is rendered as a node chain using live registry and queue truth."
@@ -654,8 +738,13 @@ export default function DepartmentPage() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Evidence drawer" subtitle="Reports, audit entries, and supporting evidence are visible here.">
-          <div className="space-y-2">
+      <SectionCard title="Evidence drawer" subtitle="Reports, audit entries, and supporting evidence are visible here.">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <StatusBadge variant={officeTruth === 'real' ? 'active' : officeTruth === 'demo' ? 'warning' : 'idle'}>{floorLabels}</StatusBadge>
+          <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[9px] uppercase tracking-wider text-white/50">evidence logs: {formatCount(liveEvidenceCount)}</span>
+          <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[9px] uppercase tracking-wider text-white/50">reports: {formatCount(reportItems.length)}</span>
+        </div>
+        <div className="space-y-2">
             {latestReport ? (
               <GlassCard className="p-3">
                 <p className="text-[11px] font-semibold text-white/75">Latest report</p>
@@ -679,12 +768,26 @@ export default function DepartmentPage() {
                 <p className="mt-1 text-[9px] text-white/20">{formatDate(entry.at)}</p>
               </GlassCard>
             )) : null}
-            {!latestReport && !reportItems.length && !auditItems.length ? <p className="text-[10px] text-white/25">No evidence or audit items returned for this department.</p> : null}
+            {evidenceLogs.length ? evidenceLogs.slice(0, 3).map((entry) => (
+              <GlassCard key={entry.id} className="p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold text-white/75">{entry.summary}</p>
+                  <StatusBadge variant={statusTone(entry.truthStatus || entry.type)}>{entry.truthStatus || entry.type || 'live'}</StatusBadge>
+                </div>
+                <p className="mt-1 text-[9px] text-white/20">{formatDate(entry.at)}</p>
+              </GlassCard>
+            )) : null}
+            {!latestReport && !reportItems.length && !auditItems.length && !evidenceLogs.length ? <p className="text-[10px] text-white/25">No evidence or audit items returned for this department.</p> : null}
           </div>
         </SectionCard>
       </div>
 
       <SectionCard title="Internal messages / handoffs" subtitle="Visible handoff notes and inter-desk communication.">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <StatusBadge variant={officeTruth === 'real' ? 'active' : officeTruth === 'demo' ? 'warning' : 'idle'}>{floorLabels}</StatusBadge>
+          <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[9px] uppercase tracking-wider text-white/50">handoff lines: {formatCount(liveHandoffCount)}</span>
+          <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[9px] uppercase tracking-wider text-white/50">next phase notes: {formatCount(nextPhaseRecommendations.length)}</span>
+        </div>
         <div className="space-y-2">
           {safeArray(selectedWorkflow?.queuedHandoffs).length ? safeArray(selectedWorkflow.queuedHandoffs).slice(0, 6).map((handoff) => (
             <GlassCard key={handoff.id} className="p-3">

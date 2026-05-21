@@ -1,24 +1,49 @@
 # Mission Control Live / Static Data Audit
 
 Scope:
+- Frontend UI host: `https://mission-control-livid-zeta.vercel.app`
+- Backend API host: `https://mc-api.sentinelstechnologygroup.com`
 - Local browser shell: `http://127.0.0.1:5173`
 - Local API: `http://127.0.0.1:4174`
-- Public live host checked for deployment truth: `https://mission-control-livid-zeta.vercel.app`
 - Cloudflare Access vars were verified present without printing secrets
 - No Aurora terminology used
 
-## Executive summary
+## Architecture summary
 
-Mission Control’s local productization phase is now materially more truthful. The five legacy pages targeted in this phase have been converted into source-labeled operational surfaces:
+Mission Control is now a split deployment:
+- Vercel serves the frontend UI shell and SPA routes.
+- The backend/API truth should come from the dedicated backend host.
+- Vercel `/api/*` fallthrough is expected frontend-only behavior and is not itself a blocker unless the architecture is intentionally changed.
+
+## Frontend host status
+
+On `https://mission-control-livid-zeta.vercel.app`, UI routes return HTML as expected:
+- `/`
 - `/missions`
 - `/approvals`
 - `/calendar`
 - `/knowledge`
 - `/security`
+- `/departments`
+- `/departments/technology`
+- `/agents`
+- `/runtime`
+- `/system`
+- `/costs`
 
-The department office surfaces remain live/truthful and continue to show honest empty states where live work is absent. The local runtime API now returns JSON for `/api/runtime` and `/api/runtime/healthz`.
+The frontend host is therefore acting as a static SPA shell, which is correct for this split model.
 
-The remaining blocker is the public live deployment: the public host still serves an older build. On the public host, `/api/runtime` and `/api/runtime/healthz` still return `index.html`, so live deployment verification is blocked until the updated build is deployed.
+## Backend API host status
+
+On `https://mc-api.sentinelstechnologygroup.com`, the API host currently returns `403` for the checked runtime/auth-protected paths. This is a live verification blocker on the backend host, not on Vercel.
+
+## Local truth remains green
+
+Locally, the Mission Control UI/API stack remains truthful:
+- department overview is live
+- office surfaces are live/truthful with honest empty states
+- `/api/runtime` and `/api/runtime/healthz` return JSON locally
+- department offices continue to use source labels rather than fake activity
 
 ## What loads live locally
 
@@ -44,11 +69,11 @@ The remaining blocker is the public live deployment: the public host still serve
 
 ## What is source-labeled rather than fake
 
-- `/missions` is now a live work queue surface with live / registry-backed source labels.
-- `/approvals` is now an executive review and QA/security gate inbox with live / registry-backed / seeded labels.
-- `/calendar` is now an operational schedule/checkpoint/planner surface with live / registry-backed / seeded labels.
-- `/knowledge` is now a skill/docs/evidence registry surface with live / registry-backed / seeded labels.
-- `/security` is now Perry’s security/compliance/risk surface with live / registry-backed / seeded labels.
+- `/missions` is a live work queue surface with live / registry-backed source labels.
+- `/approvals` is an executive review and QA/security gate inbox with live / registry-backed / seeded labels.
+- `/calendar` is an operational schedule/checkpoint/planner surface with live / registry-backed / seeded labels.
+- `/knowledge` is a skill/docs/evidence registry surface with live / registry-backed / seeded labels.
+- `/security` is Perry’s security/compliance/risk surface with live / registry-backed / seeded labels.
 - `/agents` remains source-labeled and registry-backed.
 - Department office pages continue to render truthful office shells rather than generic decorative pages.
 
@@ -61,9 +86,9 @@ The remaining blocker is the public live deployment: the public host still serve
 - `/runtime` remains hybrid and demo-safe for command scenarios, with local persistence.
 - `/nettie` remains localStorage-backed for the operator thread.
 
-## Local API truth
+## API truth
 
-### JSON API routes verified locally
+### Local JSON API routes verified
 - `/api/health`
 - `/api/departments`
 - `/api/departments/technology`
@@ -86,55 +111,51 @@ The remaining blocker is the public live deployment: the public host still serve
 - `/api/system`
 - `/api/costs`
 
-### Incorrect index.html fall-through locally
+### Frontend host API fallback
+- `https://mission-control-livid-zeta.vercel.app/api/*` returning `index.html` is expected for the frontend-only Vercel shell.
+- That behavior is not a blocker in the split architecture.
+
+### Backend API host blocker
+- `https://mc-api.sentinelstechnologygroup.com` returned `403` on the checked API routes.
+- This is the current blocker for live backend verification.
+
+## 404s in the requested list locally
+
 - None.
-
-### 404s in the requested list locally
-- None.
-
-## Public live host verification
-
-The public host is reachable, but it is serving an older build.
-
-Observed on `https://mission-control-livid-zeta.vercel.app`:
-- page routes return `200` with `index.html`
-- `/api/runtime` returns `index.html`
-- `/api/runtime/healthz` returns `index.html`
-
-This means public live deployment verification is blocked until the updated build is deployed.
 
 ## What should be replaced first next
 
-1. Deploy the updated build so the public host matches local truth.
-2. Continue upgrading any remaining seeded placeholders in `/calendar`, `/knowledge`, and `/security` if live sources become available.
-3. Continue expanding live evidence in department office surfaces where workflows are still sparse.
-4. Keep `/api/runtime` and `/api/runtime/healthz` under JSON truth on the deployed host.
+1. Resolve backend host access so API JSON can be verified live on `mc-api`.
+2. Keep the frontend host as a pure SPA shell unless the architecture is intentionally changed.
+3. Continue office-floor productization only after backend host verification passes.
+4. Preserve honest empty states instead of inventing activity.
 
 ## Route summary
 
-| Route | Local status | Visible truth |
-| --- | --- | --- |
-| `/missions` | Live | Live queue, live/registry-backed source labels, explicit empty states |
-| `/approvals` | Live | Live review inbox, registry-backed security gates, seeded rework lane |
-| `/calendar` | Live | Live checkpoints, registry-backed planner, seeded conference blocks |
-| `/knowledge` | Live | Registry-backed skills/permissions, seeded canon docs, live evidence posture |
-| `/security` | Live | Live security queue, registry-backed audits, seeded release checks |
-| `/departments/command` | Live | Truthful office shell with live queue and honest empty states |
-| `/departments/technology` | Live | Strongest office surface, live queue and honest empty states |
-| `/departments/media` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
-| `/departments/security` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
-| `/departments/finance` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
-| `/departments/opportunity` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
-| `/departments/research` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
-| `/departments/admin` | Live but sparse | Truth-labeled office shell with employee desks and honest empty states |
-| `/agents` | Live | Registry-backed desks with live, seeded, static, and unavailable labels |
-| `/runtime` | Hybrid | Live stored jobs/evidence with seeded demo-safe command scenarios |
-| `/system` | Live | Live executor truth, job counts, runtime alerts, logs, and burn telemetry |
-| `/costs` | Live | Live ledger and burn telemetry, with estimated/unavailable fields where applicable |
+| Route | Local status | Frontend host status | Backend host status |
+| --- | --- | --- | --- |
+| `/missions` | Live | HTML SPA shell | not applicable |
+| `/approvals` | Live | HTML SPA shell | not applicable |
+| `/calendar` | Live | HTML SPA shell | not applicable |
+| `/knowledge` | Live | HTML SPA shell | not applicable |
+| `/security` | Live | HTML SPA shell | not applicable |
+| `/departments/command` | Live | HTML SPA shell | not applicable |
+| `/departments/technology` | Live | HTML SPA shell | not applicable |
+| `/departments/media` | Live but sparse | HTML SPA shell | not applicable |
+| `/departments/security` | Live but sparse | HTML SPA shell | not applicable |
+| `/departments/finance` | Live but sparse | HTML SPA shell | not applicable |
+| `/departments/opportunity` | Live but sparse | HTML SPA shell | not applicable |
+| `/departments/research` | Live but sparse | HTML SPA shell | not applicable |
+| `/departments/admin` | Live but sparse | HTML SPA shell | not applicable |
+| `/agents` | Live | HTML SPA shell | not applicable |
+| `/runtime` | Hybrid | HTML SPA shell | not applicable |
+| `/system` | Live | HTML SPA shell | not applicable |
+| `/costs` | Live | HTML SPA shell | not applicable |
+| `/api/runtime` | JSON locally | expected frontend-only fallthrough | 403 on backend host |
+| `/api/runtime/healthz` | JSON locally | expected frontend-only fallthrough | 403 on backend host |
 
 ## Key replacement order
 
-1. Keep the new public deployment aligned with local truth.
-2. Convert any remaining seeded placeholders into live feeds only when true sources exist.
-3. Continue to fill out departmental workflow templates and evidence lanes where live history exists.
-4. Preserve honest empty states instead of inventing activity.
+1. Resolve backend host access and API live verification.
+2. Keep the frontend host in frontend-only SPA mode.
+3. Continue expanding department office depth only after backend host truth is confirmed.

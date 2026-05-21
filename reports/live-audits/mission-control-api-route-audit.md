@@ -1,5 +1,43 @@
 # Mission Control API Route Audit
 
+## Deployment model
+
+Mission Control now uses a split deployment:
+- Frontend UI host: `https://mission-control-livid-zeta.vercel.app`
+- Backend/API truth host: `https://mc-api.sentinelstechnologygroup.com`
+
+Vercel `/api/*` fallthrough is expected frontend-only behavior in this model and is not itself a blocker.
+
+## Frontend host behavior
+
+The frontend host returns HTML as expected for the requested UI routes:
+- `/`
+- `/missions`
+- `/approvals`
+- `/calendar`
+- `/knowledge`
+- `/security`
+- `/departments`
+- `/departments/technology`
+- `/agents`
+- `/runtime`
+- `/system`
+- `/costs`
+
+## Backend API host behavior
+
+The backend host is currently returning `403` for the checked API routes:
+- `/api/runtime`
+- `/api/runtime/healthz`
+- `/api/health`
+- `/api/departments/workflows`
+- `/api/agents`
+- `/api/jobs`
+- `/api/system`
+- `/api/costs`
+
+That means backend live verification is not passing yet.
+
 ## Local request behavior
 
 | Route | Status | Response type | Result |
@@ -16,60 +54,29 @@
 | `/api/agents` | 200 | JSON | Live agent registry payload |
 | `/api/jobs` | 200 | JSON | Job list payload |
 | `/api/jobs/ledger` | 200 | JSON | Ledger-backed job truth |
-| `/api/runtime` | 200 | JSON | Runtime health payload |
-| `/api/runtime/healthz` | 200 | JSON | Runtime health alias |
-| `/api/runtime/health` | 200 | JSON | Runtime health payload |
+| `/api/runtime/health` | 200 | JSON | Runtime health, overallHealth=DEGRADED |
 | `/api/runtime/snapshot` | 200 | JSON | Runtime snapshot payload |
 | `/api/runtime/alerts` | 200 | JSON | Runtime alerts |
 | `/api/runtime/reconciliation` | 200 | JSON | Reconciliation payload |
 | `/api/system` | 200 | JSON | System truth payload |
 | `/api/costs` | 200 | JSON | Cost / ledger telemetry |
-
-## JSON routes
-
-The following requested routes return JSON correctly on the local audited surface:
-- `/api/health`
-- `/api/departments/technology`
-- `/api/departments/media`
-- `/api/departments/security`
-- `/api/departments/finance`
-- `/api/departments/opportunity`
-- `/api/departments/research`
-- `/api/departments/admin`
-- `/api/agents`
-- `/api/jobs`
-- `/api/jobs/ledger`
-- `/api/runtime`
-- `/api/runtime/healthz`
-- `/api/runtime/health`
-- `/api/runtime/snapshot`
-- `/api/runtime/alerts`
-- `/api/runtime/reconciliation`
-- `/api/system`
-- `/api/costs`
+| `/api/runtime` | 200 | JSON locally | Runtime health payload |
+| `/api/runtime/healthz` | 200 | JSON locally | Runtime health alias |
 
 ## Incorrect index.html fall-through
 
-- None on localhost after the runtime route fix and restart.
-
-## Public live host behavior
-
-On `https://mission-control-livid-zeta.vercel.app`, the deployment is stale:
-- page routes return `200` with `index.html`
-- `/api/runtime` returns `index.html`
-- `/api/runtime/healthz` returns `index.html`
-
-This means the deployed public host is still serving the old build. The local API fix is correct, but the public host must be refreshed before live verification can be considered complete.
+- None locally.
+- Vercel `/api/*` fallthrough is expected in the frontend-only architecture.
 
 ## 404s
 
-No requested API route returned `404` locally.
+No requested route returned `404` locally.
 
 ## Behavioral notes
 
-- `/api/jobs/summary` reports `truthStatus=LIVE` but also `stale=true`.
-- `/api/runtime/health` reports `overallHealth=DEGRADED`.
-- `/api/runtime/reconciliation` is also degraded.
-- `/api/costs` is live but several values are estimated or unavailable rather than hard-metered.
-- `/api/departments/workflows` reports `totalDepartments=9`, `realDepartments=8`, `demoDepartments=1`.
-- The local public deployment check is not a code failure; it is a deployment freshness blocker.
+- `/api/jobs/summary` reports `truthStatus=LIVE` but also `stale=true` locally.
+- `/api/runtime/health` reports `overallHealth=DEGRADED` locally.
+- `/api/runtime/reconciliation` is also degraded locally.
+- `/api/costs` is live but several values are estimated or unavailable rather than hard-metered locally.
+- `/api/departments/workflows` reports `totalDepartments=9`, `realDepartments=8`, `demoDepartments=1` locally.
+- The current blocker is backend host access on `mc-api`, not the Vercel SPA shell.

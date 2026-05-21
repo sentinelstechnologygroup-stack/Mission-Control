@@ -1,5 +1,11 @@
 # Mission Control Department Office Audit
 
+## Deployment architecture
+
+- Frontend UI host: `https://mission-control-livid-zeta.vercel.app`
+- Backend/API truth host: `https://mc-api.sentinelstechnologygroup.com`
+- Vercel serves the frontend SPA shell; backend API truth is a separate host.
+
 ## Department overview board
 
 - `/api/departments/workflows` reports 9 departments total: 8 real, 1 demo.
@@ -25,7 +31,7 @@
 ### `/departments/opportunity`
 ### `/departments/research`
 ### `/departments/admin`
-- These routes now load truth-labeled office shells rather than generic static pages.
+- These routes load truth-labeled office shells rather than generic static pages.
 - They include department head office, agent desks, current work packets, workflow canvas, handoff lines, blocked work, completed work, evidence drawer, and meeting/conference concept sections.
 - When there is no live packet, they show honest empty states such as:
   - `No active work packets`

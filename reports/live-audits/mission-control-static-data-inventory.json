@@ -1,12 +1,8 @@
 {
-  "scope": {
-    "browser": "http://127.0.0.1:5173",
-    "api": "http://127.0.0.1:4174",
-    "publicHost": "https://mission-control-livid-zeta.vercel.app",
-    "notes": [
-      "Cloudflare Access vars were verified present without printing secrets.",
-      "No Aurora terminology used in the audit outputs."
-    ]
+  "architecture": {
+    "frontendHost": "https://mission-control-livid-zeta.vercel.app",
+    "backendApiHost": "https://mc-api.sentinelstechnologygroup.com",
+    "mode": "split-frontend-backend"
   },
   "localRouteInventory": [
     {
@@ -118,81 +114,152 @@
       "notes": "Costs are live but include estimated/unavailable fields."
     }
   ],
-  "localApiInventory": [
+  "frontendHostInventory": [
     {
-      "route": "/api/runtime",
+      "route": "/",
       "status": 200,
-      "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json",
-      "notes": "Returns runtime truth locally."
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "SPA shell served as expected."
     },
-    {
-      "route": "/api/runtime/healthz",
-      "status": 200,
-      "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json",
-      "notes": "Returns runtime truth locally."
-    },
-    {
-      "route": "/api/departments/workflows",
-      "status": 200,
-      "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json",
-      "notes": "9 total departments, 8 real, 1 demo."
-    },
-    {
-      "route": "/api/agents",
-      "status": 200,
-      "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json",
-      "notes": "Live agent registry."
-    },
-    {
-      "route": "/api/jobs",
-      "status": 200,
-      "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json",
-      "notes": "Live job list."
-    },
-    {
-      "route": "/api/system",
-      "status": 200,
-      "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json",
-      "notes": "Live system truth payload."
-    },
-    {
-      "route": "/api/costs",
-      "status": 200,
-      "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json",
-      "notes": "Live ledger telemetry with estimated fields."
-    }
-  ],
-  "publicHostInventory": [
     {
       "route": "/missions",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "Public deployment still serves the old shell."
+      "notes": "SPA shell served as expected."
     },
     {
-      "route": "/api/runtime",
+      "route": "/approvals",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "Public deployment still falls through to index.html."
+      "notes": "SPA shell served as expected."
+    },
+    {
+      "route": "/calendar",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "SPA shell served as expected."
+    },
+    {
+      "route": "/knowledge",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "SPA shell served as expected."
+    },
+    {
+      "route": "/security",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "SPA shell served as expected."
+    },
+    {
+      "route": "/departments",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "SPA shell served as expected."
+    },
+    {
+      "route": "/departments/technology",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "SPA shell served as expected."
+    },
+    {
+      "route": "/agents",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "SPA shell served as expected."
+    },
+    {
+      "route": "/runtime",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "SPA shell served as expected."
+    },
+    {
+      "route": "/system",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "SPA shell served as expected."
+    },
+    {
+      "route": "/costs",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "SPA shell served as expected."
+    }
+  ],
+  "backendHostInventory": [
+    {
+      "route": "/api/runtime",
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json_error",
+      "notes": "Backend host currently blocks the request; live API verification is not passing."
     },
     {
       "route": "/api/runtime/healthz",
-      "status": 200,
-      "contentType": "text/html; charset=utf-8",
-      "bodyKind": "html",
-      "notes": "Public deployment still falls through to index.html."
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json_error",
+      "notes": "Backend host currently blocks the request; live API verification is not passing."
+    },
+    {
+      "route": "/api/health",
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json_error",
+      "notes": "Backend host currently blocks the request; live API verification is not passing."
+    },
+    {
+      "route": "/api/departments/workflows",
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json_error",
+      "notes": "Backend host currently blocks the request; live API verification is not passing."
+    },
+    {
+      "route": "/api/agents",
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json_error",
+      "notes": "Backend host currently blocks the request; live API verification is not passing."
+    },
+    {
+      "route": "/api/jobs",
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json_error",
+      "notes": "Backend host currently blocks the request; live API verification is not passing."
+    },
+    {
+      "route": "/api/system",
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json_error",
+      "notes": "Backend host currently blocks the request; live API verification is not passing."
+    },
+    {
+      "route": "/api/costs",
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json_error",
+      "notes": "Backend host currently blocks the request; live API verification is not passing."
     }
   ],
   "blockers": [
-    "Public deployment is stale and must be refreshed before live verification can be considered complete."
+    "Backend API host is currently returning 403 for the checked endpoints.",
+    "Vercel /api/* fallthrough is expected frontend-only behavior and should not be treated as a blocker in the split deployment model."
   ]
 }
