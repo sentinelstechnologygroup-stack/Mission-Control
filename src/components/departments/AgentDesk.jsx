@@ -21,7 +21,7 @@ export default function AgentDesk({
   tone = 'idle',
 }) {
   const isActive = ['running', 'active', 'healthy', 'ready', 'available', 'live'].includes(String(status || '').toLowerCase())
-  const sourceTone = sourceLabel === 'LIVE' ? 'active' : sourceLabel === 'SEEDED' ? 'warning' : sourceLabel === 'STATIC' ? 'critical' : 'idle'
+  const sourceTone = sourceLabel === 'LIVE' ? 'active' : sourceLabel === 'REGISTRY-BACKED' ? 'info' : sourceLabel === 'SEEDED' ? 'warning' : sourceLabel === 'STATIC' ? 'critical' : 'idle'
 
   return (
     <GlassCard className={`border p-4 ${tone === 'active' ? 'border-emerald-500/20 bg-emerald-500/6' : tone === 'critical' ? 'border-rose-500/20 bg-rose-500/6' : tone === 'warning' ? 'border-amber-500/20 bg-amber-500/6' : 'border-white/[0.06] bg-white/[0.03]'}`}>

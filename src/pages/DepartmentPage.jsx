@@ -63,6 +63,8 @@ const SKILL_SURFACE = [
 
 const PRIMARY_DEPARTMENTS = ["nettie", "van", "perry", "torina", "dana", "icky", "funboy", "rab", "novella"];
 const DEPARTMENT_ALIAS_LOOKUP = {
+  technology: "van",
+  tech: "van",
   media: "torina",
   security: "perry",
   finance: "dana",
@@ -132,12 +134,12 @@ function findRegistryAgent(name = "", registry = []) {
 }
 
 function deskSourceLabel(name, registryAgent) {
-  if (!registryAgent) return DEPARTMENT_ALIAS_LOOKUP[name] ? 'SEEDED' : 'UNAVAILABLE';
+  if (!registryAgent) return DEPARTMENT_ALIAS_LOOKUP[name] ? 'UNAVAILABLE' : 'UNAVAILABLE';
   const isPrimary = canonicalDepartmentId(registryAgent.displayName) === canonicalDepartmentId(name) || canonicalDepartmentId(registryAgent.id) === canonicalDepartmentId(name);
-  if (!isPrimary) return 'SEEDED';
-  if (registryAgent.agentFilesystem?.complete && ['available', 'assigned', 'active', 'idle'].includes(String(registryAgent.status || '').toLowerCase())) return 'LIVE';
-  if (registryAgent.agentFilesystem?.complete) return 'SEEDED';
-  return 'STATIC';
+  if (!isPrimary) return 'REGISTRY-BACKED';
+  if (registryAgent.heartbeat?.status === 'live' || ['available', 'assigned', 'active', 'idle'].includes(String(registryAgent.status || '').toLowerCase())) return 'LIVE';
+  if (registryAgent.agentFilesystem?.complete || registryAgent.status) return registryAgent.demoOnly ? 'SEEDED' : 'REGISTRY-BACKED';
+  return 'UNAVAILABLE';
 }
 
 function classifyDeskTransition(item = {}) {
@@ -195,7 +197,7 @@ function buildDeskItem(name, registry = [], department = null, departmentId = ''
     tools,
     evidence,
     breakState: registryAgent?.heartbeat?.status && registryAgent.heartbeat.status !== 'live' ? registryAgent.heartbeat.status : null,
-    tone: sourceLabel === 'LIVE' ? 'active' : sourceLabel === 'SEEDED' ? 'warning' : sourceLabel === 'STATIC' ? 'critical' : 'idle',
+    tone: sourceLabel === 'LIVE' ? 'active' : sourceLabel === 'REGISTRY-BACKED' ? 'info' : sourceLabel === 'SEEDED' ? 'warning' : sourceLabel === 'STATIC' ? 'critical' : 'idle',
     sourceLabel,
   };
 }
@@ -408,7 +410,7 @@ export default function DepartmentPage() {
   }, [departments]);
 
   const selectedWorkflow = departments.find((dept) => canonicalDepartmentId(dept.id) === canonicalDepartmentId(departmentId) || canonicalDepartmentId(dept.name) === canonicalDepartmentId(departmentId));
-  const detail = selectedDepartment || selectedWorkflow;
+  const detail = useMemo(() => ({ ...(selectedWorkflow || {}), ...(selectedDepartment || {}) }), [selectedDepartment, selectedWorkflow]);
   const templates = safeArray(selectedWorkflow?.workflowTemplates || detail?.workflowTemplates);
   const latestReport = detail?.reports?.latestDepartmentReport || null;
   const reportItems = safeArray(detail?.reports?.items);
@@ -430,7 +432,7 @@ export default function DepartmentPage() {
   const routeKeywords = safeArray(detail?.routeKeywords);
   const owner = departmentDisplayName(detail?.name || selectedWorkflow?.name || departmentId);
   const title = detail?.title || selectedWorkflow?.title || "Department command center";
-  const officeTruth = selectedWorkflow?.sourceTruth || detail?.sourceTruth || 'unavailable';
+  const officeTruth = selectedWorkflow?.sourceTruth || detail?.sourceTruth || (selectedWorkflow || selectedDepartment ? 'real' : 'unavailable');
   const deskTransitions = summarizeDeskTransitions(workflowRuns);
   const conferenceRoomState = workflowRuns.length || approvalGates.length ? 'occupied' : 'open';
   const breakRoomState = runningOrQueued.length ? 'available' : 'idle';
