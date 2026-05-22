@@ -5,7 +5,7 @@
 - Frontend UI host: `https://mission-control-livid-zeta.vercel.app`
 - Backend/API truth host: `https://mc-api.sentinelstechnologygroup.com`
 - Vercel serves the frontend SPA shell; backend API truth is a separate host.
-- The frontend host is still serving a stale build relative to the latest local department-floor work.
+- The frontend host now serves the updated department-floor work publicly.
 
 ## Department overview board
 
@@ -19,13 +19,14 @@
 - Resolves to Nettie.
 - Shows live workload and honest empty states where no packet history is present.
 - Has employee desks, workflow canvas, queue/status board, evidence drawer, internal messages, blocked work, completed work, and floor-state sections.
-- The floor-state section now exposes desk transitions, conference room state, break room state, live evidence logs, and next-phase notes.
+- The floor-state section exposes desk transitions, conference room state, break room state, live evidence logs, and next-phase notes.
 - Still sparse on actual workflow template depth.
 
 ### `/departments/technology`
 - Resolves to Van.
 - Shows the strongest office surface with live workload, live jobs, floor states, and truthful empty states.
 - Acts as the model office for the rest of the department floors.
+- Publicly verified with desk transitions, conference room state, break room state, evidence drawer counters, and handoff metrics.
 
 ### `/departments/media`
 ### `/departments/security`

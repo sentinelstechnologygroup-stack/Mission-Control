@@ -120,84 +120,126 @@
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
+      "notes": "SPA shell served as expected; the top-level home shell remains the older operational shell."
     },
     {
       "route": "/missions",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
+      "notes": "Department productization is live on the public deployment."
     },
     {
       "route": "/approvals",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
+      "notes": "Department productization is live on the public deployment."
     },
     {
       "route": "/calendar",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
+      "notes": "Department productization is live on the public deployment."
     },
     {
       "route": "/knowledge",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
+      "notes": "Department productization is live on the public deployment."
     },
     {
       "route": "/security",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
+      "notes": "Department productization is live on the public deployment."
     },
     {
       "route": "/departments",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
+      "notes": "Department command-center overview is live on the public deployment."
     },
     {
       "route": "/departments/technology",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
+      "notes": "Department floor states are live on the public deployment."
+    },
+    {
+      "route": "/departments/media",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "Department floor states are live on the public deployment."
+    },
+    {
+      "route": "/departments/security",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "Department floor states are live on the public deployment."
+    },
+    {
+      "route": "/departments/finance",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "Department floor states are live on the public deployment."
+    },
+    {
+      "route": "/departments/opportunity",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "Department floor states are live on the public deployment."
+    },
+    {
+      "route": "/departments/research",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "Department floor states are live on the public deployment."
+    },
+    {
+      "route": "/departments/admin",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyKind": "html",
+      "notes": "Department floor states are live on the public deployment."
     },
     {
       "route": "/agents",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
+      "notes": "Source-labeled desks are live on the public deployment."
     },
     {
       "route": "/runtime",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
+      "notes": "Runtime shell is live on the public deployment."
     },
     {
       "route": "/system",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
+      "notes": "System surface is live on the public deployment."
     },
     {
       "route": "/costs",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
+      "notes": "Cost surface is live on the public deployment."
     }
   ],
   "backendHostInventory": [
@@ -259,7 +301,7 @@
     }
   ],
   "blockers": [
-    "Frontend deployment freshness remains stale on Vercel relative to the latest local department-floor changes.",
+    "The top-level home shell still shows the older operational command-center content, but the department-floor work itself is now public and fresh.",
     "Vercel /api/* fallthrough is expected frontend-only behavior and should not be treated as a blocker in the split deployment model."
   ]
 }

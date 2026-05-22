@@ -10,21 +10,27 @@ Vercel `/api/*` fallthrough is expected frontend-only behavior in this model and
 
 ## Frontend host behavior
 
-The frontend host returns HTML as expected for the requested UI routes, but the deployed shell is still stale relative to the latest local UI changes.
+The frontend host returns HTML as expected for the requested UI routes, and the targeted department-floor work is visible publicly.
 
 Observed on `https://mission-control-livid-zeta.vercel.app`:
 - `/` returns HTML
-- `/missions` returns HTML
-- `/approvals` returns HTML
-- `/calendar` returns HTML
-- `/knowledge` returns HTML
-- `/security` returns HTML
-- `/departments` returns HTML
-- `/departments/technology` returns HTML
-- `/agents` returns HTML
-- `/runtime` returns HTML
-- `/system` returns HTML
-- `/costs` returns HTML
+- `/missions` returns HTML and the mission queue surface is live
+- `/approvals` returns HTML and the review inbox surface is live
+- `/calendar` returns HTML and the planner/checkpoint surface is live
+- `/knowledge` returns HTML and the registry surface is live
+- `/security` returns HTML and the Perry security surface is live
+- `/departments` returns HTML and the command-center overview is live
+- `/departments/technology` returns HTML and the new department floor states are live
+- `/departments/media` returns HTML and the new department floor states are live
+- `/departments/security` returns HTML and the new department floor states are live
+- `/departments/finance` returns HTML and the new department floor states are live
+- `/departments/opportunity` returns HTML and the new department floor states are live
+- `/departments/research` returns HTML and the new department floor states are live
+- `/departments/admin` returns HTML and the new department floor states are live
+- `/agents` returns HTML and source-labeled desks are live
+- `/runtime` returns HTML and the runtime shell is live
+- `/system` returns HTML and the system surface is live
+- `/costs` returns HTML and the cost surface is live
 
 ## Backend API host behavior
 
@@ -80,4 +86,4 @@ No requested route returned `404` locally.
 - `/api/costs` is live but several values are estimated or unavailable rather than hard-metered locally.
 - `/api/departments/workflows` reports `totalDepartments=9`, `realDepartments=8`, `demoDepartments=1` locally.
 - Backend live verification is now passing again on `mc-api`.
-- The remaining issue is frontend deployment freshness, not API route correctness.
+- The backend API truth is live again and the department-floor frontend deployment is now fresh on the checked routes.

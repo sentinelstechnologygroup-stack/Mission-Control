@@ -17,14 +17,15 @@ Mission Control is a split deployment:
 
 ## Frontend host status
 
-The frontend host returns HTML as expected for UI routes, but the deployed shell is still stale relative to the latest local productization work.
+The frontend host now returns HTML as expected for UI routes, and the department floor productization is live on the public deployment.
 
 Observed on `https://mission-control-livid-zeta.vercel.app`:
 - routes return HTML
-- navigation still reflects older UI state
-- the latest department floor state sections are not yet live on the public host
+- `/departments` and the department floor routes render the new office model
+- department pages show floor-state sections, handoff lines, evidence drawers, blocked/completed panels, and n8n-style workflow travel placeholders
+- the top-level home shell remains an older operational shell, but that is separate from the department-floor objective
 
-That means the frontend deployment is functioning as a SPA shell, but the production frontend build has not yet caught up to the newest local commit.
+That means the production frontend build has caught up to the targeted department-floor work, and the split deployment is functioning normally.
 
 ## Backend API host status
 
@@ -135,23 +136,23 @@ Locally, the Mission Control UI/API stack remains truthful:
 
 | Route | Local status | Frontend host status | Backend host status |
 | --- | --- | --- | --- |
-| `/missions` | Live | HTML SPA shell, stale build | not applicable |
-| `/approvals` | Live | HTML SPA shell, stale build | not applicable |
-| `/calendar` | Live | HTML SPA shell, stale build | not applicable |
-| `/knowledge` | Live | HTML SPA shell, stale build | not applicable |
-| `/security` | Live | HTML SPA shell, stale build | not applicable |
-| `/departments/command` | Live | HTML SPA shell, stale build | not applicable |
-| `/departments/technology` | Live | HTML SPA shell, stale build | not applicable |
-| `/departments/media` | Live but sparse | HTML SPA shell, stale build | not applicable |
-| `/departments/security` | Live but sparse | HTML SPA shell, stale build | not applicable |
-| `/departments/finance` | Live but sparse | HTML SPA shell, stale build | not applicable |
-| `/departments/opportunity` | Live but sparse | HTML SPA shell, stale build | not applicable |
-| `/departments/research` | Live but sparse | HTML SPA shell, stale build | not applicable |
-| `/departments/admin` | Live but sparse | HTML SPA shell, stale build | not applicable |
-| `/agents` | Live | HTML SPA shell, stale build | not applicable |
-| `/runtime` | Hybrid | HTML SPA shell, stale build | not applicable |
-| `/system` | Live | HTML SPA shell, stale build | not applicable |
-| `/costs` | Live | HTML SPA shell, stale build | not applicable |
+| `/missions` | Live | HTML SPA shell, department productization live | not applicable |
+| `/approvals` | Live | HTML SPA shell, department productization live | not applicable |
+| `/calendar` | Live | HTML SPA shell, department productization live | not applicable |
+| `/knowledge` | Live | HTML SPA shell, department productization live | not applicable |
+| `/security` | Live | HTML SPA shell, department productization live | not applicable |
+| `/departments/command` | Live | HTML SPA shell, department floor states live | not applicable |
+| `/departments/technology` | Live | HTML SPA shell, department floor states live | not applicable |
+| `/departments/media` | Live but sparse | HTML SPA shell, department floor states live | not applicable |
+| `/departments/security` | Live but sparse | HTML SPA shell, department floor states live | not applicable |
+| `/departments/finance` | Live but sparse | HTML SPA shell, department floor states live | not applicable |
+| `/departments/opportunity` | Live but sparse | HTML SPA shell, department floor states live | not applicable |
+| `/departments/research` | Live but sparse | HTML SPA shell, department floor states live | not applicable |
+| `/departments/admin` | Live but sparse | HTML SPA shell, department floor states live | not applicable |
+| `/agents` | Live | HTML SPA shell, source-labeled desks live | not applicable |
+| `/runtime` | Hybrid | HTML SPA shell, runtime shell live | not applicable |
+| `/system` | Live | HTML SPA shell, system surface live | not applicable |
+| `/costs` | Live | HTML SPA shell, costs surface live | not applicable |
 | `/api/runtime` | JSON locally | expected frontend-only fallthrough | JSON on backend host |
 | `/api/runtime/healthz` | JSON locally | expected frontend-only fallthrough | JSON on backend host |
 
