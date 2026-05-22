@@ -18,6 +18,7 @@ import System from "./pages/System";
 import Nettie from "./pages/Nettie";
 import Runtime from "./pages/Runtime";
 import CalendarPage from "./pages/CalendarPage";
+import DepartmentsOverview from "./pages/departments/DepartmentsOverview";
 import DepartmentPage from "./pages/DepartmentPage";
 import DepartmentAgentWorkflowPage from "./pages/DepartmentAgentWorkflow";
 import CostsPage from "./pages/CostsPage";
@@ -41,13 +42,12 @@ function App() {
             <Route path="/approvals" element={<Approvals />} />
             <Route path="/nettie" element={<Nettie />} />
             <Route path="/runtime" element={<Runtime />} />
-            <Route path="/aurora" element={<Runtime />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/intelligence" element={<Intelligence />} />
             <Route path="/knowledge" element={<Knowledge />} />
             <Route path="/security" element={<Security />} />
             <Route path="/system" element={<System />} />
-            <Route path="/departments" element={<DepartmentPage />} />
+            <Route path="/departments" element={<DepartmentsOverview />} />
             <Route path="/departments/:departmentId/agents/:agentId" element={<DepartmentAgentWorkflowPage />} />
             <Route path="/departments/:departmentId" element={<DepartmentPage />} />
             <Route path="/projects" element={<ProjectsPage />} />

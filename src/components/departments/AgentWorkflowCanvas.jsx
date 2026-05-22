@@ -72,7 +72,7 @@ function statusRank(status = 'idle') {
 export default function AgentWorkflowCanvas({
   title,
   subtitle,
-  sourceLabel = 'registry-backed',
+  sourceLabel = 'REGISTRY-BACKED',
   nodes = [],
   edges = [],
   activeNodeId = null,
@@ -80,12 +80,11 @@ export default function AgentWorkflowCanvas({
   logItems = [],
   summary = [],
   laneOrder = [],
+  showSummary = false,
+  showPanels = false,
 }) {
   const prepared = useMemo(() => {
-    const laneList = laneOrder.length
-      ? laneOrder
-      : Array.from(new Set(nodes.map((node) => node.lane || 'main')))
-
+    const laneList = laneOrder.length ? laneOrder : Array.from(new Set(nodes.map((node) => node.lane || 'main')))
     const laneIndex = new Map(laneList.map((lane, index) => [lane, index]))
 
     const normalizedNodes = nodes.map((node, index) => {
@@ -96,26 +95,20 @@ export default function AgentWorkflowCanvas({
         lane,
         column,
         laneIndex: laneIndex.has(lane) ? laneIndex.get(lane) : 0,
-        x: (column * COLUMN_WIDTH) + 24,
+        x: column * COLUMN_WIDTH + 24,
         y: (laneIndex.has(lane) ? laneIndex.get(lane) : 0) * LANE_HEIGHT + 32,
       }
     })
 
     const nodeMap = new Map(normalizedNodes.map((node) => [node.id, node]))
-
     const maxColumn = normalizedNodes.reduce((max, node) => Math.max(max, node.column), 0)
-    const width = (maxColumn * COLUMN_WIDTH) + NODE_WIDTH + 140
+    const width = maxColumn * COLUMN_WIDTH + NODE_WIDTH + 140
     const height = Math.max(laneList.length, 1) * LANE_HEIGHT + 64
 
     return { laneList, laneIndex, normalizedNodes, nodeMap, width, height }
   }, [laneOrder, nodes])
 
   const activeNode = prepared.nodeMap.get(activeNodeId) || prepared.normalizedNodes.find((node) => statusRank(node.status) === 3) || null
-  const summaryItems = summary.length ? summary : [
-    { label: 'Source', value: sourceLabel },
-    { label: 'Nodes', value: prepared.normalizedNodes.length },
-    { label: 'Branches', value: edges.length },
-  ]
 
   return (
     <GlassCard className="border border-white/[0.06] bg-white/[0.03] p-4">
@@ -125,21 +118,20 @@ export default function AgentWorkflowCanvas({
             {title ? <h3 className="text-[11px] font-semibold uppercase tracking-wider text-white/40">{title}</h3> : null}
             {subtitle ? <p className="mt-1 text-[10px] text-white/25">{subtitle}</p> : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge variant={truthVariant(sourceLabel)}>{truthLabel(sourceLabel).toUpperCase()}</StatusBadge>
-            <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[9px] uppercase tracking-wider text-white/35">n8n-like execution canvas</span>
-          </div>
+          <StatusBadge variant={truthVariant(sourceLabel)}>{truthLabel(sourceLabel).toUpperCase()}</StatusBadge>
         </div>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-3">
-        {summaryItems.map((item) => (
-          <div key={item.label} className="rounded-2xl border border-white/[0.06] bg-black/20 px-3 py-2">
-            <p className="text-[8px] uppercase tracking-wider text-white/20">{item.label}</p>
-            <p className="mt-1 text-[11px] text-white/68">{item.value}</p>
-          </div>
-        ))}
-      </div>
+      {showSummary && summary.length ? (
+        <div className="grid gap-3 md:grid-cols-3">
+          {summary.map((item) => (
+            <div key={item.label} className="rounded-2xl border border-white/[0.06] bg-black/20 px-3 py-2">
+              <p className="text-[8px] uppercase tracking-wider text-white/20">{item.label}</p>
+              <p className="mt-1 text-[11px] text-white/68">{item.value}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="mt-4 overflow-auto rounded-3xl border border-white/[0.06] bg-black/25">
         <div className="relative" style={{ width: prepared.width, height: prepared.height }}>
@@ -191,7 +183,7 @@ export default function AgentWorkflowCanvas({
                     </div>
                     <div>
                       <p className="text-[11px] font-semibold text-white/80">{node.label}</p>
-                      <p className="text-[9px] uppercase tracking-wider text-white/25">{node.type || 'node'} · lane {node.lane || 'main'}</p>
+                      <p className="text-[9px] uppercase tracking-wider text-white/25">{node.type || 'node'}</p>
                     </div>
                   </div>
                   <StatusBadge variant={statusVariant}>{node.status || 'idle'}</StatusBadge>
@@ -201,52 +193,53 @@ export default function AgentWorkflowCanvas({
                 {node.tool ? <p className="mt-2 text-[9px] uppercase tracking-wider text-white/25">Tool/API/model/memory: {node.tool}</p> : null}
                 {node.owner ? <p className="mt-1 text-[9px] text-white/25">Owner: {node.owner}</p> : null}
                 {node.evidence ? <p className="mt-1 text-[9px] text-white/25">Evidence: {node.evidence}</p> : null}
-                {node.id ? <p className="mt-1 text-[8px] uppercase tracking-wider text-white/18">Node ID: {node.id}</p> : null}
               </div>
             )
           })}
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_0.9fr]">
-        <div className="rounded-3xl border border-white/[0.06] bg-black/20 p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-white/25">Execution log</p>
-              <p className="text-[10px] text-white/35">Current running step: {activeNode?.label || 'No live step'}</p>
+      {showPanels ? (
+        <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_0.9fr]">
+          <div className="rounded-3xl border border-white/[0.06] bg-black/20 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-white/25">Execution log</p>
+                <p className="text-[10px] text-white/35">Current running step: {activeNode?.label || 'No live step'}</p>
+              </div>
+              <StatusBadge variant={activeNode ? toneToVariant(activeNode.status) : 'idle'}>{activeNode?.status || 'idle'}</StatusBadge>
             </div>
-            <StatusBadge variant={activeNode ? toneToVariant(activeNode.status) : 'idle'}>{activeNode?.status || 'idle'}</StatusBadge>
-          </div>
-          <div className="mt-3 space-y-2">
-            {logItems.length ? logItems.map((item) => (
-              <div key={item.id || `${item.at}-${item.message}`} className="flex items-start justify-between gap-3 rounded-2xl border border-white/[0.05] bg-white/[0.03] px-3 py-2">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] text-white/70">{item.message || item.summary || item.label}</p>
-                  <p className="mt-1 text-[9px] text-white/25">{item.at || item.updatedAt || '—'}{item.step ? ` · ${item.step}` : ''}</p>
-                </div>
-                <StatusBadge variant={toneToVariant(item.status)}>{item.status || 'live'}</StatusBadge>
-              </div>
-            )) : <p className="text-[10px] text-white/25">No live execution log yet.</p>}
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-white/[0.06] bg-black/20 p-3">
-          <p className="text-[10px] uppercase tracking-wider text-white/25">Evidence / output</p>
-          <div className="mt-3 space-y-2">
-            {evidenceItems.length ? evidenceItems.map((item) => (
-              <div key={item.id || `${item.label}-${item.at}`} className="rounded-2xl border border-white/[0.05] bg-white/[0.03] px-3 py-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-[11px] text-white/70">{item.label || item.summary || item.title}</p>
-                    <p className="mt-1 text-[9px] text-white/25">{item.detail || item.message || item.result || 'Evidence captured'}</p>
+            <div className="mt-3 space-y-2">
+              {logItems.length ? logItems.map((item) => (
+                <div key={item.id || `${item.at}-${item.message}`} className="flex items-start justify-between gap-3 rounded-2xl border border-white/[0.05] bg-white/[0.03] px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] text-white/70">{item.message || item.summary || item.label}</p>
+                    <p className="mt-1 text-[9px] text-white/25">{item.at || item.updatedAt || '—'}{item.step ? ` · ${item.step}` : ''}</p>
                   </div>
-                  <StatusBadge variant={toneToVariant(item.status || item.truthStatus)}>{item.status || item.truthStatus || 'live'}</StatusBadge>
+                  <StatusBadge variant={toneToVariant(item.status)}>{item.status || 'live'}</StatusBadge>
                 </div>
-              </div>
-            )) : <p className="text-[10px] text-white/25">No live evidence/output captured yet.</p>}
+              )) : <p className="text-[10px] text-white/25">No live execution log yet.</p>}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/[0.06] bg-black/20 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-white/25">Evidence / output</p>
+            <div className="mt-3 space-y-2">
+              {evidenceItems.length ? evidenceItems.map((item) => (
+                <div key={item.id || `${item.label}-${item.at}`} className="rounded-2xl border border-white/[0.05] bg-white/[0.03] px-3 py-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[11px] text-white/70">{item.label || item.summary || item.title}</p>
+                      <p className="mt-1 text-[9px] text-white/25">{item.detail || item.message || item.result || 'Evidence captured'}</p>
+                    </div>
+                    <StatusBadge variant={toneToVariant(item.status || item.truthStatus)}>{item.status || item.truthStatus || 'live'}</StatusBadge>
+                  </div>
+                </div>
+              )) : <p className="text-[10px] text-white/25">No live evidence/output captured yet.</p>}
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
     </GlassCard>
   )
 }
