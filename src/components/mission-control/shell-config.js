@@ -19,7 +19,7 @@ export const navItems = [
   { path: "/", label: "Home", icon: Home },
   { path: "/triage", label: "Triage Center", icon: Activity, accent: true },
   { path: "/nettie", label: "Nettie", icon: MessageSquare, badge: 3, accent: true },
-  { path: "/aurora", label: "Aurora POC", icon: Sparkles, badge: 7 },
+  { path: "/runtime", label: "Mission Control Runtime", icon: Sparkles, badge: 7 },
   { path: "/operations", label: "Operations", icon: Radio },
   { path: "/departments", label: "Departments", icon: Target, badge: 9, accent: true },
   { path: "/agents", label: "Agents", icon: Bot },

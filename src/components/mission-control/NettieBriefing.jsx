@@ -1,6 +1,6 @@
 import GlassCard from "./GlassCard";
 import StatusBadge from "./StatusBadge";
-import { Bot, ChevronRight, CheckCircle, AlertTriangle, Clock } from "lucide-react";
+import { Bot, ChevronRight, AlertTriangle, Clock } from "lucide-react";
 
 const approvalItems = [
   { title: "Demo.ai website", owner: "Perry / Development", action: "approve" },

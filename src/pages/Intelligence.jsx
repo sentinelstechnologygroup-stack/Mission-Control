@@ -5,10 +5,8 @@ import StatusBadge from "../components/mission-control/StatusBadge";
 import { StageBadge } from "../components/mission-control/LifecycleStage";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Telescope, Pen, Calendar, BarChart2, X, Send, Image, CheckCircle,
-  Clock, ArrowRight, Plus, Sparkles, Filter, Bookmark, Eye, ChevronRight,
-  Tag, Users, Globe, Zap, Target, Archive, TrendingUp, Link2,
-  Twitter, Instagram, Linkedin, AlignLeft, ExternalLink
+  Telescope, Pen, Calendar, X, Send, CheckCircle,
+  Clock, ArrowRight, Plus, Sparkles, Filter, Bookmark, Eye, ChevronRight, Users, Globe, Zap, Target, Archive
 } from "lucide-react";
 
 const tabs = [

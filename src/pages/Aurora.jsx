@@ -38,7 +38,7 @@ import {
   routeFromCommand,
   saveAuroraState,
   sortJobsNewestFirst,
-} from "@/lib/auroraPoc";
+} from "@/lib/missionRuntime";
 
 const STATUS_VARIANTS = {
   completed: "active",
@@ -111,7 +111,7 @@ function SectionHeader({ title, subtitle, icon: Icon, right }) {
   );
 }
 
-export default function Aurora() {
+export default function Runtime() {
   const queryClient = useQueryClient();
   const [state, setState] = useState(() => loadAuroraState());
   const [activeDepartment, setActiveDepartment] = useState(state.activeDepartment || "Dana");
@@ -120,11 +120,11 @@ export default function Aurora() {
   const [command, setCommand] = useState("");
   const [inputError, setInputError] = useState("");
 
-  const auroraStateQuery = useQuery({
-    queryKey: ["aurora-state"],
+  const runtimeStateQuery = useQuery({
+    queryKey: ["mission-runtime-state"],
     queryFn: async () => {
       try {
-        return await api.auroraState();
+        return await api.missionRuntimeState();
       } catch {
         return loadAuroraState();
       }
@@ -135,18 +135,18 @@ export default function Aurora() {
   });
 
   useEffect(() => {
-    if (auroraStateQuery.data) {
-      setState(auroraStateQuery.data);
-      setActiveDepartment(auroraStateQuery.data.activeDepartment || "Dana");
-      setSelectedJobId(auroraStateQuery.data.selectedJobId || null);
-      setSelectedNodeId(auroraStateQuery.data.selectedNodeId || null);
+    if (runtimeStateQuery.data) {
+      setState(runtimeStateQuery.data);
+      setActiveDepartment(runtimeStateQuery.data.activeDepartment || "Dana");
+      setSelectedJobId(runtimeStateQuery.data.selectedJobId || null);
+      setSelectedNodeId(runtimeStateQuery.data.selectedNodeId || null);
     }
-  }, [auroraStateQuery.data]);
+  }, [runtimeStateQuery.data]);
 
   const createJobMutation = useMutation({
     mutationFn: async (text) => {
       try {
-        return await api.auroraCreateJob({ command: text });
+        return await api.missionRuntimeCreateJob({ command: text });
       } catch {
         const bundle = buildWorkflowBundle(text, { createdAt: new Date().toISOString() });
         return { bundle };
@@ -210,7 +210,7 @@ export default function Aurora() {
     const nextState = mergeAuroraBundleIntoState(state, response);
     setState(nextState);
     saveAuroraState(nextState);
-    queryClient.setQueryData(["aurora-state"], nextState);
+    queryClient.setQueryData(["mission-runtime-state"], nextState);
     setActiveDepartment(nextState.activeDepartment || response?.bundle?.route?.department || "Dana");
     setSelectedJobId(nextState.selectedJobId || response?.bundle?.job?.id || null);
     setSelectedNodeId(nextState.selectedNodeId || response?.bundle?.nodes?.find((node) => node.status === "blocked")?.id || response?.bundle?.nodes?.find((node) => node.status === "awaiting_approval")?.id || response?.bundle?.nodes?.[response?.bundle?.nodes?.length - 1]?.id || null);
@@ -243,7 +243,7 @@ export default function Aurora() {
               <Sparkles className="h-4 w-4 text-emerald-400" />
             </div>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300">Aurora POC</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300">Mission Control Runtime</p>
               <p className="text-[10px] text-white/35">Visible routing · stored jobs · evidence-backed results · approval gates</p>
             </div>
           </div>
@@ -510,7 +510,7 @@ export default function Aurora() {
       </div>
 
       <GlassCard className="border border-white/[0.07]">
-        <SectionHeader title="Demo Commands" subtitle="Six plus working vertical slices from the Aurora POC." icon={Bot} />
+        <SectionHeader title="Demo Commands" subtitle="Six plus working vertical slices from the Mission Control runtime slice." icon={Bot} />
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
           {DEMO_COMMANDS.map((demo) => (
             <button

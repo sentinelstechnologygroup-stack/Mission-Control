@@ -1,16 +1,17 @@
-const STORAGE_KEY = "aurora-poc.state.v1";
+const STORAGE_KEY = "mission-control.runtime.state.v1";
+const LEGACY_STORAGE_KEY = "aurora-poc.state.v1";
 
 const DEPARTMENTS = ["Nettie", "Dana", "Torina", "Icky", "Funboy", "Van", "Perry"];
 
 const DEMO_COMMANDS = [
   "What is the price per share of Microsoft today?",
-  "Draft a short investor-facing paragraph explaining Aurora.",
+  "Draft a short investor-facing paragraph explaining Mission Control.",
   "Create a high-priority task to follow up with the investor packet tomorrow.",
-  "Identify three business types that would benefit from Aurora.",
+  "Identify three business types that would benefit from Mission Control.",
   "Would sending an email to an investor require approval?",
-  "Draft an email to a potential investor introducing Aurora.",
+  "Draft an email to a potential investor introducing Mission Control.",
   "Prepare a calendar meeting draft for an investor call next Tuesday at 10.",
-  "Check whether the Aurora POC workflow has any failed nodes.",
+  "Check whether the Mission Control runtime workflow has any failed nodes.",
 ];
 
 const MODEL_GATEWAY = {
@@ -279,7 +280,7 @@ function templateSteps(route, command) {
     ? "Governance required. Draft-only behavior is active; no external side effect was performed."
     : "Internal governance satisfied and evidence captured.";
 
-  const contentOutput = "Aurora is a governed command center that routes work, stores evidence, and makes each decision visible.";
+  const contentOutput = "Mission Control is a governed command center that routes work, stores evidence, and makes each decision visible.";
   const taskOutput = "Task created in demo state with a high-priority follow-up marker and a visible owner lane.";
   const opportunityOutput = "1) Professional services agencies 2) Solo consultants 3) Small operations teams that need a governed assistant.";
   const riskOutput = route.intent === "calendar_or_email_governance"
@@ -372,7 +373,7 @@ function finalSummary(route, command) {
   if (route.template === "finance") {
     return {
       status: "blocked",
-      text: "Dana routed the command, but the finance lookup is demo-safe only. No live Microsoft share price was fabricated.",
+      text: "Mission Control routed the command, but the finance lookup is demo-safe only. No live Microsoft share price was fabricated.",
     };
   }
 
@@ -587,7 +588,7 @@ export function loadAuroraState() {
   }
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(STORAGE_KEY) || window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return buildSeedState();
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return buildSeedState();

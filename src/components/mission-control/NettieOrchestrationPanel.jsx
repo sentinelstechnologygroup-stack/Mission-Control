@@ -3,7 +3,7 @@ import GlassCard from "./GlassCard";
 import StatusBadge from "./StatusBadge";
 import { StageBadge } from "./LifecycleStage";
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, ChevronDown, ChevronRight, AlertTriangle, Clock, Target, FileText, Zap, TrendingUp } from "lucide-react";
+import { Brain, ChevronDown, ChevronRight, AlertTriangle, Target, Zap } from "lucide-react";
 
 const systemPriorities = [
   { rank: 1, label: "Demo.ai Website Launch", type: "Approval Gate", urgency: "critical", stage: "APPROVAL" },

@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import StatusBadge from "./StatusBadge";
-import { Terminal, Play, Square, RefreshCw, Download, ChevronRight, Circle } from "lucide-react";
+import { Terminal, Download, ChevronRight } from "lucide-react";
 
 const BUILD_JOBS = [
   {

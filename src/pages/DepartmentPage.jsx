@@ -81,6 +81,14 @@ function canonicalDepartmentId(value = "") {
   return DEPARTMENT_ALIAS_LOOKUP[lower] || lower;
 }
 
+function routeSegment(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function safeArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -165,6 +173,7 @@ function summarizeDeskTransitions(runs = []) {
 function buildDeskItem(name, registry = [], department = null, departmentId = '') {
   const registryAgent = findRegistryAgent(name, registry);
   const sourceLabel = deskSourceLabel(name, registryAgent);
+  const routeDepartmentId = routeSegment(departmentId || department?.id || '') || canonicalDepartmentId(departmentId || department?.id || '')
   const displayDepartmentId = canonicalDepartmentId(departmentId || department?.id || '')
   const managerMap = {
     nettie: 'Patrick',
@@ -199,6 +208,7 @@ function buildDeskItem(name, registry = [], department = null, departmentId = ''
     breakState: registryAgent?.heartbeat?.status && registryAgent.heartbeat.status !== 'live' ? registryAgent.heartbeat.status : null,
     tone: sourceLabel === 'LIVE' ? 'active' : sourceLabel === 'REGISTRY-BACKED' ? 'info' : sourceLabel === 'SEEDED' ? 'warning' : sourceLabel === 'STATIC' ? 'critical' : 'idle',
     sourceLabel,
+    to: `/departments/${routeDepartmentId}/agents/${routeSegment(name)}`,
   };
 }
 
@@ -587,7 +597,7 @@ export default function DepartmentPage() {
             </div>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {safeArray(detail?.agents).length ? safeArray(detail?.agents).map((agent) => (
-                <AgentDesk key={agent} {...buildDeskItem(agent, registryAgents, detail, selectedWorkflow?.id || departmentId)} />
+                <AgentDesk key={agent} {...buildDeskItem(agent, registryAgents, detail, departmentId)} />
               )) : <p className="text-[10px] text-white/25">No active work packets</p>}
             </div>
           </div>

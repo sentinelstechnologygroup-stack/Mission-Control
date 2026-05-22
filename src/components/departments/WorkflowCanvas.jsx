@@ -43,7 +43,7 @@ export default function WorkflowCanvas({ title, subtitle, nodes = [], footer = n
             {subtitle ? <p className="mt-1 text-[10px] text-white/25">{subtitle}</p> : null}
           </div>
           <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[9px] uppercase tracking-wider text-white/35">
-            n8n-style flow
+            workflow path
           </span>
         </div>
       ) : null}

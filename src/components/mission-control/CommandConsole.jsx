@@ -1,9 +1,8 @@
 import { useState } from "react";
 import GlassCard from "./GlassCard";
-import StatusBadge from "./StatusBadge";
 import { StageBadge } from "./LifecycleStage";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Terminal, GitBranch, ChevronRight, Loader2, CheckCircle, Zap, AlertTriangle, X } from "lucide-react";
+import { Send, Terminal, GitBranch, ChevronRight, Loader2, CheckCircle, X } from "lucide-react";
 
 const COMMAND_EXAMPLES = [
   "Build a landing page for the new product launch",

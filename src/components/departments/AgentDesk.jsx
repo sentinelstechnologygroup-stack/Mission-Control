@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import GlassCard from '@/components/mission-control/GlassCard'
 import StatusBadge from '@/components/mission-control/StatusBadge'
 
@@ -19,11 +20,12 @@ export default function AgentDesk({
   evidence = null,
   breakState = null,
   tone = 'idle',
+  to = null,
 }) {
   const isActive = ['running', 'active', 'healthy', 'ready', 'available', 'live'].includes(String(status || '').toLowerCase())
   const sourceTone = sourceLabel === 'LIVE' ? 'active' : sourceLabel === 'REGISTRY-BACKED' ? 'info' : sourceLabel === 'SEEDED' ? 'warning' : sourceLabel === 'STATIC' ? 'critical' : 'idle'
 
-  return (
+  const card = (
     <GlassCard className={`border p-4 ${tone === 'active' ? 'border-emerald-500/20 bg-emerald-500/6' : tone === 'critical' ? 'border-rose-500/20 bg-rose-500/6' : tone === 'warning' ? 'border-amber-500/20 bg-amber-500/6' : 'border-white/[0.06] bg-white/[0.03]'}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -80,4 +82,10 @@ export default function AgentDesk({
       ) : null}
     </GlassCard>
   )
+
+  return to ? (
+    <Link to={to} className="block transition-transform hover:-translate-y-0.5 hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-emerald-400/40 rounded-3xl">
+      {card}
+    </Link>
+  ) : card
 }

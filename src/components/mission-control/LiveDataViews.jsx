@@ -85,7 +85,9 @@ export function StatusPill({ status }) {
       ? 'critical'
       : value === 'queued' || value === 'pending' || value === 'paused' || value === 'warning'
         ? 'warning'
-        : 'idle'
+        : value === 'complete' || value === 'completed' || value === 'done' || value === 'success'
+          ? 'review'
+          : 'idle'
   return <StatusBadge variant={variant} dot={false}>{status || 'unknown'}</StatusBadge>
 }
 
