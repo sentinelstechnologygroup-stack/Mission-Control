@@ -10,7 +10,7 @@ Vercel `/api/*` fallthrough is expected frontend-only behavior in this model and
 
 ## Frontend host behavior
 
-The frontend host returns HTML as expected for the requested UI routes, and the targeted department-floor work is visible publicly.
+The frontend host returns HTML as expected for the requested UI routes, and the targeted department-floor work is visible publicly. Alias routes now resolve registry-backed floor truth through the department alias map.
 
 Observed on `https://mission-control-livid-zeta.vercel.app`:
 - `/` returns HTML

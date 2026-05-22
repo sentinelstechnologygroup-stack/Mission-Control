@@ -77,7 +77,7 @@ Locally, the Mission Control UI/API stack remains truthful:
 - `/knowledge` is a skill/docs/evidence registry surface with live / registry-backed / seeded labels.
 - `/security` is Perry’s security/compliance/risk surface with live / registry-backed / seeded labels.
 - `/agents` remains source-labeled and registry-backed.
-- Department office pages now include floor-state truth such as desk transitions, conference room state, break room state, evidence drawer records, and handoff lines.
+- Department office pages now include floor-state truth such as desk transitions, conference room state, break room state, evidence drawer records, and handoff lines. On the alias routes, the office truth now resolves registry-backed/runtime-backed data instead of empty placeholders.
 
 ## What is still seeded or placeholder-only
 

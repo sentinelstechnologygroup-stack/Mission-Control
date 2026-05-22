@@ -301,7 +301,7 @@
     }
   ],
   "blockers": [
-    "The top-level home shell still shows the older operational command-center content, but the department-floor work itself is now public and fresh.",
+    "The top-level home shell still shows the older operational command-center content, but the department-floor work itself is now public and fresh. Alias routes now resolve registry-backed truth through the department alias map.",
     "Vercel /api/* fallthrough is expected frontend-only behavior and should not be treated as a blocker in the split deployment model."
   ]
 }

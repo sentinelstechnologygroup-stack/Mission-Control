@@ -5,7 +5,7 @@
 - Frontend UI host: `https://mission-control-livid-zeta.vercel.app`
 - Backend/API truth host: `https://mc-api.sentinelstechnologygroup.com`
 - Vercel serves the frontend SPA shell; backend API truth is a separate host.
-- The frontend host now serves the updated department-floor work publicly.
+- The frontend host now serves the updated department-floor work publicly. Alias routes now resolve registry-backed/runtime-backed truth instead of empty placeholders.
 
 ## Department overview board
 
