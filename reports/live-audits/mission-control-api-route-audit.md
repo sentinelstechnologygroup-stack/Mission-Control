@@ -2,7 +2,7 @@
 
 ## Deployment model
 
-Mission Control now uses a split deployment:
+Mission Control uses a split deployment:
 - Frontend UI host: `https://mission-control-livid-zeta.vercel.app`
 - Backend/API truth host: `https://mc-api.sentinelstechnologygroup.com`
 
@@ -10,23 +10,25 @@ Vercel `/api/*` fallthrough is expected frontend-only behavior in this model and
 
 ## Frontend host behavior
 
-The frontend host returns HTML as expected for the requested UI routes:
-- `/`
-- `/missions`
-- `/approvals`
-- `/calendar`
-- `/knowledge`
-- `/security`
-- `/departments`
-- `/departments/technology`
-- `/agents`
-- `/runtime`
-- `/system`
-- `/costs`
+The frontend host returns HTML as expected for the requested UI routes, but the deployed shell is still stale relative to the latest local UI changes.
+
+Observed on `https://mission-control-livid-zeta.vercel.app`:
+- `/` returns HTML
+- `/missions` returns HTML
+- `/approvals` returns HTML
+- `/calendar` returns HTML
+- `/knowledge` returns HTML
+- `/security` returns HTML
+- `/departments` returns HTML
+- `/departments/technology` returns HTML
+- `/agents` returns HTML
+- `/runtime` returns HTML
+- `/system` returns HTML
+- `/costs` returns HTML
 
 ## Backend API host behavior
 
-The backend host is currently returning `403` for the checked API routes:
+The backend host is now returning JSON for the checked API routes:
 - `/api/runtime`
 - `/api/runtime/healthz`
 - `/api/health`
@@ -35,8 +37,6 @@ The backend host is currently returning `403` for the checked API routes:
 - `/api/jobs`
 - `/api/system`
 - `/api/costs`
-
-That means backend live verification is not passing yet.
 
 ## Local request behavior
 
@@ -79,4 +79,5 @@ No requested route returned `404` locally.
 - `/api/runtime/reconciliation` is also degraded locally.
 - `/api/costs` is live but several values are estimated or unavailable rather than hard-metered locally.
 - `/api/departments/workflows` reports `totalDepartments=9`, `realDepartments=8`, `demoDepartments=1` locally.
-- The current blocker is backend host access on `mc-api`, not the Vercel SPA shell.
+- Backend live verification is now passing again on `mc-api`.
+- The remaining issue is frontend deployment freshness, not API route correctness.

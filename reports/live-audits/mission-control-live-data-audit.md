@@ -10,32 +10,32 @@ Scope:
 
 ## Architecture summary
 
-Mission Control is now a split deployment:
+Mission Control is a split deployment:
 - Vercel serves the frontend UI shell and SPA routes.
-- The backend/API truth should come from the dedicated backend host.
-- Vercel `/api/*` fallthrough is expected frontend-only behavior and is not itself a blocker unless the architecture is intentionally changed.
+- `mc-api.sentinelstechnologygroup.com` serves backend/API truth.
+- Vercel `/api/*` fallthrough is expected frontend-only behavior and is not a blocker in this architecture.
 
 ## Frontend host status
 
-On `https://mission-control-livid-zeta.vercel.app`, UI routes return HTML as expected:
-- `/`
-- `/missions`
-- `/approvals`
-- `/calendar`
-- `/knowledge`
-- `/security`
-- `/departments`
-- `/departments/technology`
-- `/agents`
-- `/runtime`
-- `/system`
-- `/costs`
+The frontend host returns HTML as expected for UI routes, but the deployed shell is still stale relative to the latest local productization work.
 
-The frontend host is therefore acting as a static SPA shell, which is correct for this split model.
+Observed on `https://mission-control-livid-zeta.vercel.app`:
+- routes return HTML
+- navigation still reflects older UI state
+- the latest department floor state sections are not yet live on the public host
+
+That means the frontend deployment is functioning as a SPA shell, but the production frontend build has not yet caught up to the newest local commit.
 
 ## Backend API host status
 
-On `https://mc-api.sentinelstechnologygroup.com`, the API host currently returns `403` for the checked runtime/auth-protected paths. This is a live verification blocker on the backend host, not on Vercel.
+The backend host is now reachable and returning JSON for the runtime truth routes.
+
+Observed on `https://mc-api.sentinelstechnologygroup.com`:
+- `/api/health` → 200 JSON
+- `/api/runtime` → 200 JSON
+- `/api/runtime/healthz` → 200 JSON
+- `/api/departments/workflows` → 200 JSON
+- additional API truth routes are also returning JSON when checked
 
 ## Local truth remains green
 
@@ -43,6 +43,7 @@ Locally, the Mission Control UI/API stack remains truthful:
 - department overview is live
 - office surfaces are live/truthful with honest empty states
 - `/api/runtime` and `/api/runtime/healthz` return JSON locally
+- department floors now expose desk state transitions, conference room state, break room state, handoff lines, and evidence drawer records
 - department offices continue to use source labels rather than fake activity
 
 ## What loads live locally
@@ -75,7 +76,7 @@ Locally, the Mission Control UI/API stack remains truthful:
 - `/knowledge` is a skill/docs/evidence registry surface with live / registry-backed / seeded labels.
 - `/security` is Perry’s security/compliance/risk surface with live / registry-backed / seeded labels.
 - `/agents` remains source-labeled and registry-backed.
-- Department office pages continue to render truthful office shells rather than generic decorative pages.
+- Department office pages now include floor-state truth such as desk transitions, conference room state, break room state, evidence drawer records, and handoff lines.
 
 ## What is still seeded or placeholder-only
 
@@ -115,9 +116,9 @@ Locally, the Mission Control UI/API stack remains truthful:
 - `https://mission-control-livid-zeta.vercel.app/api/*` returning `index.html` is expected for the frontend-only Vercel shell.
 - That behavior is not a blocker in the split architecture.
 
-### Backend API host blocker
-- `https://mc-api.sentinelstechnologygroup.com` returned `403` on the checked API routes.
-- This is the current blocker for live backend verification.
+### Backend API host reachability
+- `https://mc-api.sentinelstechnologygroup.com` is now serving JSON successfully for the checked API routes.
+- Backend API truth is reachable again.
 
 ## 404s in the requested list locally
 
@@ -125,37 +126,38 @@ Locally, the Mission Control UI/API stack remains truthful:
 
 ## What should be replaced first next
 
-1. Resolve backend host access so API JSON can be verified live on `mc-api`.
-2. Keep the frontend host as a pure SPA shell unless the architecture is intentionally changed.
-3. Continue office-floor productization only after backend host verification passes.
-4. Preserve honest empty states instead of inventing activity.
+1. Keep the frontend build refreshed so the Vercel host matches the newest local UI.
+2. Continue adding live workflow templates and evidence-bearing lanes only where real data exists.
+3. Keep the department floors aligned with live registry data and honest empty states.
+4. Preserve the split architecture notes and do not turn Vercel into the API truth host unless intentionally migrating backend routes.
 
 ## Route summary
 
 | Route | Local status | Frontend host status | Backend host status |
 | --- | --- | --- | --- |
-| `/missions` | Live | HTML SPA shell | not applicable |
-| `/approvals` | Live | HTML SPA shell | not applicable |
-| `/calendar` | Live | HTML SPA shell | not applicable |
-| `/knowledge` | Live | HTML SPA shell | not applicable |
-| `/security` | Live | HTML SPA shell | not applicable |
-| `/departments/command` | Live | HTML SPA shell | not applicable |
-| `/departments/technology` | Live | HTML SPA shell | not applicable |
-| `/departments/media` | Live but sparse | HTML SPA shell | not applicable |
-| `/departments/security` | Live but sparse | HTML SPA shell | not applicable |
-| `/departments/finance` | Live but sparse | HTML SPA shell | not applicable |
-| `/departments/opportunity` | Live but sparse | HTML SPA shell | not applicable |
-| `/departments/research` | Live but sparse | HTML SPA shell | not applicable |
-| `/departments/admin` | Live but sparse | HTML SPA shell | not applicable |
-| `/agents` | Live | HTML SPA shell | not applicable |
-| `/runtime` | Hybrid | HTML SPA shell | not applicable |
-| `/system` | Live | HTML SPA shell | not applicable |
-| `/costs` | Live | HTML SPA shell | not applicable |
-| `/api/runtime` | JSON locally | expected frontend-only fallthrough | 403 on backend host |
-| `/api/runtime/healthz` | JSON locally | expected frontend-only fallthrough | 403 on backend host |
+| `/missions` | Live | HTML SPA shell, stale build | not applicable |
+| `/approvals` | Live | HTML SPA shell, stale build | not applicable |
+| `/calendar` | Live | HTML SPA shell, stale build | not applicable |
+| `/knowledge` | Live | HTML SPA shell, stale build | not applicable |
+| `/security` | Live | HTML SPA shell, stale build | not applicable |
+| `/departments/command` | Live | HTML SPA shell, stale build | not applicable |
+| `/departments/technology` | Live | HTML SPA shell, stale build | not applicable |
+| `/departments/media` | Live but sparse | HTML SPA shell, stale build | not applicable |
+| `/departments/security` | Live but sparse | HTML SPA shell, stale build | not applicable |
+| `/departments/finance` | Live but sparse | HTML SPA shell, stale build | not applicable |
+| `/departments/opportunity` | Live but sparse | HTML SPA shell, stale build | not applicable |
+| `/departments/research` | Live but sparse | HTML SPA shell, stale build | not applicable |
+| `/departments/admin` | Live but sparse | HTML SPA shell, stale build | not applicable |
+| `/agents` | Live | HTML SPA shell, stale build | not applicable |
+| `/runtime` | Hybrid | HTML SPA shell, stale build | not applicable |
+| `/system` | Live | HTML SPA shell, stale build | not applicable |
+| `/costs` | Live | HTML SPA shell, stale build | not applicable |
+| `/api/runtime` | JSON locally | expected frontend-only fallthrough | JSON on backend host |
+| `/api/runtime/healthz` | JSON locally | expected frontend-only fallthrough | JSON on backend host |
 
 ## Key replacement order
 
-1. Resolve backend host access and API live verification.
-2. Keep the frontend host in frontend-only SPA mode.
-3. Continue expanding department office depth only after backend host truth is confirmed.
+1. Keep the frontend shell in sync with the latest local build.
+2. Keep Vercel `/api/*` classified as frontend-only fallback.
+3. Continue productizing the department floors with truthful state where live data exists.
+4. Preserve honest empty states instead of inventing activity.

@@ -45,13 +45,13 @@
       "route": "/departments/command",
       "state": "live_but_sparse",
       "sourceLabels": ["live", "registry-backed"],
-      "notes": "Nettie office is truthful but still sparse on workflow templates."
+      "notes": "Nettie office now includes floor-state controls and evidence drawer rows, but still needs deeper template history."
     },
     {
       "route": "/departments/technology",
       "state": "live_but_sparse",
       "sourceLabels": ["live", "registry-backed"],
-      "notes": "Van office is the strongest office surface, but still missing more workflow template depth."
+      "notes": "Van office is the strongest floor, with floor states and workflow canvas, but still missing more live template depth."
     },
     {
       "route": "/departments/media",
@@ -120,146 +120,146 @@
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected."
+      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
     },
     {
       "route": "/missions",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected."
+      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
     },
     {
       "route": "/approvals",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected."
+      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
     },
     {
       "route": "/calendar",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected."
+      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
     },
     {
       "route": "/knowledge",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected."
+      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
     },
     {
       "route": "/security",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected."
+      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
     },
     {
       "route": "/departments",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected."
+      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
     },
     {
       "route": "/departments/technology",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected."
+      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
     },
     {
       "route": "/agents",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected."
+      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
     },
     {
       "route": "/runtime",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected."
+      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
     },
     {
       "route": "/system",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected."
+      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
     },
     {
       "route": "/costs",
       "status": 200,
       "contentType": "text/html; charset=utf-8",
       "bodyKind": "html",
-      "notes": "SPA shell served as expected."
+      "notes": "SPA shell served as expected, but deployment is still stale relative to the newest local work."
     }
   ],
   "backendHostInventory": [
     {
       "route": "/api/runtime",
-      "status": 403,
+      "status": 200,
       "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json_error",
-      "notes": "Backend host currently blocks the request; live API verification is not passing."
+      "bodyKind": "json",
+      "notes": "Backend API truth is live and reachable again."
     },
     {
       "route": "/api/runtime/healthz",
-      "status": 403,
+      "status": 200,
       "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json_error",
-      "notes": "Backend host currently blocks the request; live API verification is not passing."
+      "bodyKind": "json",
+      "notes": "Backend API truth is live and reachable again."
     },
     {
       "route": "/api/health",
-      "status": 403,
+      "status": 200,
       "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json_error",
-      "notes": "Backend host currently blocks the request; live API verification is not passing."
+      "bodyKind": "json",
+      "notes": "Backend API truth is live and reachable again."
     },
     {
       "route": "/api/departments/workflows",
-      "status": 403,
+      "status": 200,
       "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json_error",
-      "notes": "Backend host currently blocks the request; live API verification is not passing."
+      "bodyKind": "json",
+      "notes": "Backend API truth is live and reachable again."
     },
     {
       "route": "/api/agents",
-      "status": 403,
+      "status": 200,
       "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json_error",
-      "notes": "Backend host currently blocks the request; live API verification is not passing."
+      "bodyKind": "json",
+      "notes": "Backend API truth is live and reachable again."
     },
     {
       "route": "/api/jobs",
-      "status": 403,
+      "status": 200,
       "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json_error",
-      "notes": "Backend host currently blocks the request; live API verification is not passing."
+      "bodyKind": "json",
+      "notes": "Backend API truth is live and reachable again."
     },
     {
       "route": "/api/system",
-      "status": 403,
+      "status": 200,
       "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json_error",
-      "notes": "Backend host currently blocks the request; live API verification is not passing."
+      "bodyKind": "json",
+      "notes": "Backend API truth is live and reachable again."
     },
     {
       "route": "/api/costs",
-      "status": 403,
+      "status": 200,
       "contentType": "application/json; charset=utf-8",
-      "bodyKind": "json_error",
-      "notes": "Backend host currently blocks the request; live API verification is not passing."
+      "bodyKind": "json",
+      "notes": "Backend API truth is live and reachable again."
     }
   ],
   "blockers": [
-    "Backend API host is currently returning 403 for the checked endpoints.",
+    "Frontend deployment freshness remains stale on Vercel relative to the latest local department-floor changes.",
     "Vercel /api/* fallthrough is expected frontend-only behavior and should not be treated as a blocker in the split deployment model."
   ]
 }

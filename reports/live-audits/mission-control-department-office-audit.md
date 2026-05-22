@@ -5,6 +5,7 @@
 - Frontend UI host: `https://mission-control-livid-zeta.vercel.app`
 - Backend/API truth host: `https://mc-api.sentinelstechnologygroup.com`
 - Vercel serves the frontend SPA shell; backend API truth is a separate host.
+- The frontend host is still serving a stale build relative to the latest local department-floor work.
 
 ## Department overview board
 
@@ -17,12 +18,13 @@
 ### `/departments/command`
 - Resolves to Nettie.
 - Shows live workload and honest empty states where no packet history is present.
-- Has employee desks, workflow canvas, queue/status board, evidence drawer, internal messages, blocked work, and completed work sections.
+- Has employee desks, workflow canvas, queue/status board, evidence drawer, internal messages, blocked work, completed work, and floor-state sections.
+- The floor-state section now exposes desk transitions, conference room state, break room state, live evidence logs, and next-phase notes.
 - Still sparse on actual workflow template depth.
 
 ### `/departments/technology`
 - Resolves to Van.
-- Shows the strongest office surface with live workload, live jobs, and truthful empty states.
+- Shows the strongest office surface with live workload, live jobs, floor states, and truthful empty states.
 - Acts as the model office for the rest of the department floors.
 
 ### `/departments/media`
@@ -32,7 +34,7 @@
 ### `/departments/research`
 ### `/departments/admin`
 - These routes load truth-labeled office shells rather than generic static pages.
-- They include department head office, agent desks, current work packets, workflow canvas, handoff lines, blocked work, completed work, evidence drawer, and meeting/conference concept sections.
+- They include department head office, agent desks, current work packets, workflow canvas, handoff lines, blocked work, completed work, evidence drawer, floor-state controls, and meeting/conference concept sections.
 - When there is no live packet, they show honest empty states such as:
   - `No active work packets`
   - `No live workflow records yet.`
