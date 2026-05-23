@@ -13,14 +13,44 @@ const AUTHENTICATED_PATHS = new Set([
   '/api/nettie/messages',
 ])
 
+function readBrowserSecret(name) {
+  if (typeof window === 'undefined') return ''
+  try {
+    const cookieMatch = document.cookie
+      .split('; ')
+      .find((part) => part.startsWith(`${name}=`))
+    if (cookieMatch) return decodeURIComponent(cookieMatch.slice(name.length + 1))
+  } catch {
+    // ignore cookie parsing issues
+  }
+
+  try {
+    return window.localStorage.getItem(name) || ''
+  } catch {
+    return ''
+  }
+}
+
 function buildHeaders(path, extraHeaders = {}) {
   const headers = {
     'Content-Type': 'application/json',
     ...extraHeaders,
   }
 
+  const accessClientId = readBrowserSecret('mc_cf_access_client_id')
+  const accessClientSecret = readBrowserSecret('mc_cf_access_client_secret')
+  const bridgeToken = readBrowserSecret('mc_bridge_token') || BRIDGE_TOKEN
+
+  if (accessClientId) headers['CF-Access-Client-Id'] = accessClientId
+  if (accessClientSecret) headers['CF-Access-Client-Secret'] = accessClientSecret
+  if (bridgeToken) {
+    headers.Authorization = `Bearer ${bridgeToken}`
+    headers['x-mc-bridge-token'] = bridgeToken
+  }
+
   if (AUTHENTICATED_PATHS.has(path) && BRIDGE_TOKEN) {
     headers.Authorization = `Bearer ${BRIDGE_TOKEN}`
+    headers['x-mc-bridge-token'] = BRIDGE_TOKEN
   }
 
   return headers
