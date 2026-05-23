@@ -1,7 +1,11 @@
-const API_BASE =
+const API_BASE_OVERRIDE =
   import.meta.env.VITE_MC_API_BASE_URL
   || import.meta.env.VITE_API_BASE_URL
-  || 'http://127.0.0.1:4174'
+  || ''
+
+const API_BASE = typeof window === 'undefined'
+  ? (API_BASE_OVERRIDE || 'http://127.0.0.1:4174')
+  : ''
 
 const BRIDGE_TOKEN = import.meta.env.VITE_MC_BRIDGE_TOKEN || ''
 const AUTHENTICATED_PATHS = new Set([
@@ -104,10 +108,37 @@ export const api = {
   system: () => request('/api/system'),
   systemHealth: () => request('/api/system/health'),
   runtimeHealth: () => request('/api/runtime/health'),
+  runtimeExecutors: async () => {
+    const data = await request('/api/runtime/executors')
+    if (data && typeof data === 'object' && !Array.isArray(data)) return data
+    const [health, activity] = await Promise.all([
+      request('/api/runtime/health'),
+      request('/api/activity/recent'),
+    ])
+    return {
+      bridge: {
+        available: Boolean(health?.executorTruth || health?.selectedExecutor),
+        selectedExecutor: health?.selectedExecutor || 'codex',
+        fallbackExecutor: health?.fallbackExecutor || 'hermes',
+      },
+      routingPolicy: {
+        truthStatus: health?.executorTruth || health?.overallHealth || 'UNKNOWN',
+        selectedExecutor: health?.selectedExecutor || 'codex',
+      },
+      localHealth: {
+        overallHealth: health?.overallHealth || 'UNKNOWN',
+        executorTruth: health?.executorTruth || 'UNKNOWN',
+      },
+      recentActivity: Array.isArray(activity) ? activity.slice(0, 10) : [],
+    }
+  },
   runtimeAlerts: () => request('/api/runtime/alerts'),
   runtimeReconciliation: () => request('/api/runtime/reconciliation'),
   runtimeLocks: () => request('/api/runtime/locks'),
   runtimeSnapshot: () => request('/api/runtime/snapshot/export'),
+  runtimeState: () => request('/api/runtime/state'),
+  runtimeEvents: () => request('/api/runtime/events'),
+  runtimeRegistry: () => request('/api/runtime/registry'),
   queueSummary: () => request('/api/queues/summary'),
   activityRecent: () => request('/api/activity/recent'),
   governanceSummary: () => request('/api/governance/summary'),
@@ -137,10 +168,33 @@ export const api = {
   auroraModelRuns: (jobId) => request(`/api/aurora/jobs/${jobId}/model-runs`),
   jobs: () => request('/api/jobs'),
   jobsSummary: () => request('/api/jobs/summary'),
-  jobsRecent: (limit = 20) => request(`/api/jobs/recent?limit=${limit}`),
+  jobsRecent: async (limit = 20) => {
+    const data = await request(`/api/jobs/recent?limit=${limit}`)
+    return Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : Array.isArray(data?.jobs) ? data.jobs : []
+  },
   jobsBlocked: () => request('/api/jobs/blocked'),
   jobsStale: () => request('/api/jobs/stale'),
-  jobsLedger: () => request('/api/jobs/ledger'),
+  jobsLedger: async () => {
+    const data = await request('/api/jobs/ledger')
+    return Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : Array.isArray(data?.jobs) ? data.jobs : []
+  },
+  workflowExecutions: async (limit = 50) => {
+    const data = await request(`/api/workflows/executions?limit=${limit}`)
+    if (Array.isArray(data)) return data
+    const ledger = await request('/api/jobs/ledger')
+    const jobs = Array.isArray(ledger) ? ledger : Array.isArray(ledger?.items) ? ledger.items : []
+    return jobs
+      .map((job) => job.workflowExecution || null)
+      .filter(Boolean)
+      .slice(0, limit)
+  },
+  workflowExecution: async (executionId) => {
+    const data = await request(`/api/workflows/executions/${executionId}`)
+    if (data && typeof data === 'object' && !Array.isArray(data)) return data
+    const ledger = await request('/api/jobs/ledger')
+    const jobs = Array.isArray(ledger) ? ledger : Array.isArray(ledger?.items) ? ledger.items : []
+    return jobs.map((job) => job.workflowExecution || null).find((execution) => execution?.executionId === executionId || execution?.jobId === executionId) || null
+  },
   workRegistry: () => request('/api/work/registry'),
   workStatus: (project) => request(`/api/work/status?project=${encodeURIComponent(project)}`),
   agents: () => request('/api/agents'),
@@ -160,7 +214,30 @@ export const api = {
   workers: () => request('/api/workers'),
   logs: () => request('/api/logs'),
   chatHistory: () => request('/api/chat/history'),
-  nettieConversationsRecent: () => request('/api/nettie/conversations/recent'),
+  nettieThreads: async () => {
+    const data = await request('/api/nettie/threads')
+    if (Array.isArray(data)) return data
+    if (Array.isArray(data?.threads)) return data.threads
+    return []
+  },
+  nettieMessages: async () => {
+    const data = await request('/api/nettie/messages')
+    if (Array.isArray(data)) return data
+    if (Array.isArray(data?.messages)) return data.messages
+    return []
+  },
+  nettieConversationsRecent: async () => {
+    const data = await request('/api/nettie/conversations/recent')
+    if (Array.isArray(data)) return data
+    if (Array.isArray(data?.conversations)) return data.conversations
+    return []
+  },
+  packets: async () => {
+    const data = await request('/api/packets')
+    if (Array.isArray(data)) return data
+    if (Array.isArray(data?.items)) return data.items
+    return []
+  },
   createJob: (payload) => request('/api/jobs', { method: 'POST', body: JSON.stringify(payload) }),
   assignJob: (jobId, owner) => request(`/api/jobs/${jobId}/assign`, { method: 'POST', body: JSON.stringify({ owner }) }),
   transitionJob: (jobId, stage) => request(`/api/jobs/${jobId}/transition`, { method: 'POST', body: JSON.stringify({ stage }) }),

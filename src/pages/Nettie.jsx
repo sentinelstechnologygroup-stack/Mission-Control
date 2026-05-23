@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { Brain, ChevronRight, Paperclip, Send, Sparkles } from "lucide-react";
 
 import { api } from "@/lib/api";
+import { deriveNettieTruth } from "@/lib/runtimeTruthPolicy";
 import GlassCard from "../components/mission-control/GlassCard";
 import StatusBadge from "../components/mission-control/StatusBadge";
 
@@ -133,26 +134,6 @@ function normalizeNettieResult(data) {
   };
 }
 
-function deriveNettieTruth(runtimeState, executorStatus, packets, chatHistory) {
-  const nettie = runtimeState?.nettie || runtimeState?.status?.nettie || runtimeState?.runtime?.nettie || {};
-  const executorAvailable = executorStatus?.available !== false;
-  const status = String(nettie.status || "").toUpperCase();
-  const chatAvailable = Array.isArray(chatHistory);
-  const historyAvailable = Array.isArray(chatHistory);
-  const packetCreationAvailable = Array.isArray(packets);
-  const limitedReason = nettie.fallbackReason || executorStatus?.fallbackReason || executorStatus?.fallback?.detail || (executorAvailable ? "runtime missing packet/history proof" : "executor unavailable");
-
-  if (status === "ONLINE" || (chatAvailable && historyAvailable && packetCreationAvailable)) {
-    return { label: "Nettie ONLINE", variant: "active", status: "ONLINE", detail: nettie.detail || "chat, history, and packet creation available" };
-  }
-
-  if (status === "LIMITED" || chatAvailable || historyAvailable || packetCreationAvailable) {
-    return { label: "Nettie LIMITED", variant: "warning", status: "LIMITED", detail: limitedReason };
-  }
-
-  return { label: "Nettie OFFLINE", variant: "critical", status: "OFFLINE", detail: limitedReason || "chat/runtime unavailable" };
-}
-
 export default function Nettie() {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
@@ -160,31 +141,31 @@ export default function Nettie() {
   const [lastResult, setLastResult] = useState(null);
   const [selectedMode, setSelectedMode] = useState("MC_NATIVE");
 
-  const { data: executorStatus } = useQuery({
+  const { data: executorStatus, isError: executorStatusError, error: executorStatusErrorDetail } = useQuery({
     queryKey: ["nettie", "executor-status"],
     queryFn: api.executorStatus,
     refetchInterval: 10000,
   });
 
-  const { data: runtimeState, isError: runtimeStateError } = useQuery({
+  const { data: runtimeState, isError: runtimeStateError, error: runtimeStateErrorDetail } = useQuery({
     queryKey: ["nettie", "runtime-state"],
     queryFn: api.runtimeState,
     refetchInterval: 10000,
   });
 
-  const { data: packets = [], isError: packetsError } = useQuery({
+  const { data: packets, isError: packetsError, error: packetsErrorDetail } = useQuery({
     queryKey: ["nettie", "packets"],
     queryFn: api.packets,
     refetchInterval: 10000,
   });
 
-  const { data: recentConversations = [] } = useQuery({
+  const { data: recentConversations, isError: recentConversationsError, error: recentConversationsErrorDetail } = useQuery({
     queryKey: ["nettie", "recent-conversations"],
     queryFn: api.nettieConversationsRecent,
     refetchInterval: 10000,
   });
 
-  const { data: chatHistory = [], isError: chatHistoryError } = useQuery({
+  const { data: chatHistory, isError: chatHistoryError, error: chatHistoryErrorDetail } = useQuery({
     queryKey: ["nettie", "chat-history"],
     queryFn: api.chatHistory,
     refetchInterval: 10000,
@@ -199,7 +180,18 @@ export default function Nettie() {
     if (!recentItems.length) return null;
     return recentItems.find((item) => item.id === activeConversationId) || recentItems[0] || null;
   }, [activeConversationId, recentItems]);
-  const nettieTruth = useMemo(() => deriveNettieTruth(runtimeState, executorStatus, packets, chatHistory, runtimeStateError, chatHistoryError, packetsError), [runtimeState, executorStatus, packets, chatHistory, runtimeStateError, chatHistoryError, packetsError]);
+  const nettieTruth = useMemo(() => deriveNettieTruth({
+    runtimeState,
+    executorStatus,
+    packets,
+    chatHistory,
+    recentConversations,
+    runtimeStateErrorDetail,
+    executorStatusErrorDetail,
+    packetsErrorDetail,
+    chatHistoryErrorDetail,
+    recentConversationsErrorDetail,
+  }), [runtimeState, executorStatus, packets, chatHistory, recentConversations, runtimeStateError, executorStatusError, packetsError, chatHistoryError, recentConversationsError, runtimeStateErrorDetail, executorStatusErrorDetail, packetsErrorDetail, chatHistoryErrorDetail, recentConversationsErrorDetail]);
 
   useEffect(() => {
     if (!activeConversationId && recentItems[0]?.id) {

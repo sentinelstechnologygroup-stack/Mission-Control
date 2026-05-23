@@ -109,6 +109,7 @@ export function registerJobsRoutes(app, deps) {
       agent: job.owner,
       owner: job.owner,
       department: job.owner,
+      description,
       status: job.status,
       routeStatus: 'queued',
       source: 'api.jobs.create',
