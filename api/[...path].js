@@ -82,12 +82,10 @@ export default async function handler(req, res) {
     return
   }
 
-  const pathParts = Array.isArray(req.query?.path) ? req.query.path : req.query?.path ? [req.query.path] : []
-  const pathname = `/api/${pathParts.join('/')}`.replace(/\/+/g, '/')
+  const incomingUrl = new URL(req.url || '/api', 'http://127.0.0.1')
+  const pathname = incomingUrl.pathname.startsWith('/api') ? incomingUrl.pathname : `/api${incomingUrl.pathname}`
   const targetUrl = new URL(pathname, API_ORIGIN)
-  if (req.url && req.url.includes('?')) {
-    targetUrl.search = req.url.slice(req.url.indexOf('?'))
-  }
+  targetUrl.search = incomingUrl.search
 
   try {
     const body = await collectBody(req)
