@@ -1,3 +1,9 @@
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+}
+
 const API_ORIGIN = 'https://mc-api.sentinelstechnologygroup.com'
 
 const HOP_BY_HOP_HEADERS = new Set([
