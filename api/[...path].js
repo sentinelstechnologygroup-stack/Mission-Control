@@ -18,10 +18,23 @@ const HOP_BY_HOP_HEADERS = new Set([
   'upgrade',
 ])
 
-function appendProxyHeaders(targetHeaders) {
-  const accessClientId = process.env.CF_ACCESS_CLIENT_ID || process.env.CF_ACCESS_CLIENT_ID_VALUE || ''
-  const accessClientSecret = process.env.CF_ACCESS_CLIENT_SECRET || process.env.CF_ACCESS_CLIENT_SECRET_VALUE || ''
-  const bridgeToken = process.env.MC_BRIDGE_TOKEN || process.env.VITE_MC_BRIDGE_TOKEN || ''
+function readCookie(req, name) {
+  const cookieHeader = String(req.headers?.cookie || '')
+  if (!cookieHeader) return ''
+  const parts = cookieHeader.split(/;\s*/)
+  for (const part of parts) {
+    const idx = part.indexOf('=')
+    if (idx <= 0) continue
+    const key = part.slice(0, idx).trim()
+    if (key === name) return decodeURIComponent(part.slice(idx + 1))
+  }
+  return ''
+}
+
+function appendProxyHeaders(req, targetHeaders) {
+  const accessClientId = process.env.CF_ACCESS_CLIENT_ID || process.env.CF_ACCESS_CLIENT_ID_VALUE || readCookie(req, 'mc_cf_access_client_id') || ''
+  const accessClientSecret = process.env.CF_ACCESS_CLIENT_SECRET || process.env.CF_ACCESS_CLIENT_SECRET_VALUE || readCookie(req, 'mc_cf_access_client_secret') || ''
+  const bridgeToken = process.env.MC_BRIDGE_TOKEN || process.env.VITE_MC_BRIDGE_TOKEN || readCookie(req, 'mc_bridge_token') || ''
 
   if (accessClientId && accessClientSecret) {
     targetHeaders.set('CF-Access-Client-Id', accessClientId)
@@ -46,7 +59,7 @@ function copyIncomingHeaders(req) {
       headers.set(key, String(value))
     }
   }
-  appendProxyHeaders(headers)
+  appendProxyHeaders(req, headers)
   return headers
 }
 
