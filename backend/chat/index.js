@@ -1,6 +1,6 @@
 import { recordRecursiveGovernanceDecision } from '../../lib/recursiveGovernance.js'
 import { buildFailurePacketBlueprint } from '../../lib/failurePacket.js'
-import { materializeNettieIntent } from '../../lib/orchestrationMaterializer.js'
+import { materializeNettieIntent as materializeOrchestrationIntent } from '../../lib/orchestrationMaterializer.js'
 
 export function registerChatRoutes(app, deps) {
   const {
@@ -176,7 +176,7 @@ export function registerChatRoutes(app, deps) {
       return res.status(400).json({ error: 'message is required' })
     }
 
-    const response = await materializeNettieIntent({
+    const response = await materializeOrchestrationIntent({
       message,
       threadId: req.body?.threadId || null,
       actor: operator,
