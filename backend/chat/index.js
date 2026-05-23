@@ -1,3 +1,7 @@
+import { recordRecursiveGovernanceDecision } from '../../lib/recursiveGovernance.js'
+import { buildFailurePacketBlueprint } from '../../lib/failurePacket.js'
+import { materializeNettieIntent } from '../../lib/orchestrationMaterializer.js'
+
 export function registerChatRoutes(app, deps) {
   const {
     state,
@@ -42,6 +46,100 @@ export function registerChatRoutes(app, deps) {
     return filePath
   }
 
+  function recordFailurePacket({
+    owner,
+    category,
+    title,
+    reason,
+    evidence,
+    source = 'mission-control-failure-detection',
+    sourceRef = null,
+    channel = 'mission-control-ui',
+    nextAction,
+    executionMode = 'BLOCKED_NO_EXECUTOR',
+  }) {
+    const blueprint = buildFailurePacketBlueprint({
+      owner,
+      category,
+      title,
+      reason,
+      evidence,
+      source,
+      sourceRef,
+      channel,
+      nextAction,
+      executionMode,
+    })
+    const created = jobStore.createJob(blueprint.jobInput)
+    const job = created.job || created
+    addChatMessage({
+      ...blueprint.chatMessage,
+      jobId: job.id,
+      packetId: job.id,
+      text: blueprint.assistantReply.replace(`Packet ID: ${blueprint.packetId}.`, `Packet ID: ${job.id}.`),
+    })
+    refreshDerivedState()
+    return { job, blueprint, deduped: created.deduped }
+  }
+
+  function buildAssistantContract(base = {}) {
+    const assistantReply = base.assistantReply || base.replyMarkdown || base.reply?.text || base.summary || ''
+    const createdJobs = Array.isArray(base.createdJobs) ? base.createdJobs : []
+    const primaryJob = createdJobs[0] || base.createdJob || base.job || null
+    const packetId = base.packetId || base.jobId || primaryJob?.jobId || primaryJob?.id || null
+    const assignedDepartmentHead = base.assignedDepartmentHead || primaryJob?.owner || base.context?.assignedDepartmentHead || null
+    const assignedAgent = base.assignedAgent || primaryJob?.agent || primaryJob?.owner || base.context?.assignedAgent || null
+    const department = base.department || primaryJob?.department || null
+    const departmentSlug = base.departmentSlug || (department ? String(department).toLowerCase().replace(/\s+/g, '-') : null)
+    const agentSlug = assignedAgent ? String(assignedAgent).toLowerCase().replace(/\s+/g, '-') : (assignedDepartmentHead ? String(assignedDepartmentHead).toLowerCase().replace(/\s+/g, '-') : null)
+    const derivedWorkflowLink = departmentSlug && agentSlug ? `/departments/${departmentSlug}/agents/${agentSlug}` : null
+    const derivedDepartmentLink = departmentSlug ? `/departments/${departmentSlug}` : null
+    const workflowLink = derivedWorkflowLink || base.workflowLink || null
+    const departmentLink = derivedDepartmentLink || base.departmentLink || null
+    const executionMode = base.executionMode || primaryJob?.executionMode || primaryJob?.workflowExecution?.executionMode || (createdJobs.length ? 'MC_NATIVE' : 'assistant-first')
+    const routingDecision = base.routingDecision || base.intent || null
+    const statusSummary = base.statusSummary || base.summary || assistantReply || ''
+    const conversationMode = base.conversationMode || (base.needsClarification ? 'clarify' : createdJobs.length ? 'routed' : 'assistant-first')
+    const threadId = base.threadId || base.id || packetId || crypto.randomUUID()
+    const messages = Array.isArray(base.messages) && base.messages.length
+      ? base.messages
+      : [{ id: base.reply?.id || threadId, role: 'assistant', from: 'Nettie', text: assistantReply, kind: base.reply?.kind || 'system', ts: base.reply?.ts || base.createdAt || nowIso(), jobId: packetId, threadId }]
+    const executionId = base.executionId || primaryJob?.workflowExecution?.executionId || null
+    const eventId = base.eventId || primaryJob?.workflowExecution?.eventId || primaryJob?.eventId || null
+    const lifecycleState = base.lifecycleState || primaryJob?.status || primaryJob?.workflowExecution?.status || (createdJobs.length ? 'queued' : 'assistant-first')
+
+    return {
+      ...base,
+      assistantReply,
+      conversationMode,
+      threadId,
+      messages,
+      routingDecision,
+      createdJobs,
+      executionMode,
+      packetId,
+      executionId,
+      eventId,
+      workflowLink,
+      departmentLink,
+      department,
+      lifecycleState,
+      status: base.status || lifecycleState,
+      statusSummary,
+      suggestedNextSteps: Array.isArray(base.suggestedNextSteps)
+        ? base.suggestedNextSteps
+        : Array.isArray(base.recommendedActions)
+          ? base.recommendedActions
+          : [],
+      assignedDepartmentHead,
+      assignedAgent,
+      hermesUsed: Boolean(base.hermesUsed),
+      fallbackReason: base.fallbackReason || null,
+      nativeExecutorAvailable: base.nativeExecutorAvailable ?? null,
+      selectedExecutor: base.selectedExecutor || primaryJob?.selectedExecutor || null,
+    }
+  }
+
   function loadRecentNettieConversations(limit = 25) {
     try {
       if (!fs.existsSync(nettieConversationDir)) return []
@@ -78,39 +176,89 @@ export function registerChatRoutes(app, deps) {
       return res.status(400).json({ error: 'message is required' })
     }
 
-    const response = await buildNettieCommandResponse({
+    const response = await materializeNettieIntent({
       message,
-      operator,
+      threadId: req.body?.threadId || null,
+      actor: operator,
+      selectedMode: req.body?.selectedMode || 'auto',
       context,
       now: nowIso(),
-      sources: {
-        queueSummary: async () => deps.buildQueueSummaryView(),
-        jobsBlocked: async () => deps.buildBlockedJobsClassifiedView(),
-        jobsStale: async () => deps.buildQueueSummaryView().staleJobs,
-        reportsStatus: async () => deps.buildReportsStatusView(),
-        runtimeHealth: async () => deps.buildRuntimeHealthView(),
-        runtimeReconciliation: async () => deps.buildRuntimeReconciliationView(),
-        runtimeLocks: async () => deps.buildRuntimeLocksView(),
-        triageSummary: async () => deps.buildTriageSummaryView(),
-        workRegistry: async () => deps.buildMasterWorkRegistry(),
-      },
-      actions: {
-        routeAssignment: async (commandMessage) => handleAssignment(commandMessage, 'api/nettie/command'),
+      deps: {
+        ...deps,
+        sourceLabel: 'api/nettie/command',
+        jobStore,
+        buildMasterWorkRegistry: deps.buildMasterWorkRegistry,
+        buildExecutorBridgeStatus: deps.buildExecutorBridgeStatus,
+        buildDepartmentWorkflow,
+        buildReviewChain,
+        extractAgent,
+        extractTask,
+        runtimeDir,
+        nowIso,
       },
     })
 
-    const record = {
+    const createdJobs = (response.createdJobs || []).map((job) => ({
+      jobId: job.jobId || job.id,
+      task: job.task || job.title || 'Untitled job',
+      owner: job.owner || job.agent || job.department || 'Unknown',
+      status: job.status || 'queued',
+      routeStatus: job.routeStatus || job.workflowExecution?.routeStatus || job.workflowExecution?.currentStep || null,
+      executionMode: job.executionMode || job.workflowExecution?.executionMode || null,
+      workflowExecution: job.workflowExecution || null,
+      blockers: job.blockers || job.workflowExecution?.blockers || [],
+      logs: job.logs || job.workflowExecution?.logs || [],
+      evidence: job.evidence || job.workflowExecution?.evidence || null,
+    }))
+    const primaryJob = createdJobs[0] || null
+    const assignedDepartmentHead = response.assignedDepartmentHead || primaryJob?.owner || response.context?.assignedDepartmentHead || response.createdJobs?.[0]?.owner || null
+    const assignedAgent = response.assignedAgent || primaryJob?.agent || primaryJob?.owner || response.context?.assignedAgent || response.createdJobs?.[0]?.owner || null
+    const department = response.department || primaryJob?.department || null
+    const departmentSlug = response.departmentSlug || (department ? department.toLowerCase().replace(/\s+/g, '-') : null)
+    const agentSlug = (assignedAgent || assignedDepartmentHead || '').toLowerCase().replace(/\s+/g, '-')
+    const executionMode = response.executionMode || (primaryJob ? 'MC_NATIVE' : response.requiresApproval ? 'BLOCKED_NO_EXECUTOR' : null)
+    const derivedWorkflowLink = departmentSlug ? `/departments/${departmentSlug}/agents/${agentSlug || departmentSlug}` : null
+    const derivedDepartmentLink = departmentSlug ? `/departments/${departmentSlug}` : null
+    const workflowLink = derivedWorkflowLink || response.workflowLink || null
+    const departmentLink = derivedDepartmentLink || response.departmentLink || null
+    const jobId = primaryJob?.jobId || primaryJob?.id || response.createdJobs?.[0]?.jobId || response.createdJobs?.[0]?.id || response.packetId || null
+    const enhanced = buildAssistantContract({
       ...response,
-      createdJobs: (response.createdJobs || []).map((job) => ({
-        jobId: job.jobId || job.id,
-        task: job.task || job.title || 'Untitled job',
-        owner: job.owner || job.agent || job.department || 'Unknown',
-        status: job.status || 'queued',
-      })),
+      jobId,
+      packetId: jobId,
+      packetLink: departmentLink,
+      workflowRecordLink: workflowLink,
+      createdJobs,
       approvalRequired: response.requiresApproval,
-    }
-    saveNettieConversation(record)
-    res.json(response)
+      executionMode,
+      assignedDepartmentHead,
+      assignedAgent,
+      department,
+      departmentSlug,
+      workflowLink,
+      departmentLink,
+    })
+    saveNettieConversation(enhanced)
+    recordRecursiveGovernanceDecision(runtimeDir, {
+      source: 'api/nettie/command',
+      operator,
+      workflowId: response.executionId || response.id || null,
+      jobId: response.createdJobs?.[0]?.jobId || response.createdJobs?.[0]?.id || null,
+      department: response.department || response.assignedDepartmentHead || response.createdJobs?.[0]?.department || 'Nettie',
+      status: response.lifecycleState === 'blocked' ? 'blocked' : response.createdJobs?.length ? 'accepted' : 'incomplete',
+      decision: response.lifecycleState === 'blocked' ? 'blocked' : response.createdJobs?.length ? 'accepted' : 'incomplete',
+      correctionDirectives: response.lifecycleState === 'blocked' && response.blocker ? [response.blocker] : response.requiresApproval && response.approvalReason ? [response.approvalReason] : [],
+      nextPhaseDirectives: response.recommendedActions || [],
+      evidence: {
+        queriedSources: response.queriedSources || [],
+        createdJobs: response.createdJobs || [],
+        confidence: response.confidence || null,
+      },
+      replyMarkdown: response.replyMarkdown || null,
+      summary: response.summary || null,
+      truthStatus: response.lifecycleState === 'blocked' ? 'DEGRADED' : response.truthStatus || 'LIVE',
+    })
+    res.json(enhanced)
   })
 
   app.post('/api/nettie/messages', requireBridgeToken, async (req, res) => {
@@ -127,7 +275,7 @@ export function registerChatRoutes(app, deps) {
       return res.status(result.statusCode).json({
         delivered: true,
         liveConversation: true,
-        ...result.payload,
+        ...buildAssistantContract(result.payload),
         executorStatus: buildExecutorBridgeStatus(),
       })
     }
@@ -164,15 +312,30 @@ export function registerChatRoutes(app, deps) {
     const queued = await queueBridgeMessageForExecutor(message, requestedExecutor)
 
     if (!queued.ok || !queued.data?.jobId) {
+      const failure = recordFailurePacket({
+        owner: 'Van',
+        category: 'runtime',
+        title: 'API/runtime executor verification failed',
+        reason: queued.data?.reason || queued.data?.error || 'executor rejected the request.',
+        evidence: {
+          operation: 'queue bridge request',
+          endpoint: '/api/nettie/messages',
+          error: queued.data?.reason || queued.data?.error || 'executor rejected the request.',
+          notes: `requestedExecutor=${requestedExecutor}`,
+        },
+        source: '/api/nettie/messages',
+        sourceRef: `queue:${requestedExecutor}:${message.slice(0, 80)}`,
+        nextAction: 'Inspect the executor bridge rejection and repair the runtime/API path.',
+      })
       const reply = {
         id: crypto.randomUUID(),
         from: 'Nettie',
         role: 'Executive Assistant',
         kind: 'ack',
         channel,
-        text: `Nettie: Command not delivered. ${queued.data?.reason || queued.data?.error || 'executor rejected the request.'}`,
+        text: `Nettie: Command not delivered. ${queued.data?.reason || queued.data?.error || 'executor rejected the request.'}\n\nPacket ID: ${failure.job.id}`,
         ts: nowIso(),
-        jobId: queued.data?.jobId || null,
+        jobId: queued.data?.jobId || failure.job.id,
         workerId: null,
       }
       addChatMessage(reply)
@@ -281,9 +444,34 @@ export function registerChatRoutes(app, deps) {
         : AI_EXECUTION_PROVIDER === 'codex'
           ? 'Codex'
           : 'Executor'
-      const replyText = hermesRes.ok
+      const baseReplyText = hermesRes.ok
         ? `${executorName} execution initiated\nJob ID: ${data.jobId}\nStatus: ${data.status}`
         : `Execution blocked\nJob ID: ${data.jobId || 'n/a'}\nStatus: ${data.status || 'failed'}\nReason: ${data.result?.reason || data.reason || data.error || 'execution rejected'}`
+      const failurePacket = (!hermesRes.ok || !data.jobId)
+        ? recordFailurePacket({
+          owner: /auth|access|security|credential|permission|policy/i.test(String(data.result?.reason || data.reason || data.error || '')) ? 'Perry' : 'Van',
+          category: /auth|access|security|credential|permission|policy/i.test(String(data.result?.reason || data.reason || data.error || '')) ? 'security' : 'runtime',
+          title: /routing|orchestr|process|dispatch|queue/i.test(String(data.result?.reason || data.reason || data.error || ''))
+            ? 'Routing/process gap — terminal failure was not assigned'
+            : (/auth|access|security|credential|permission|policy/i.test(String(data.result?.reason || data.reason || data.error || ''))
+              ? 'Security/access/auth failure packet'
+              : 'API/runtime executor verification failed'),
+          reason: data.result?.reason || data.reason || data.error || 'execution rejected',
+          evidence: {
+            operation: 'Hermes executor execution',
+            endpoint: '/api/hermes/execute',
+            error: data.result?.reason || data.reason || data.error || 'execution rejected',
+            stdout: rawHermesBody.slice(0, 500),
+            notes: `selectedExecutor=${data.selectedExecutor || requestedExecutor}`,
+          },
+          source: '/api/chat',
+          sourceRef: data.jobId ? `hermes:${data.jobId}` : `hermes:${requestedExecutor}:${message.slice(0, 80)}`,
+          nextAction: /auth|access|security|credential|permission|policy/i.test(String(data.result?.reason || data.reason || data.error || ''))
+            ? 'Review auth/access policy and retry the executor.'
+            : 'Inspect the runtime/executor rejection and rerun the operation.',
+        })
+        : null
+      const replyText = failurePacket ? `${baseReplyText}\n\nPacket ID: ${failurePacket.job.id}` : baseReplyText
       const outgoing = {
         id: crypto.randomUUID(),
         from: 'Nettie',
@@ -305,6 +493,25 @@ export function registerChatRoutes(app, deps) {
       const routedOwner = createdJob?.inputPayload?.assignedDepartmentHead || createdJob?.owner || createdJob?.agent || 'Nettie'
       const workflow = createdJob?.workflow || (createdJob ? buildDepartmentWorkflow(routedOwner, createdJob.task || createdJob.title || message, buildReviewChain({ ...createdJob, owner: routedOwner })) : null)
       const createdJobView = createdJob ? { ...createdJob, owner: routedOwner, agent: routedOwner, workflow } : null
+      recordRecursiveGovernanceDecision(runtimeDir, {
+        source: 'api/chat',
+        operator: sender,
+        workflowId: data.jobId || createdJobView?.workflow?.department || null,
+        jobId: data.jobId || createdJobView?.id || null,
+        department: routedOwner,
+        status: hermesRes.ok ? 'accepted' : 'blocked',
+        decision: hermesRes.ok ? 'accepted' : 'blocked',
+        correctionDirectives: hermesRes.ok ? [] : [data.result?.reason || data.reason || data.error || 'execution rejected'],
+        nextPhaseDirectives: hermesRes.ok ? ['Monitor job ledger for execution updates.'] : ['Correct the rejection reason and retry through Nettie.'],
+        evidence: {
+          selectedExecutor: data.selectedExecutor || requestedExecutor,
+          status: data.status || (hermesRes.ok ? 'queued' : 'failed'),
+          createdJob: createdJobView,
+        },
+        replyMarkdown: outgoing.text,
+        summary: hermesRes.ok ? 'Executor job initiated.' : 'Executor job blocked.',
+        truthStatus: hermesRes.ok ? 'LIVE' : 'DEGRADED',
+      })
       return res.status(hermesRes.ok ? 201 : hermesRes.status).json({
         reply: {
           from: 'Nettie',
@@ -316,6 +523,67 @@ export function registerChatRoutes(app, deps) {
         routed: true,
         selectedExecutor: data.selectedExecutor || requestedExecutor,
       })
+    }
+
+    if (intentType === 'execution') {
+      const routedResponse = await materializeOrchestrationIntent({
+        message,
+        operator: sender,
+        sender,
+        channel,
+        context: { source: '/api/chat', intentType },
+        forceRoute: true,
+        deps: {
+          jobStore,
+          buildMasterWorkRegistry: deps.buildMasterWorkRegistry,
+          buildExecutorBridgeStatus: deps.buildExecutorBridgeStatus,
+          selectExecutor,
+          buildDepartmentWorkflow,
+          buildReviewChain,
+          extractAgent,
+          extractTask,
+          runtimeDir,
+          nowIso,
+          sourceLabel: '/api/chat',
+        },
+      })
+      const enhanced = buildAssistantContract(routedResponse)
+      saveNettieConversation(enhanced)
+      addChatMessage({
+        id: crypto.randomUUID(),
+        from: 'Nettie',
+        role: 'Executive Assistant',
+        kind: 'system',
+        channel,
+        text: enhanced.reply?.text || enhanced.assistantReply || 'Nettie: Routed.',
+        ts: nowIso(),
+        jobId: enhanced.packetId || null,
+        workerId: null,
+      })
+      refreshDerivedState()
+      recordRecursiveGovernanceDecision(runtimeDir, {
+        source: '/api/chat',
+        operator: sender,
+        workflowId: enhanced.executionId || enhanced.packetId || null,
+        jobId: enhanced.packetId || null,
+        department: enhanced.assignedDepartmentHead || enhanced.assignedAgent || 'Nettie',
+        status: enhanced.lifecycleState === 'blocked' ? 'blocked' : 'accepted',
+        decision: enhanced.lifecycleState === 'blocked' ? 'blocked' : 'accepted',
+        correctionDirectives: enhanced.lifecycleState === 'blocked' && enhanced.blocker ? [enhanced.blocker] : [],
+        nextPhaseDirectives: enhanced.suggestedNextSteps || [],
+        evidence: {
+          createdJobs: enhanced.createdJobs || [],
+          executionId: enhanced.executionId || null,
+          events: enhanced.events || [],
+          blocker: enhanced.blocker || null,
+        },
+        replyMarkdown: enhanced.assistantReply || null,
+        summary: enhanced.statusSummary || null,
+        truthStatus: enhanced.lifecycleState === 'blocked' ? 'DEGRADED' : 'LIVE',
+      })
+      const durationMs = Date.now() - startedAt
+      res.setHeader('X-MissionControl-LatencyMs', String(durationMs))
+      return res.status(201).json({ ...enhanced, intentType, routed: true })
     }
 
     console.log('[IRL ROUTE]', {
