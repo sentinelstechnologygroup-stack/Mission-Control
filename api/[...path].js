@@ -74,7 +74,10 @@ function collectBody(req) {
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
+    const origin = req.headers.origin || '*'
     res.status(204).setHeader('Allow', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Vary', 'Origin')
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-mc-bridge-token, CF-Access-Client-Id, CF-Access-Client-Secret')
     res.setHeader('Access-Control-Max-Age', '86400')
