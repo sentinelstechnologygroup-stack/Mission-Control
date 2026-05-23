@@ -1,3 +1,5 @@
+import { readRecursiveGovernanceDecisions, readLatestRecursiveGovernanceDecision } from '../../lib/recursiveGovernance.js'
+
 export function registerOpsRoutes(app, deps) {
   const {
     runtimeDir,
@@ -35,6 +37,9 @@ export function registerOpsRoutes(app, deps) {
     buildQueueSummaryView,
     buildReportsStatusView,
     buildRuntimeHealthView,
+    buildExecutorBridgeStatus,
+    buildExecutorsRoutingPolicyView,
+    buildExecutorsLocalHealthView,
     buildRecentActivityView,
     buildRuntimeAlertsView,
     buildGovernanceSummaryView,
@@ -55,6 +60,49 @@ export function registerOpsRoutes(app, deps) {
     path,
     getDepartmentHeadDir,
   } = deps
+
+  function summarizeRuntimeSummary(summary) {
+    if (!summary || typeof summary !== 'object') return summary
+    const {
+      summaryId,
+      previousSummaryId,
+      compressionVersion,
+      type,
+      coveredFrom,
+      coveredTo,
+      sourceEventCount,
+      deltaEventCount,
+      unresolvedItemsPreserved,
+      resolvedItemsClosed,
+      newRisks,
+      changedDecisions,
+      nextActions,
+    } = summary
+    return {
+      summaryId,
+      previousSummaryId,
+      compressionVersion,
+      type,
+      coveredFrom,
+      coveredTo,
+      sourceEventCount,
+      deltaEventCount,
+      unresolvedItemsPreserved,
+      resolvedItemsClosed,
+      newRisks,
+      changedDecisions,
+      nextActions: Array.isArray(nextActions)
+        ? nextActions.slice(0, 12).map((action) => ({
+            rank: action?.rank ?? null,
+            jobId: action?.jobId ?? action?.id ?? null,
+            title: action?.title ?? action?.task ?? action?.name ?? null,
+            owner: action?.owner ?? null,
+            status: action?.status ?? null,
+            action: action?.action ?? action?.nextAction ?? null,
+          }))
+        : nextActions,
+    }
+  }
 
   app.get('/api/system', (_, res) => {
     const snapshot = summarizeState()
@@ -123,6 +171,14 @@ export function registerOpsRoutes(app, deps) {
     res.json(buildRuntimeHealthView())
   })
 
+  app.get('/api/runtime/executors', (_, res) => {
+    res.json({
+      bridge: buildExecutorBridgeStatus(),
+      routingPolicy: buildExecutorsRoutingPolicyView(),
+      localHealth: buildExecutorsLocalHealthView(),
+    })
+  })
+
   app.get('/api/queues/summary', (_, res) => {
     res.json(buildQueueSummaryView())
   })
@@ -147,6 +203,25 @@ export function registerOpsRoutes(app, deps) {
     res.json(buildGovernanceSummaryView())
   })
 
+  app.get('/api/governance/recursive', (_, res) => {
+    const recent = readRecursiveGovernanceDecisions(runtimeDir, 50)
+    const latest = readLatestRecursiveGovernanceDecision(runtimeDir)
+    res.json({
+      sourceType: 'recursive_governance_store',
+      generatedAt: nowIso(),
+      latest,
+      recent,
+      counts: {
+        total: recent.length,
+        accepted: recent.filter((item) => item.status === 'accepted').length,
+        rejected: recent.filter((item) => item.status === 'rejected').length,
+        incomplete: recent.filter((item) => item.status === 'incomplete').length,
+        blocked: recent.filter((item) => item.status === 'blocked').length,
+        escalationRequired: recent.filter((item) => item.status === 'escalation_required').length,
+      },
+    })
+  })
+
   app.get('/api/runtime/alerts', (_, res) => {
     res.json(buildRuntimeAlertsView())
   })
@@ -169,7 +244,7 @@ export function registerOpsRoutes(app, deps) {
   })
 
   app.get('/api/runtime/summaries', (_, res) => {
-    res.json({ summaries: listRuntimeSummaries() })
+    res.json({ summaries: listRuntimeSummaries().map(summarizeRuntimeSummary) })
   })
 
   app.get('/api/runtime/summaries/latest', (_, res) => {
@@ -191,7 +266,7 @@ export function registerOpsRoutes(app, deps) {
   })
 
   app.get('/api/runtime/summaries/chain', (_, res) => {
-    res.json({ summaries: listRuntimeSummaries() })
+    res.json({ summaries: listRuntimeSummaries().map(summarizeRuntimeSummary) })
   })
 
   app.get('/api/runtime/summaries/:id', (req, res) => {

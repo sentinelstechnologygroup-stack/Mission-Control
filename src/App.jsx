@@ -2,7 +2,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClientInstance } from "@/lib/query-client";
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import { BrowserRouter as Router, Navigate, Route, Routes } from "react-router-dom";
 import PageNotFound from "./lib/PageNotFound";
 import AppShell from "./components/mission-control/AppShell";
 import Home from "./pages/Home";
@@ -34,7 +34,8 @@ function App() {
       <Router>
         <Routes>
           <Route element={<AppShell />}>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Navigate to="/nettie" replace />} />
+            <Route path="/home" element={<Home />} />
             <Route path="/triage" element={<OperationalTriage />} />
             <Route path="/operations" element={<Operations />} />
             <Route path="/agents" element={<Agents />} />

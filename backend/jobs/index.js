@@ -29,6 +29,7 @@ export function registerJobsRoutes(app, deps) {
     markJobOutage,
     canonicalDepartmentHeadName,
     updateJobStatus,
+    deriveWorkflowExecutions,
   } = deps
 
   app.get('/api/jobs', (_, res) => res.json(state.jobs.map(attachWorker)))
@@ -202,6 +203,37 @@ export function registerJobsRoutes(app, deps) {
     if (!jobId) return res.status(400).json({ error: 'jobId required' })
     markJobOutage(jobId, { reason, lastKnownGoodStep, resumeCommand, artifactPath })
     res.json({ ok: true, jobId, outageMarked: true })
+  })
+
+  app.get('/api/workflows/executions', (req, res) => {
+    const executions = deriveWorkflowExecutions ? deriveWorkflowExecutions() : jobStore.deriveLedgerView().map((job) => job.workflowExecution || null).filter(Boolean)
+    const limit = Math.max(1, Math.min(100, Number(req.query?.limit || executions.length || 50) || 50))
+    const items = executions.slice(0, limit)
+    if (req.query?.summary === 'true') {
+      return res.json({
+        count: executions.length,
+        limit,
+        items: items.map((execution) => ({
+          executionId: execution.executionId,
+          jobId: execution.jobId,
+          title: execution.title,
+          status: execution.status,
+          routeStatus: execution.routeStatus,
+          currentStep: execution.currentStep,
+          updatedAt: execution.updatedAt,
+          blockers: execution.blockers,
+        })),
+      })
+    }
+    res.json(items)
+  })
+
+  app.get('/api/workflows/executions/:id', (req, res) => {
+    const executionId = String(req.params.id || '').trim()
+    const executions = deriveWorkflowExecutions ? deriveWorkflowExecutions() : jobStore.deriveLedgerView().map((job) => job.workflowExecution || null).filter(Boolean)
+    const execution = executions.find((item) => item.executionId === executionId || item.jobId === executionId)
+    if (!execution) return res.status(404).json({ error: 'Workflow execution not found' })
+    res.json(execution)
   })
 
   app.get('/api/jobs/ledger', (req, res) => {

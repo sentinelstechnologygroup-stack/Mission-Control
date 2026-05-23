@@ -72,6 +72,7 @@ import { buildNettieCommandResponse } from './lib/nettieResponseEngine.js'
 import { buildDepartmentWorkflowRegistry, buildDepartmentWorkflow } from './lib/departmentWorkflows.js'
 import { buildTokenTrackingOverview } from './lib/tokenTrackingViews.js'
 import { LOCAL_BRIDGE_ROUTE, LOCAL_BRIDGE_STALE_MS, isLocalBridgeEligibleTask, detectPerryRisk, summarizeText, buildLocalBridgeCommands, buildEvidenceSummary } from './lib/localBridgeExecution.js'
+import { buildFailurePacketBlueprint } from './lib/failurePacket.js'
 import {
   getRuntimeContinuityPaths,
   loadRuntimeCheckpoint,
@@ -308,6 +309,9 @@ function buildExecutorBridgeStatus() {
     localAIAvailable,
     deepWorkPaused,
     localWorkActive,
+    hermesUsed: selectedExecutor === 'hermes' || fallback.executor === 'hermes',
+    nativeExecutorAvailable: selectedExecutor === 'codex' || selectedExecutor === 'openai' || selectedExecutor === 'native',
+    fallbackReason: fallback.detail || fallback.reason || null,
     nettieLocalFallback: {
       designed: true,
       conversationalContinuityTarget: true,
@@ -1652,6 +1656,27 @@ function failLocalBridgeJob(jobId, evidence, bridgeId = 'local-bridge') {
     executionTrace: [{ step: 'local_bridge_failed', at: nowIso(), level: 'error', message: 'failed', data: { bridgeId, needsPerry } }],
   })
   const perryJob = needsPerry ? createPerryReviewJob({ sourceJob: updated, reason: 'CI/security/deployment risk indicator detected', evidence }) : null
+  const failureOwner = needsPerry ? 'Perry' : 'Van'
+  recordFailurePacket({
+    owner: failureOwner,
+    category: needsPerry ? 'security' : 'runtime',
+    title: needsPerry ? 'Security/access/auth failure packet' : 'API/runtime executor verification failed',
+    reason: needsPerry ? 'Local bridge execution exposed a security/access policy risk.' : 'Local bridge command failed during implementation/runtime verification.',
+    evidence: {
+      operation: 'local bridge execution',
+      bridgeId,
+      jobId,
+      command: evidence?.checks?.[evidence.checks.length - 1]?.command || null,
+      exitCode: evidence?.checks?.[evidence.checks.length - 1]?.exitCode ?? null,
+      stdout: summarizeText(JSON.stringify(evidence || {})),
+      stderr: needsPerry ? 'Perry review required' : 'Runtime verification failed',
+      notes: `bridgeId=${bridgeId}`,
+    },
+    source: 'local-bridge',
+    sourceRef: `local-bridge:${jobId}`,
+    nextAction: needsPerry ? 'Perry review required before retrying the bridge.' : 'Inspect the failed command, fix the runtime issue, and rerun verification.',
+    executionMode: needsPerry ? 'BLOCKED_NO_EXECUTOR' : 'MC_NATIVE',
+  })
   appendExecutorEvidence(root,{taskId:jobId,taskTitle:updated?.title||updated?.task,owningAgent:updated?.owner||updated?.agent,assignedBy:'local-bridge',executorProvider:'local-bridge',executorModel:'governed-local-lane',localModelAttempted:false,localModelName:null,localModelResult:null,gptUsed:false,gptReason:null,fallbackReason:'execution_failed',filesChanged:evidence?.filesChanged?[evidence.filesChanged.after||'']:[],testsRun:evidence?.commandsRun||[],outputArtifacts:[`job:${jobId}`],status:needsPerry?'perry_review_required':'failed'})
   return { job: updated, perryReviewRequired: needsPerry, perryJob }
 }
@@ -2931,6 +2956,22 @@ function getCodexAvailability() {
 async function runCodexSmokeTest(prompt = 'Reply with exactly: CODEX_EXECUTOR_CONNECTED', projectPath = root) {
   const availability = getCodexAvailability()
   if (!availability.codexAvailable) {
+    recordFailurePacket({
+      owner: 'Van',
+      category: 'runtime',
+      title: 'API/runtime executor verification failed',
+      reason: 'Codex executor not installed.',
+      evidence: {
+        operation: 'executor health verification',
+        command: 'codex --version',
+        endpoint: '/api/runtime/executors',
+        error: 'Codex executor not installed',
+        notes: 'Executor smoke test could not run.',
+      },
+      source: '/api/runtime/executors',
+      sourceRef: 'executor-health-codex-unavailable',
+      nextAction: 'Restore Codex availability or accept Hermes fallback for live routing.',
+    })
     return {
       ...availability,
       codexAuthStatus: 'not_installed',
@@ -2951,6 +2992,31 @@ async function runCodexSmokeTest(prompt = 'Reply with exactly: CODEX_EXECUTOR_CO
   })
   const connected = output.includes(CODEX_CONNECTED_TEXT)
   const ok = classification.type === 'ok' && connected
+  if (!ok) {
+    const failureOwner = classification.type === 'auth' ? 'Perry' : 'Van'
+    recordFailurePacket({
+      owner: failureOwner,
+      category: classification.type === 'auth' ? 'security' : 'runtime',
+      title: classification.type === 'auth' ? 'Security/access/auth failure packet' : 'API/runtime executor verification failed',
+      reason: classification.message || 'Executor verification failed.',
+      evidence: {
+        operation: 'executor smoke test',
+        command: `codex exec --cd ${projectPath} ${prompt}`,
+        exitCode: result.code ?? null,
+        timedOut: Boolean(result.timedOut),
+        stderr: sanitizeExecutorText(result.stderr).slice(0, 500),
+        stdout: output.slice(0, 500),
+        error: classification.message,
+        notes: `codexAuthStatus=${classification.type}`,
+      },
+      source: '/api/runtime/executors',
+      sourceRef: 'executor-health-codex-smoke',
+      nextAction: failureOwner === 'Perry'
+        ? 'Review Codex auth/access controls before retrying the executor.'
+        : 'Inspect the runtime/executor path and rerun the smoke test.',
+      executionMode: failureOwner === 'Perry' ? 'BLOCKED_NO_EXECUTOR' : 'MC_NATIVE',
+    })
+  }
   return {
     ...availability,
     codexAuthStatus: ok ? 'authenticated' : classification.type,
@@ -3702,6 +3768,45 @@ function addChatMessage(message) {
   state.chat = state.chat.slice(0, 100)
 }
 
+function recordFailurePacket({
+  owner,
+  category,
+  title,
+  reason,
+  evidence,
+  source = 'mission-control-failure-detection',
+  sourceRef = null,
+  channel = 'mission-control-ui',
+  nextAction,
+  executionMode = 'BLOCKED_NO_EXECUTOR',
+}) {
+  const blueprint = buildFailurePacketBlueprint({
+    owner,
+    category,
+    title,
+    reason,
+    evidence,
+    source,
+    sourceRef,
+    channel,
+    nextAction,
+    executionMode,
+  })
+  const created = jobStore.createJob(blueprint.jobInput)
+  const job = created.job || created
+  const reply = {
+    ...blueprint.chatMessage,
+    jobId: job.id,
+    packetId: job.id,
+    text: blueprint.assistantReply.replace(`Packet ID: ${blueprint.packetId}.`, `Packet ID: ${job.id}.`),
+    workflowLink: blueprint.workflowLink,
+    departmentLink: blueprint.departmentLink,
+  }
+  addChatMessage(reply)
+  persistState()
+  return { job, reply, blueprint, deduped: created.deduped }
+}
+
 function makeReplyForPrompt(prompt, createdJob) {
   const lower = prompt.toLowerCase()
   const office = detectOfficeFromPrompt(prompt)
@@ -3819,10 +3924,7 @@ function shouldRouteChatToHermes(message = '') {
 }
 
 function shouldRouteChatToExecutor(message = '') {
-  if (/\b(?:have|assign|route|send|ask)\s+(?:van|perry|torina|scribe|dana|ivy|funboy|rab|nettie|bea)\b/i.test(String(message || ''))) {
-    return false
-  }
-  return classifyExecutionIntent(message) === 'execution'
+  return isExplicitHermesRequest(message)
 }
 
 function shouldCreateJobForIntent(intent) {
@@ -3904,12 +4006,48 @@ function handleJobRefinement(message) {
   return { replyText: lines.join('\n'), replyKind: 'system', job: null }
 }
 
-function handleExecutionPacket(message) {
+function buildNativeExecutionResponse(message, source = 'api/chat:native') {
+  const task = extractTask(message)
+  const inferredOwner = canonicalDepartmentHeadName(extractAgent(message) || guessOwner(task) || 'Van') || 'Van'
+  const routedMessage = /\b(have|assign|route|send|ask)\b/i.test(message)
+    ? message
+    : `Have ${inferredOwner} work on ${task}`
+  const result = handleAssignment(routedMessage, source)
+  const job = result.job || result.missionJob || null
+  const department = canonicalDepartmentHeadName(job?.owner || job?.agent || inferredOwner) || inferredOwner
+  const agent = canonicalDepartmentHeadName(job?.agent || job?.owner || inferredOwner) || inferredOwner
+  const workflowLink = `/departments/${department.toLowerCase()}/agents/${agent.toLowerCase()}`
+  const departmentLink = `/departments/${department.toLowerCase()}`
+  const executionMode = result.autoExecute ? 'MC_NATIVE' : 'BLOCKED_NO_EXECUTOR'
   return {
-    replyText: 'Nettie: Execution is routed through the selected executor.',
+    replyText: [
+      `Nettie: ${executionMode === 'MC_NATIVE' ? 'Native MC execution packet created' : 'Execution blocked — no native executor available'}.`,
+      `Job ID: ${job?.id || 'n/a'}`,
+      `Department: ${department}`,
+      `Agent: ${agent}`,
+      `Workflow: ${workflowLink}`,
+      `Packet: ${departmentLink}`,
+      `Mode: ${executionMode}`,
+      result.replyText && result.replyText !== routedMessage ? result.replyText : null,
+    ].filter(Boolean).join('\n'),
     replyKind: 'system',
-    job: null,
+    job,
+    missionJob: result.missionJob || null,
+    workflow: job?.workflow || null,
+    executionMode,
+    assignedDepartmentHead: department,
+    assignedAgent: agent,
+    workflowLink,
+    departmentLink,
+    directCallable: Boolean(result.directCallable),
+    deduped: Boolean(result.deduped),
+    autoExecute: Boolean(result.autoExecute),
+    native: true,
   }
+}
+
+function handleExecutionPacket(message) {
+  return buildNativeExecutionResponse(message, 'api/chat:native-packet')
 }
 
 function loadIRLState() {
@@ -4087,11 +4225,7 @@ function handleSystemUpdate(message) {
 }
 
 function handleExecutionCommand(message) {
-  return {
-    replyText: 'Nettie: Execution is routed through the selected executor.',
-    replyKind: 'system',
-    job: null,
-  }
+  return buildNativeExecutionResponse(message, 'api/chat:native-command')
 }
 
 function findJobById(jobId) {
@@ -4393,6 +4527,10 @@ function detectIntent(message) {
     /\b(fix|update|add|modify|patch|implement)\b/.test(msg) &&
     /\b(routing|intent|handler|server|classification|logic|regex|detectintent|handlenettieinbound)\b/.test(msg)
   ) return 'system_update'
+
+  if (/^\s*(fix it|fix this|repair it|patch it|update it|make it work|do it|handle it)\s*[.!?]*$/i.test(message.trim())) {
+    return 'clarification_request'
+  }
 
   // HARD PRIORITY: placeholder/generic job references → execution_command, not job_status
   if (/\bjob_(x|id|test)\b/i.test(msg)) return 'execution_command'
@@ -5001,7 +5139,23 @@ async function askSelectedExecutorAsync(prompt, pendingMsgId) {
 
   if (selection.executor !== 'codex') {
     if (msg) {
-      msg.text = executorFailureReply({ type: 'unavailable', message: 'No executor available for live reply.' })
+      const failure = recordFailurePacket({
+        owner: 'Nettie',
+        category: 'routing',
+        title: 'Routing/process gap — terminal failure was not assigned',
+        reason: 'No executor available for live reply.',
+        evidence: {
+          operation: 'executor selection',
+          endpoint: '/api/chat',
+          error: 'No executor available for live reply.',
+          notes: `selection=${JSON.stringify(selection)}`,
+        },
+        source: '/api/chat',
+        sourceRef: `pending:${pendingMsgId}`,
+        nextAction: 'Fix the routing gap and restore a valid executor path for Nettie replies.',
+        executionMode: 'BLOCKED_NO_EXECUTOR',
+      })
+      msg.text = `${executorFailureReply({ type: 'unavailable', message: 'No executor available for live reply.' })}\n\nPacket ID: ${failure.job.id}`
       msg.kind = 'ack'
       msg.resolvedAt = nowIso()
       persistState()
@@ -5033,7 +5187,30 @@ async function askSelectedExecutorAsync(prompt, pendingMsgId) {
       msg.kind = 'nettie_async'
     } else {
       lastExecutorError = { executor: 'codex', ...classification, at: nowIso() }
-      msg.text = executorFailureReply(classification, 'codex')
+      const failureOwner = classification.type === 'auth' ? 'Perry' : 'Van'
+      const failure = recordFailurePacket({
+        owner: failureOwner,
+        category: classification.type === 'auth' ? 'security' : 'runtime',
+        title: classification.type === 'auth' ? 'Security/access/auth failure packet' : 'API/runtime executor verification failed',
+        reason: classification.message || 'Codex execution failed.',
+        evidence: {
+          operation: 'executor command',
+          command: `codex exec --cd ${root} ${prompt}`,
+          exitCode: result.code ?? null,
+          timedOut: Boolean(result.timedOut),
+          stderr: sanitizeExecutorText(result.stderr).slice(0, 500),
+          stdout: output.slice(0, 500),
+          error: classification.message,
+          notes: 'Nettie async executor call failed.',
+        },
+        source: '/api/chat',
+        sourceRef: `pending:${pendingMsgId}`,
+        nextAction: failureOwner === 'Perry'
+          ? 'Review Codex auth/access controls before retrying the reply.'
+          : 'Inspect the runtime/executor path, repair the failure, and rerun the command.',
+        executionMode: failureOwner === 'Perry' ? 'BLOCKED_NO_EXECUTOR' : 'MC_NATIVE',
+      })
+      msg.text = `${executorFailureReply(classification, 'codex')}\n\nPacket ID: ${failure.job.id}`
       msg.kind = 'ack'
     }
     msg.resolvedAt = nowIso()
@@ -5163,6 +5340,9 @@ function handleNettieInbound({ message, sender = 'Patrick', channel = 'mission-c
     const result = handleExecutorStatus()
     replyText = result.replyText
     replyKind = result.replyKind
+  } else if (intent === 'clarification_request') {
+    replyText = 'Nettie: What exactly should I fix? Name the route, file, API, or packet and I will route it.'
+    replyKind = 'question'
   } else if (intent === 'global_inspection') {
     const result = handleGlobalInspection(cleanMessage)
     replyText = result.replyText
@@ -5201,9 +5381,25 @@ function handleNettieInbound({ message, sender = 'Patrick', channel = 'mission-c
     setImmediate(() => {
       askSelectedExecutorAsync(buildNettiePrompt(cleanMessage), pendingId)
         .catch((error) => {
+          const failure = recordFailurePacket({
+            owner: 'Nettie',
+            category: 'routing',
+            title: 'Routing/process gap — terminal failure was not assigned',
+            reason: error?.message || 'Executor dispatch failed.',
+            evidence: {
+              operation: 'Nettie async routing',
+              endpoint: '/api/chat',
+              error: error?.message || 'Executor dispatch failed.',
+              notes: `pendingId=${pendingId}`,
+            },
+            source: '/api/chat',
+            sourceRef: `pending:${pendingId}`,
+            nextAction: 'Inspect the routing failure and restore a valid executor assignment.',
+            executionMode: 'BLOCKED_NO_EXECUTOR',
+          })
           const msg = state.chat.find((entry) => entry.id === pendingId)
           if (msg) {
-            msg.text = `Nettie: Runtime error — ${error.message}`
+            msg.text = `Nettie: Runtime error — ${error.message}\n\nPacket ID: ${failure.job.id}`
             msg.kind = 'ack'
             msg.resolvedAt = nowIso()
             persistState()
@@ -5231,9 +5427,22 @@ function handleNettieInbound({ message, sender = 'Patrick', channel = 'mission-c
     statusCode: 201,
     payload: {
       reply: outgoing,
+      assistantReply: replyText,
+      conversationMode: replyKind === 'question' ? 'clarify' : (createdJob ? 'routed' : 'assistant-first'),
+      threadId: outgoing.id,
+      messages: [
+        { id: outgoing.id, role: 'assistant', from: 'Nettie', text: replyText, kind: replyKind, ts: outgoing.ts, jobId: createdJob?.id || null },
+      ],
+      routingDecision: intent,
       createdJob,
       worker: null,
       intent,
+      executionMode: createdJob ? 'MC_NATIVE' : 'assistant-first',
+      packetId: createdJob?.id || null,
+      workflowLink: createdJob?.id ? `/departments/${String(createdJob.owner || createdJob.agent || 'nettie').toLowerCase()}/agents/${String(createdJob.agent || createdJob.owner || 'nettie').toLowerCase()}` : null,
+      departmentLink: createdJob?.id ? `/departments/${String(createdJob.owner || createdJob.agent || 'nettie').toLowerCase()}` : null,
+      statusSummary: replyText,
+      suggestedNextSteps: intent === 'clarification_request' ? ['Specify the exact route, file, API, or packet that should change.'] : [],
       activeWorkCount: buildMasterWorkRegistry().active.length,
     },
   }
@@ -5402,6 +5611,7 @@ const routeDeps = {
   setLastExecutorError,
   stateWorkers: () => state.workers,
   jobsLedger,
+  deriveWorkflowExecutions: () => jobStore.deriveWorkflowExecutions(),
 }
 
 registerRuntimeRoutes(app, routeDeps)
@@ -5417,6 +5627,191 @@ app.get('/api/runtime', (_, res) => {
 
 app.get('/api/runtime/healthz', (_, res) => {
   res.json(buildRuntimeHealthView())
+})
+
+app.get('/api/runtime/state', (_, res) => {
+  const ledger = typeof jobStore.deriveLedgerView === 'function' ? jobStore.deriveLedgerView() : []
+  const recentChat = Array.isArray(state.chat) ? [...state.chat].slice(-20).reverse() : []
+  const bridge = buildExecutorBridgeStatus()
+  const chatAvailable = true
+  const historyAvailable = Array.isArray(state.chat)
+  const packetCreationAvailable = typeof jobStore.createJob === 'function'
+  const nettieStatus = chatAvailable && historyAvailable && packetCreationAvailable
+    ? 'ONLINE'
+    : chatAvailable
+      ? 'LIMITED'
+      : 'OFFLINE'
+
+  res.json({
+    generatedAt: nowIso(),
+    nettie: {
+      status: nettieStatus,
+      chatAvailable,
+      historyAvailable,
+      packetCreationAvailable,
+      detail: nettieStatus === 'ONLINE' ? 'chat, history, and packet creation available' : nettieStatus === 'LIMITED' ? 'chat available; execution path is limited' : 'chat/runtime unavailable',
+      hermesUsed: Boolean(bridge?.hermesUsed),
+      fallbackReason: bridge?.fallbackReason || bridge?.fallback?.detail || null,
+      selectedExecutor: bridge?.selectedExecutor || bridge?.executor || 'codex',
+      nativeExecutorAvailable: Boolean(bridge?.nativeExecutorAvailable),
+      executionMode: bridge?.executionMode || null,
+      packetCount: ledger.length,
+      recentConversationCount: recentChat.length,
+      latestPacketId: ledger[0]?.id || ledger[0]?.jobId || null,
+    },
+    executor: bridge,
+    packets: ledger.slice(0, 25),
+    messages: recentChat,
+    summary: typeof summarizeState === 'function' ? summarizeState() : null,
+  })
+})
+
+app.get('/api/runtime/events', (_, res) => {
+  const ledger = typeof jobStore.deriveLedgerView === 'function' ? jobStore.deriveLedgerView() : []
+  const chatMessages = Array.isArray(state.chat) ? [...state.chat].slice(-20) : []
+  const jobEvents = ledger.flatMap((job) => {
+    const history = Array.isArray(job.history) ? job.history : []
+    if (!history.length) {
+      return [{
+        eventId: `${job.id || job.jobId || 'job'}:created`,
+        timestamp: job.createdAt || job.updatedAt || nowIso(),
+        actor: job.owner || job.agent || 'Nettie',
+        source: job.source || '/api/jobs',
+        action: job.status || 'created',
+        packetId: job.id || job.jobId || null,
+        department: job.department || job.owner || null,
+        agent: job.agent || job.owner || null,
+        statusBefore: null,
+        statusAfter: job.status || null,
+        evidence: job.evidence || null,
+        executorUsed: job.executionMode || null,
+        hermesUsed: Boolean(job.hermesUsed),
+        fallbackReason: job.fallbackReason || null,
+        verificationState: job.truthStatus || null,
+      }]
+    }
+    return history.map((entry, index) => ({
+      eventId: `${job.id || job.jobId || 'job'}:${index}:${entry.at || entry.timestamp || index}`,
+      timestamp: entry.at || entry.timestamp || job.updatedAt || job.createdAt || nowIso(),
+      actor: job.owner || job.agent || 'Nettie',
+      source: job.source || '/api/jobs',
+      action: entry.type || entry.status || job.status || 'updated',
+      packetId: job.id || job.jobId || null,
+      department: job.department || job.owner || null,
+      agent: job.agent || job.owner || null,
+      statusBefore: index === 0 ? null : history[index - 1]?.status || null,
+      statusAfter: entry.status || job.status || null,
+      evidence: entry.data || entry.evidence || job.evidence || null,
+      executorUsed: job.executionMode || null,
+      hermesUsed: Boolean(job.hermesUsed),
+      fallbackReason: job.fallbackReason || null,
+      verificationState: job.truthStatus || null,
+    }))
+  })
+  const chatEvents = chatMessages.map((message) => ({
+    eventId: message.id || crypto.randomUUID(),
+    timestamp: message.ts || message.createdAt || nowIso(),
+    actor: message.from || message.sender || 'Nettie',
+    source: '/api/nettie/messages',
+    action: message.kind || 'message',
+    packetId: message.jobId || null,
+    department: message.department || null,
+    agent: message.agent || null,
+    statusBefore: null,
+    statusAfter: message.kind || 'message',
+    evidence: message.text || null,
+    executorUsed: null,
+    hermesUsed: false,
+    fallbackReason: null,
+    verificationState: null,
+  }))
+  res.json({ generatedAt: nowIso(), count: jobEvents.length + chatEvents.length, items: [...chatEvents, ...jobEvents].slice(0, 100) })
+})
+
+app.get('/api/runtime/registry', (_, res) => {
+  const snapshot = typeof buildControlPlaneSnapshot === 'function' ? buildControlPlaneSnapshot() : null
+  const registry = typeof buildMasterWorkRegistry === 'function' ? buildMasterWorkRegistry() : null
+  res.json({
+    generatedAt: nowIso(),
+    controlPlane: snapshot,
+    masterRegistry: registry,
+    departments: snapshot?.departments || [],
+    agents: snapshot?.agents || [],
+    packets: registry?.active || [],
+  })
+})
+
+app.get('/api/nettie/threads', (_, res) => {
+  const threads = Array.isArray(state.chat)
+    ? [...state.chat].slice(-20).reverse().map((message) => ({
+        id: message.id || crypto.randomUUID(),
+        title: message.text?.split('\n').find(Boolean) || message.subject || 'Nettie thread',
+        preview: message.text || message.summary || '',
+        updatedAt: message.ts || message.createdAt || nowIso(),
+        jobId: message.jobId || null,
+      }))
+    : []
+  res.json({ threads })
+})
+
+app.get('/api/nettie/messages', (_, res) => {
+  const messages = Array.isArray(state.chat) ? [...state.chat].slice(-100).reverse() : []
+  res.json({ messages })
+})
+
+app.get('/api/packets', (_, res) => {
+  const packets = typeof jobStore.deriveLedgerView === 'function' ? jobStore.deriveLedgerView() : []
+  res.json({ items: packets })
+})
+
+app.get('/api/workflows/executions', (req, res) => {
+  const executions = typeof jobStore.deriveWorkflowExecutions === 'function'
+    ? jobStore.deriveWorkflowExecutions()
+    : jobStore.deriveLedgerView().map((job) => job.workflowExecution || null).filter(Boolean)
+  const limit = Math.max(1, Math.min(100, Number(req.query?.limit || executions.length || 50) || 50))
+  const items = executions.slice(0, limit)
+  if (req.query?.summary === 'true') {
+    return res.json({
+      count: executions.length,
+      limit,
+      items: items.map((execution) => ({
+        executionId: execution.executionId,
+        jobId: execution.jobId,
+        title: execution.title,
+        status: execution.status,
+        routeStatus: execution.routeStatus,
+        currentStep: execution.currentStep,
+        updatedAt: execution.updatedAt,
+        blockers: execution.blockers,
+      })),
+    })
+  }
+  res.json(items)
+})
+
+app.get('/api/workflows/executions/:id', (req, res) => {
+  const executionId = String(req.params.id || '').trim()
+  const executions = typeof jobStore.deriveWorkflowExecutions === 'function'
+    ? jobStore.deriveWorkflowExecutions()
+    : jobStore.deriveLedgerView().map((job) => job.workflowExecution || null).filter(Boolean)
+  const execution = executions.find((item) => item.executionId === executionId || item.jobId === executionId)
+  if (!execution) return res.status(404).json({ error: 'Workflow execution not found' })
+  res.json(execution)
+})
+
+app.get('/api/runtime/executors', (_, res) => {
+  res.json({
+    bridge: buildExecutorBridgeStatus(),
+    localHealth: buildLocalHealth(),
+    routingPolicy: buildRoutingPolicy(),
+    recentActivity: buildRecentActivityView(10),
+  })
+})
+
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) return next()
+  if (res.headersSent) return next()
+  return res.status(404).json({ error: 'API route not found', path: req.path })
 })
 
 app.use(express.static(distDir))
