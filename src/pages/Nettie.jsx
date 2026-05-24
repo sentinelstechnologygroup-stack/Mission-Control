@@ -25,7 +25,27 @@ function toChatMessage(message) {
     ts: message.ts || message.createdAt || null,
     jobId: message.jobId || null,
     workerId: message.workerId || null,
+    threadId: message.threadId || null,
   };
+}
+
+function loadLocalThread() {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem("mc-nettie-thread-v1");
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistLocalThread(messages) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem("mc-nettie-thread-v1", JSON.stringify(messages.slice(-50)));
+  } catch {
+    // ignore persistence failures
+  }
 }
 
 function parseRecentConversation(item) {
@@ -137,8 +157,9 @@ function normalizeNettieResult(data) {
 export default function Nettie() {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
-  const [activeConversationId, setActiveConversationId] = useState(null);
+  const [localThreadMessages, setLocalThreadMessages] = useState(() => loadLocalThread());
   const [lastResult, setLastResult] = useState(null);
+  const [activeConversationId, setActiveConversationId] = useState(null);
   const [selectedMode, setSelectedMode] = useState("MC_NATIVE");
 
   const { data: executorStatus, isError: executorStatusError, error: executorStatusErrorDetail } = useQuery({
@@ -172,10 +193,22 @@ export default function Nettie() {
   });
 
   const recentItems = useMemo(() => (Array.isArray(recentConversations) ? recentConversations.map(parseRecentConversation) : []), [recentConversations]);
-  const threadMessages = useMemo(() => {
+  const serverThreadMessages = useMemo(() => {
     const ordered = Array.isArray(chatHistory) ? [...chatHistory].reverse() : [];
     return ordered.map(toChatMessage);
   }, [chatHistory]);
+  const liveThreadMessages = useMemo(() => {
+    const merged = [...serverThreadMessages, ...localThreadMessages].filter(Boolean);
+    const deduped = [];
+    const seen = new Set();
+    for (const msg of merged) {
+      const key = msg.id || `${msg.from || 'Nettie'}:${msg.ts || ''}:${msg.text || ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(msg);
+    }
+    return deduped.slice(-50);
+  }, [serverThreadMessages, localThreadMessages]);
   const activeConversation = useMemo(() => {
     if (!recentItems.length) return null;
     return recentItems.find((item) => item.id === activeConversationId) || recentItems[0] || null;
@@ -194,6 +227,10 @@ export default function Nettie() {
   }), [runtimeState, executorStatus, packets, chatHistory, recentConversations, runtimeStateError, executorStatusError, packetsError, chatHistoryError, recentConversationsError, runtimeStateErrorDetail, executorStatusErrorDetail, packetsErrorDetail, chatHistoryErrorDetail, recentConversationsErrorDetail]);
 
   useEffect(() => {
+    persistLocalThread(localThreadMessages);
+  }, [localThreadMessages]);
+
+  useEffect(() => {
     if (!activeConversationId && recentItems[0]?.id) {
       setActiveConversationId(recentItems[0].id);
     }
@@ -205,6 +242,13 @@ export default function Nettie() {
       const normalized = normalizeNettieResult(data);
       setLastResult(normalized);
       setMessage("");
+      const liveMessages = Array.isArray(normalized?.messages) ? normalized.messages : [];
+      if (liveMessages.length) {
+        setLocalThreadMessages((current) => {
+          const next = [...current, ...liveMessages.map(toChatMessage)];
+          return next.slice(-50);
+        });
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["nettie", "recent-conversations"] }),
         queryClient.invalidateQueries({ queryKey: ["nettie", "chat-history"] }),
@@ -224,7 +268,7 @@ export default function Nettie() {
   const routedDepartmentLink = lastResult?.departmentLink || (routedOwner ? `/departments/${String(routedOwner).toLowerCase()}` : null);
   const executionMode = lastResult?.executionMode || (currentJob ? "MC_NATIVE" : executorStatus?.executorCoolingDown ? "BLOCKED_NO_EXECUTOR" : "MC_NATIVE");
   const statusLabel = sendMutation.isPending ? "Sending" : sendMutation.isError ? "Blocked" : currentJob ? "Delivered" : "Ready";
-  const composerHint = lastResult?.assistantReply?.split("\n").find(Boolean) || "Send a command to Nettie. Real routing should create a packet, assign a department, and attach the workflow.";
+  const composerHint = lastResult?.assistantReply?.split("\n").find(Boolean) || "Send a message to Nettie.";
 
   return (
     <div className="flex h-[calc(100vh-76px)] min-h-0 gap-3 overflow-hidden">
@@ -313,12 +357,18 @@ export default function Nettie() {
           <section className="flex min-w-0 flex-col border-r border-white/[0.06]">
             <div className="flex-1 overflow-y-auto p-4">
               <div className="space-y-3">
-                {threadMessages.map((message) => (
+                {liveThreadMessages.map((message) => (
                   <MessageBubble key={message.id} message={message} />
                 ))}
-                {lastResult?.assistantReply && (
+                {!liveThreadMessages.length && (
                   <GlassCard className="p-4">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/25">Assistant reply</p>
+                    <p className="text-[12px] text-white/55">No live thread yet.</p>
+                    <p className="mt-1 text-[10px] text-white/30">Send a message and Nettie will reply in the chat thread.</p>
+                  </GlassCard>
+                )}
+                {lastResult?.assistantReply && currentJob && (
+                  <GlassCard className="p-4">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/25">Assistant reply details</p>
                     <p className="mt-2 whitespace-pre-wrap text-[12px] leading-relaxed text-white/78">{lastResult.assistantReply}</p>
                     <div className="mt-3 grid gap-2 text-[10px] text-white/35 md:grid-cols-2">
                       <div>Conversation mode: {lastResult.conversationMode || "assistant-first"}</div>
@@ -326,12 +376,6 @@ export default function Nettie() {
                       <div>Packet ID: {lastResult.packetId || "—"}</div>
                       <div>Status summary: {lastResult.statusSummary || "—"}</div>
                     </div>
-                  </GlassCard>
-                )}
-                {!threadMessages.length && (
-                  <GlassCard className="p-4">
-                    <p className="text-[12px] text-white/55">No live thread yet.</p>
-                    <p className="mt-1 text-[10px] text-white/30">Send a task and Nettie should create a packet, assign ownership, and attach the workflow record.</p>
                   </GlassCard>
                 )}
                 <div className="h-2" />
@@ -382,8 +426,8 @@ export default function Nettie() {
 
           <aside className="flex flex-col overflow-hidden bg-white/[0.01]">
             <div className="border-b border-white/[0.06] p-4">
-              <p className="text-[10px] uppercase tracking-[0.22em] text-white/25">Routing record</p>
-              <p className="mt-2 text-[12px] leading-relaxed text-white/60">{composerHint}</p>
+              <p className="text-[10px] uppercase tracking-[0.22em] text-white/25">{currentJob ? 'Routing record' : 'Assistant context'}</p>
+              <p className="mt-2 text-[12px] leading-relaxed text-white/60">{currentJob ? composerHint : (lastResult?.assistantReply || 'Nettie is ready for conversation.')}</p>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4">
@@ -422,6 +466,7 @@ export default function Nettie() {
               ) : (
                 <GlassCard className="p-4">
                   <p className="text-[12px] text-white/55">No active execution.</p>
+                  <p className="mt-1 text-[10px] text-white/30">Assistant-first chat stays visible in the main thread; routing metadata appears only when a task is actually routed.</p>
                 </GlassCard>
               )}
             </div>
