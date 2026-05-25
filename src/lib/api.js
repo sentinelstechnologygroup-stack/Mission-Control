@@ -274,6 +274,6 @@ export const api = {
   runJob: (jobId, payload) => request(`/api/jobs/${jobId}/run`, { method: 'POST', body: JSON.stringify(payload) }),
   stopWorker: (workerId) => request(`/api/workers/${workerId}/stop`, { method: 'POST' }),
   sendChat: (message) => request('/api/chat', { method: 'POST', body: JSON.stringify({ message, sender: 'Patrick', channel: 'mission-control' }) }),
-  sendNettieMessage: (message) => request('/api/nettie/messages', { method: 'POST', body: JSON.stringify({ message, sender: 'Patrick', channel: 'mission-control' }) }),
+  sendNettieMessage: (message, context = {}) => request('/api/nettie/command', { method: 'POST', body: JSON.stringify({ message, operator: 'Patrick', context }) }),
   nettieCommand: (message, context = {}) => request('/api/nettie/command', { method: 'POST', body: JSON.stringify({ message, operator: 'Patrick', context }) }),
 }
